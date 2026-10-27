@@ -1,0 +1,32 @@
+{
+  "name": "conector-tool",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "predev": "python scripts/build_python_zip.py",
+    "dev": "vite",
+    "prebuild": "python scripts/build_python_zip.py",
+    "build": "python scripts/build_python_zip.py && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "python -m pytest -q && vitest run",
+    "test:python": "python -m pytest -q",
+    "test:ui": "vitest run"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/three": "^0.170.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.9"
+  }
+}

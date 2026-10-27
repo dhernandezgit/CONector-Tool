@@ -1,0 +1,8 @@
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+public/connectors.zip
+.vite/
+.DS_Store
