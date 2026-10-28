@@ -1,4 +1,4 @@
-export type Family = "node" | "angle" | "leg" | "edge" | "hook" | "plate" | "calibration";
+export type Family = "template" | "node" | "angle" | "leg" | "edge" | "hook" | "plate" | "calibration";
 export type PanelType = "wire" | "frame" | "foam";
 export type DecorSide = "front" | "back" | "both";
 export type MountType = "press" | "magnet" | "screw";
@@ -17,6 +17,11 @@ export interface ImportedShape {
 export interface ConnectorSettings {
   family: Family;
   name: string;
+  template_id: number;
+  template_scale_xy: number;
+  template_scale_z: number;
+  template_mirror: boolean;
+  template_rotate: number;
   panel_type: PanelType;
   wire_diameter: number;
   panel_thickness: number;
@@ -190,7 +195,7 @@ export interface Preset {
   id: string;
   name: string;
   description: string;
-  category: "Estructura" | "Ángulos" | "Patas" | "Especiales" | "Decorados" | "Herramientas";
+  category: "Bases exactas" | "Estructura" | "Ángulos" | "Patas" | "Especiales" | "Decorados" | "Herramientas";
   icon: string;
   accent?: string;
   patch: DeepPartial<ConnectorSettings>;

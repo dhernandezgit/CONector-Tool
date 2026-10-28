@@ -189,3 +189,48 @@ def test_checks_report_open_mesh_cleanly() -> None:
     assert isinstance(result["checks"], list)
     assert result["material_grams"] > 0
     assert result["build_ms"] >= 0
+
+def test_reference_templates_are_exact() -> None:
+    import json
+    from pathlib import Path
+
+    import pytest
+
+    root = Path(__file__).resolve().parents[1] / "conectors" / "templates"
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    for item in manifest:
+        result = build(
+            settings(
+                family="template",
+                name=item["name"],
+                template_id=item["id"],
+                decor={"enabled": False},
+            )
+        )
+        assert result["ok"], item["name"]
+        assert len(result["parts"]) == 1
+        part = result["parts"][0]
+        assert part["watertight"], item["name"]
+        for got, want in zip(part["dimensions"], item["dimensions"]):
+            assert got == pytest.approx(want, abs=0.02), (item["name"], got, want)
+        assert part["volume"] == pytest.approx(item["volume"], rel=1e-4), item["name"]
+        assert part["triangles"] == item["triangles"], item["name"]
+
+
+def test_reference_template_scaling_and_mirroring() -> None:
+    base = build(settings(family="template", template_id=4, decor={"enabled": False}))
+    scaled = build(
+        settings(
+            family="template",
+            template_id=4,
+            template_scale_xy=1.2,
+            template_scale_z=0.8,
+            template_mirror=True,
+            decor={"enabled": False},
+        )
+    )
+    base_part = base["parts"][0]
+    scaled_part = scaled["parts"][0]
+    assert scaled_part["watertight"]
+    assert scaled_part["dimensions"][0] == pytest.approx(base_part["dimensions"][0] * 1.2, abs=0.05)
+    assert scaled_part["dimensions"][2] == pytest.approx(base_part["dimensions"][2] * 0.8, abs=0.05)

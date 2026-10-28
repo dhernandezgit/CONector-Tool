@@ -4,13 +4,14 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { SimJoint, SimPanel, SimulatorScene } from "../types";
 import { ARMS_BY_PRESET } from "../data/presets";
 import { cm } from "../lib/utils";
-import { sceneBounds } from "./data";
+import { sceneBounds, nearestConnectionPoint, sceneConnectionPoints } from "./data";
 
 export type SimSelection = { type: "panel" | "joint"; id: string } | null;
 
 export interface SimulatorViewportHandle {
   screenshot: () => string;
   setView: (view: "iso" | "front" | "top" | "side") => void;
+  fit: () => void;
 }
 
 interface Props {
@@ -20,7 +21,7 @@ interface Props {
   showGrid: boolean;
   onSelect: (selection: SimSelection) => void;
   onMovePanel: (id: string, x: number, y: number) => void;
-  onMoveJoint: (id: string, x: number, y: number) => void;
+  onMoveJoint: (id: string, x: number, y: number, z: number) => void;
 }
 
 function canvasTexture(draw: (ctx: CanvasRenderingContext2D, width: number, height: number) => void): THREE.CanvasTexture {
@@ -429,12 +430,20 @@ export default forwardRef<SimulatorViewportHandle, Props>(function SimulatorView
       const point = groundPoint(event, drag.planeZ);
       if (!point) return;
       const grid = snapRef.current > 0 ? snapRef.current : 1;
-      const x = Math.round((point.x - drag.offsetX) / grid) * grid;
-      const y = Math.round((point.y - drag.offsetY) / grid) * grid;
+      let x = Math.round((point.x - drag.offsetX) / grid) * grid;
+      let y = Math.round((point.y - drag.offsetY) / grid) * grid;
+      let z = drag.planeZ;
+      if (drag.type === "joint") {
+        const snap = nearestConnectionPoint(sceneDataRef.current, x, y, drag.planeZ, 500);
+        if (snap) {
+          x = snap.x;
+          y = snap.y;
+          z = snap.z;
+        }
+      }
       const group = drag.type === "panel" ? panelGroups.current.get(drag.id) : jointGroups.current.get(drag.id);
       if (group) {
-        group.position.x = x;
-        group.position.y = y;
+        group.position.set(x, y, z);
       }
     };
 
@@ -451,10 +460,19 @@ export default forwardRef<SimulatorViewportHandle, Props>(function SimulatorView
       }
       if (point) {
         const grid = snapRef.current > 0 ? snapRef.current : 1;
-        const x = Math.round((point.x - drag.offsetX) / grid) * grid;
-        const y = Math.round((point.y - drag.offsetY) / grid) * grid;
+        let x = Math.round((point.x - drag.offsetX) / grid) * grid;
+        let y = Math.round((point.y - drag.offsetY) / grid) * grid;
+        let z = drag.planeZ;
+        if (drag.type === "joint") {
+          const snap = nearestConnectionPoint(sceneDataRef.current, x, y, drag.planeZ, 500);
+          if (snap) {
+            x = snap.x;
+            y = snap.y;
+            z = snap.z;
+          }
+        }
         if (drag.type === "panel") callbacks.current.onMovePanel(drag.id, x, y);
-        else callbacks.current.onMoveJoint(drag.id, x, y);
+        else callbacks.current.onMoveJoint(drag.id, x, y, z);
       }
       event.stopPropagation();
     };
@@ -561,6 +579,15 @@ export default forwardRef<SimulatorViewportHandle, Props>(function SimulatorView
       pickables.push(group);
     }
 
+    if (selection?.type === "joint") {
+      const dotMaterial = new THREE.MeshBasicMaterial({ color: 0x2f8f83, transparent: true, opacity: 0.85 });
+      for (const point of sceneConnectionPoints(scene)) {
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(4.5, 10, 10), dotMaterial);
+        dot.position.set(point.x, point.y, point.z);
+        root.add(dot);
+      }
+    }
+
     if (showMeasurements) {
       const b = sceneBounds(scene);
       if (b.width > 0 && b.height > 0) {
@@ -616,6 +643,19 @@ export default forwardRef<SimulatorViewportHandle, Props>(function SimulatorView
       else if (view === "top") camera.position.set(0, 0, distance);
       else camera.position.set(900, -1200, 900);
       controls.target.copy(target);
+      controls.update();
+    },
+    fit() {
+      const camera = cameraRef.current;
+      const controls = controlsRef.current;
+      if (!camera || !controls) return;
+      const b = sceneBounds(sceneDataRef.current);
+      const span = Math.max(b.width, b.depth, b.height, 620);
+      const cx = (b.minX + b.maxX) / 2;
+      const cy = (b.minY + b.maxY) / 2;
+      const cz = Math.max(100, b.maxZ * 0.48);
+      controls.target.set(cx, cy, cz);
+      camera.position.set(cx + span * 1.15, cy - span * 1.55, cz + span * 0.9);
       controls.update();
     },
   }), []);

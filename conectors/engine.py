@@ -40,6 +40,7 @@ from .mesh import (
 from .shapes import custom_polygon, decor_details, decor_polygon
 from .shape import Shape, analyze_bytes
 from .spool import spool_mesh
+from .template import template_meshes
 
 MM = 1.0
 
@@ -57,6 +58,11 @@ def _deep_merge(base: dict, extra: dict) -> dict:
 DEFAULTS: dict[str, Any] = {
     "family": "node",
     "name": "Conector",
+    "template_id": 4,
+    "template_scale_xy": 1.0,
+    "template_scale_z": 1.0,
+    "template_mirror": False,
+    "template_rotate": 0.0,
     "panel_type": "wire",
     "wire_diameter": 4.0,
     "panel_thickness": 4.0,
@@ -589,6 +595,17 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
     body_size = _clamp(_f(settings.get("body_size"), 38.0), 8.0, 90.0)
     decor = settings.get("decor", {})
     decor_enabled = _bool(decor.get("enabled"), False)
+
+    if family == "template":
+        reference, reference_warnings = template_meshes(settings)
+        for label, mesh in reference:
+            if len(mesh.faces):
+                meshes.append((label, mesh, _color(settings.get("body_color"), "#465a66")))
+        warnings.extend(reference_warnings)
+        details.append(
+            "Base exacta del set de referencia: se imprime tal cual, con sus canales originales."
+        )
+        return meshes, warnings, details
 
     if family == "calibration":
         return [("Cupón de calibración", _calibration_mesh(settings), "#f2c14e")], warnings, [

@@ -3,6 +3,7 @@ import type {
   DeepPartial,
   Preset,
   ShapeOption,
+  SimJoint,
   SimPanelKind,
   SimulatorScene,
 } from "../types";
@@ -11,6 +12,11 @@ import { clone, deepMerge } from "../lib/utils";
 export const DEFAULT_CONNECTOR: ConnectorSettings = {
   family: "node",
   name: "Conector",
+  template_id: 4,
+  template_scale_xy: 1,
+  template_scale_z: 1,
+  template_mirror: false,
+  template_rotate: 0,
   panel_type: "wire",
   wire_diameter: 4,
   panel_thickness: 4,
@@ -87,6 +93,13 @@ export const DEFAULT_CONNECTOR: ConnectorSettings = {
 };
 
 export const ARMS_BY_PRESET: Record<string, string[]> = {
+  ref_cubo_completo: ["+x", "-x", "+y", "-y", "+z", "-z"],
+  ref_cubo_alternativo: ["+x", "-x", "+y", "-y", "+z", "-z"],
+  ref_tres_lados: ["+x", "+y", "+z"],
+  ref_doble_90: ["+x", "+y", "+z"],
+  ref_esquina_90: ["+x", "+y"],
+  ref_vertical_doble: ["+z"],
+  ref_estandar: ["+x"],
   corner90: ["+x", "+y", "+z"],
   corner3d: ["+x", "+y", "+z"],
   tee: ["+x", "-x", "+y"],
@@ -104,18 +117,88 @@ export const ARMS_BY_PRESET: Record<string, string[]> = {
 };
 
 export const JOINT_PRESET_OPTIONS = [
-  { id: "corner90", name: "Esquina 90°" },
-  { id: "corner3d", name: "Esquina cubo" },
-  { id: "flat", name: "Recta / plana" },
-  { id: "tee", name: "T de 3 paneles" },
-  { id: "cross", name: "Cruz / 4 vías" },
-  { id: "six", name: "Nodo completo" },
-  { id: "horizontal2", name: "Horizontal 2 vías" },
-  { id: "vertical1", name: "Vertical 1 vía" },
-  { id: "vertical2", name: "Vertical 2 vías" },
+  { id: "ref_esquina_90", name: "Base · Esquina 90" },
+  { id: "ref_estandar", name: "Base · Estándar" },
+  { id: "ref_doble_90", name: "Base · Doble 90" },
+  { id: "ref_vertical_doble", name: "Base · Vertical doble" },
+  { id: "ref_tres_lados", name: "Base · Tres lados" },
+  { id: "ref_cubo_alternativo", name: "Base · Cubo alternativo" },
+  { id: "ref_cubo_completo", name: "Base · Cubo completo" },
+  { id: "corner90", name: "Generativo · Esquina 90°" },
+  { id: "corner3d", name: "Generativo · Esquina cubo" },
+  { id: "flat", name: "Generativo · Recta / plana" },
+  { id: "tee", name: "Generativo · T de 3 paneles" },
+  { id: "cross", name: "Generativo · Cruz / 4 vías" },
+  { id: "six", name: "Generativo · Nodo completo" },
+  { id: "horizontal2", name: "Generativo · Horizontal 2 vías" },
+  { id: "vertical1", name: "Generativo · Vertical 1 vía" },
+  { id: "vertical2", name: "Generativo · Vertical 2 vías" },
 ];
 
 export const PRESETS: Preset[] = [
+  {
+    id: "ref_esquina_90",
+    name: "Base · Esquina 90",
+    description: "Tu modelo de referencia, tal cual: 23,15 × 23,15 × 22,65 mm.",
+    category: "Bases exactas",
+    icon: "corner",
+    accent: "#e98da6",
+    patch: { family: "template", template_id: 4 },
+  },
+  {
+    id: "ref_estandar",
+    name: "Base · Estándar",
+    description: "La unión recta de una sola reja, idéntica a tu STL original.",
+    category: "Bases exactas",
+    icon: "flat",
+    accent: "#79a8d8",
+    patch: { family: "template", template_id: 6 },
+  },
+  {
+    id: "ref_doble_90",
+    name: "Base · Doble 90",
+    description: "Dos canales perpendiculares con el perfil exacto de referencia.",
+    category: "Bases exactas",
+    icon: "tee",
+    accent: "#3e9a8f",
+    patch: { family: "template", template_id: 3 },
+  },
+  {
+    id: "ref_vertical_doble",
+    name: "Base · Vertical doble",
+    description: "Unión vertical doble de 8,3 mm, copiada de tu modelo.",
+    category: "Bases exactas",
+    icon: "base",
+    accent: "#8b7bc6",
+    patch: { family: "template", template_id: 5 },
+  },
+  {
+    id: "ref_tres_lados",
+    name: "Base · Tres lados",
+    description: "Nodo de tres paneles con la geometría original de referencia.",
+    category: "Bases exactas",
+    icon: "six",
+    accent: "#e6b63c",
+    patch: { family: "template", template_id: 2 },
+  },
+  {
+    id: "ref_cubo_alternativo",
+    name: "Base · Cubo alternativo",
+    description: "Cubo de seis canales, variante alternativa exacta.",
+    category: "Bases exactas",
+    icon: "cube",
+    accent: "#d9789b",
+    patch: { family: "template", template_id: 1 },
+  },
+  {
+    id: "ref_cubo_completo",
+    name: "Base · Cubo completo",
+    description: "El nodo de cubo completo de tu set, sin cambios.",
+    category: "Bases exactas",
+    icon: "cube",
+    accent: "#5b8db8",
+    patch: { family: "template", template_id: 0 },
+  },
   {
     id: "corner90",
     name: "Esquina 90°",
@@ -907,9 +990,14 @@ export const PANEL_TYPE_OPTIONS: { id: SimPanelKind; name: string; detail: strin
 ];
 
 export const PANEL_SIZE_OPTIONS = [
+  { id: "20", name: "20 × 20 cm", width: 200, height: 200 },
+  { id: "25", name: "25 × 25 cm", width: 250, height: 250 },
   { id: "30", name: "30 × 30 cm", width: 300, height: 300 },
   { id: "35", name: "35 × 35 cm", width: 350, height: 350 },
   { id: "40", name: "40 × 40 cm", width: 400, height: 400 },
+  { id: "45", name: "45 × 45 cm", width: 450, height: 450 },
+  { id: "50", name: "50 × 50 cm", width: 500, height: 500 },
+  { id: "60", name: "60 × 60 cm", width: 600, height: 600 },
   { id: "3060", name: "30 × 60 cm", width: 300, height: 600 },
   { id: "2540", name: "25 × 40 cm", width: 250, height: 400 },
 ];
@@ -974,46 +1062,50 @@ export function settingsForJoint(presetId: string, color?: string, name?: string
 }
 
 export function starterScene(): SimulatorScene {
+  const side = 300;
+  const half = side / 2;
+  const panels = [
+    { x: 0, y: -half, rotation: 0, name: "Cubo · frente" },
+    { x: 0, y: half, rotation: 0, name: "Cubo · fondo" },
+    { x: -half, y: 0, rotation: 90, name: "Cubo · izquierda" },
+    { x: half, y: 0, rotation: 90, name: "Cubo · derecha" },
+  ].map((item) => ({
+    id: `panel_${item.name.replace(/\s+/g, "_")}`,
+    name: item.name,
+    kind: "wire" as const,
+    width: side,
+    height: side,
+    x: item.x,
+    y: item.y,
+    z: 0,
+    rotation: item.rotation,
+    color: "#d4d8de",
+  }));
+
+  const joints: SimJoint[] = [];
+  let index = 1;
+  for (const z of [0, side]) {
+    for (const x of [-half, half]) {
+      for (const y of [-half, half]) {
+        joints.push({
+          id: `joint_${index}`,
+          name: `Cubo · esquina ${index}`,
+          presetId: "ref_esquina_90",
+          x,
+          y,
+          z,
+          rotation: 0,
+          scale: 1.2,
+          color: "#e98da6",
+        });
+        index += 1;
+      }
+    }
+  }
+
   return {
-    panels: [
-      {
-        id: "panel_1",
-        name: "Panel 1",
-        kind: "wire",
-        width: 300,
-        height: 300,
-        x: -155,
-        y: 0,
-        z: 0,
-        rotation: 0,
-        color: "#d4d8de",
-      },
-      {
-        id: "panel_2",
-        name: "Panel 2",
-        kind: "wire",
-        width: 300,
-        height: 300,
-        x: 155,
-        y: 0,
-        z: 0,
-        rotation: 0,
-        color: "#d4d8de",
-      },
-    ],
-    joints: [
-      {
-        id: "joint_1",
-        name: "Unión 1",
-        presetId: "corner90",
-        x: 0,
-        y: 0,
-        z: 300,
-        rotation: 0,
-        scale: 1.35,
-        color: "#e98da6",
-      },
-    ],
+    panels,
+    joints,
     table: {
       show: true,
       width: 1800,

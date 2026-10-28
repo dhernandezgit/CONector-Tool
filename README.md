@@ -16,7 +16,8 @@ CONector Tool es una aplicación local-first: el motor de geometría está escri
 
 - **Reja de alambre de 4 mm, marco metálico, foam y medidas personalizadas.** Control de holgura, boca del clip, pared, diámetro y número de cables.
 - **Cupón de calibración** con cinco canales para escoger la holgura real de tu impresora.
-- **Familia tipo carrete:** cinturón vertical, brazos superiores e inferiores y canales festoneados. Todos los parámetros se generan de nuevo; no hay STL de referencia empaquetados.
+- **Bases exactas:** las **7 uniones de referencia** que aportaste, incluidas tal cual (cubo completo, cubo alternativo, tres lados, doble 90, esquina 90, vertical doble y estándar), con tests que comprueban dimensiones, volumen y estanqueidad contra el manifiesto original.
+- **Familia tipo carrete:** cinturón vertical, brazos superiores e inferiores y canales festoneados. Todos los parámetros se generan de nuevo.
 - **Variantes:** esquina 90°, cubo, T, cruz, nódulo completo 360°, recta, horizontal 1/2/4, vertical 1/2, UP/DOWN, UP + Horizontal, DOWN + Horizontal y cinturón alto.
 - **Ángulos:** 15°, 30°, 45°, 60°, 90°, 120° y ángulo libre de 5–175°.
 - **Brazos personalizados:** activa los ejes y canales que necesites, cambia alto, cinturón, ancho de brazo y longitud de pata.
@@ -29,11 +30,13 @@ CONector Tool es una aplicación local-first: el motor de geometría está escri
 ### Puesto 3D
 
 - Editor libre con cuadrícula.
-- Añade, selecciona y **arrastra paneles y uniones**.
+- Añade, selecciona y **arrastra paneles y uniones**. Las uniones solo pueden colocarse en los puntos de los paneles: nunca quedan sueltas.
+- Giro rápido de paneles con botones de ±15°/±90° o con la tecla **R** (Shift+R hacia el otro lado).
+- Escena inicial en forma de **cubo** de cuatro paneles, más plantilla de **dos torres de cuatro alturas** separadas por dos paneles y unidas por arriba.
 - Color independiente para cada panel y cada unión.
 - Tipos de reja: **alambre**, **reja sólida**, **Skadis** y **foam/liso**.
-- Paneles de 30×30, 35×35, 40×40, 30×60 y 25×40 cm, más medidas personalizadas.
-- Plantillas: mesa base, pared 3×2, esquina, torre y fondo Skadis.
+- Paneles cuadrados de 20×20, 25×25, 30×30, 35×35, 40×40, 45×45, 50×50 y 60×60 cm, además de 30×60 y 25×40 cm y medidas personalizadas.
+- Plantillas: cubo, dos torres, pared 3×2, esquina, torre y fondo Skadis.
 - Medidas de ancho, fondo, alto y altura de mesa.
 - Lista de materiales y **exportación de kit 3MF** con todos los conectores repetidos por cantidad.
 - Exportación de captura PNG y JSON de la escena.
@@ -90,6 +93,8 @@ La app queda en `https://dhernandezgit.github.io/CONector-Tool/`.
 ```
 conectors/
   engine.py      # conectores, placas, patas, split, comprobaciones
+  template.py    # las 7 bases exactas de referencia
+  templates/     # manifiesto + STL de referencia (CC BY-NC 4.0)
   spool.py       # generador paramétrico tipo carrete
   mesh.py        # mallas, extrusiones, corte planar, STL/3MF
   shapes.py      # siluetas decorativas originales
@@ -109,7 +114,8 @@ La geometría se construye con perfiles 2.5D, extrusiones y transformaciones. La
 ## Créditos y licencias
 
 - Código propio: MIT.
-- Inspiración de formas y gramática de producto: **CloudedCat**, *Wire Grid Connector Set*, publicado en Printables con licencia **CC BY-NC 4.0** (`https://www.printables.com/model/1721006-wire-grid-connector-set`). La app **no incluye ni redistribuye sus STL**; todas las geometrías se generan paramétricamente. La mención es un reconocimiento de la referencia de diseño.
+- Inspiración de formas y gramática de producto: **CloudedCat**, *Wire Grid Connector Set*, publicado en Printables con licencia **CC BY-NC 4.0** (`https://www.printables.com/model/1721006-wire-grid-connector-set`).
+- Las **7 bases exactas** de `conectors/templates/` son tus modelos de referencia, derivados de ese set y distribuidos bajo **CC BY-NC 4.0** con atribución a CloudedCat. No son MIT y no deben usarse comercialmente. El resto de la app y los generadores paramétricos son código original bajo MIT.
 - Reutiliza patrones y utilidades MIT del proyecto [CalicoCutters](https://github.com/dhernandezgit/CalicoCutters-Tool), en particular `earcut` y el lector `svg.path`.
 - No se incluyen ni redistribuyen los STL de pago de Etsy u otras tiendas; las siluetas y geometrías de esta app son originales.
 - Pyodide, NumPy, Shapely, Pillow, OpenCV y React/Three.js conservan sus licencias.

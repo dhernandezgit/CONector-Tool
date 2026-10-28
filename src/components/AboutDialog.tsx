@@ -43,8 +43,10 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
               licencia <strong>CC BY-NC 4.0</strong>.
             </p>
             <p>
-              Esta aplicación <strong>no incluye ni redistribuye sus STL</strong> ni los archivos de pago de Etsy: todas las
-              geometrías se generan paramétricamente en el navegador. La mención es un reconocimiento de la referencia de diseño.
+              Las <strong>7 bases exactas</strong> incluidas en la app son tus modelos de referencia, derivados de ese set y
+              distribuidos bajo <strong>CC BY-NC 4.0</strong> con atribución a CloudedCat: no son MIT ni deben usarse
+              comercialmente. El resto de conectores se genera paramétricamente en el navegador. No se incluyen archivos de
+              pago de Etsy.
             </p>
             <a href="https://www.printables.com/model/1721006-wire-grid-connector-set" target="_blank" rel="noreferrer">
               Wire Grid Connector Set · CloudedCat <ExternalLink size={13} />

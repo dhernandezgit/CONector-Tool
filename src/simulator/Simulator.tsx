@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Boxes,
@@ -30,7 +30,7 @@ import { JOINT_PRESET_OPTIONS, PANEL_SIZE_OPTIONS, PANEL_TYPE_OPTIONS, settingsF
 import { cm, downloadBlob, fmt, slug } from "../lib/utils";
 import { NumberField, ColorField, Segmented, SelectField, Toggle } from "../components/UI";
 import SimulatorViewport, { type SimSelection, type SimulatorViewportHandle } from "./SimulatorViewport";
-import { JOINT_COLORS, PANEL_COLORS, jointBom, kitItems, newJoint, newPanel, sceneBounds, sceneTemplate } from "./data";
+import { JOINT_COLORS, PANEL_COLORS, jointBom, kitItems, nearestConnectionPoint, newJoint, newPanel, pruneJoints, sceneBounds, sceneConnectionPoints, sceneTemplate, snapJointsToPanels } from "./data";
 
 interface Props {
   scene: SimulatorScene;
@@ -68,10 +68,25 @@ export default function Simulator({
   const bom = useMemo(() => jointBom(scene), [scene]);
 
   const setPanel = (id: string, patch: Partial<SimPanel>) => {
-    onChange({ ...scene, panels: scene.panels.map((panel) => (panel.id === id ? { ...panel, ...patch } : panel)) });
+    const panels = scene.panels.map((panel) => (panel.id === id ? { ...panel, ...patch } : panel));
+    onChange(snapJointsToPanels({ ...scene, panels }));
   };
   const setJoint = (id: string, patch: Partial<SimJoint>) => {
-    onChange({ ...scene, joints: scene.joints.map((joint) => (joint.id === id ? { ...joint, ...patch } : joint)) });
+    let next = scene.joints.find((joint) => joint.id === id);
+    if (!next) return;
+    next = { ...next, ...patch };
+    if ("x" in patch || "y" in patch || "z" in patch) {
+      const snap = nearestConnectionPoint(scene, next.x, next.y, next.z, 420);
+      if (snap) next = { ...next, ...snap };
+    }
+    onChange({ ...scene, joints: scene.joints.map((joint) => (joint.id === id ? next! : joint)) });
+  };
+
+  const rotatePanel = (id: string, delta: number) => {
+    const panel = scene.panels.find((item) => item.id === id);
+    if (!panel) return;
+    const rotation = ((((panel.rotation + delta) % 360) + 540) % 360) - 180;
+    setPanel(id, { rotation });
   };
 
   const addPanel = (kind: SimPanelKind = "wire") => {
@@ -84,19 +99,46 @@ export default function Simulator({
   };
 
   const addJoint = () => {
-    const joint = newJoint(0, 0, 0, "corner90");
+    if (!scene.panels.length) {
+      setMessage("Añade un panel primero: las uniones solo pueden ir en sus puntos.");
+      return;
+    }
+    const points = sceneConnectionPoints(scene);
+    const free = points.find(
+      (point) =>
+        !scene.joints.some(
+          (joint) => Math.abs(joint.x - point.x) < 2 && Math.abs(joint.y - point.y) < 2 && Math.abs(joint.z - point.z) < 2,
+        ),
+    );
+    if (!free) {
+      setMessage("Todos los puntos de panel ya tienen unión. Añade o mueve paneles para crear más.");
+      return;
+    }
+    const joint = newJoint(free.x, free.y, free.z, "ref_esquina_90");
     joint.name = `Unión ${scene.joints.length + 1}`;
     onChange({ ...scene, joints: [...scene.joints, joint] });
     setSelection({ type: "joint", id: joint.id });
+    setMessage("");
   };
 
   const duplicate = () => {
     if (selectedPanel) {
       const copy = { ...selectedPanel, id: `panel_${Date.now().toString(36)}`, x: selectedPanel.x + 30, name: `${selectedPanel.name} copia` };
-      onChange({ ...scene, panels: [...scene.panels, copy] });
+      onChange(snapJointsToPanels({ ...scene, panels: [...scene.panels, copy] }));
       setSelection({ type: "panel", id: copy.id });
     } else if (selectedJoint) {
-      const copy = { ...selectedJoint, id: `joint_${Date.now().toString(36)}`, x: selectedJoint.x + 30, name: `${selectedJoint.name} copia` };
+      const points = sceneConnectionPoints(scene);
+      const free = points.find(
+        (point) =>
+          !scene.joints.some(
+            (joint) => Math.abs(joint.x - point.x) < 2 && Math.abs(joint.y - point.y) < 2 && Math.abs(joint.z - point.z) < 2,
+          ),
+      );
+      if (!free) {
+        setMessage("No quedan puntos libres para otra unión.");
+        return;
+      }
+      const copy = { ...selectedJoint, id: `joint_${Date.now().toString(36)}`, ...free, name: `${selectedJoint.name} copia` };
       onChange({ ...scene, joints: [...scene.joints, copy] });
       setSelection({ type: "joint", id: copy.id });
     }
@@ -104,7 +146,8 @@ export default function Simulator({
 
   const remove = () => {
     if (selectedPanel) {
-      onChange({ ...scene, panels: scene.panels.filter((panel) => panel.id !== selectedPanel.id) });
+      const next = { ...scene, panels: scene.panels.filter((panel) => panel.id !== selectedPanel.id) };
+      onChange(pruneJoints(next));
       setSelection(null);
     } else if (selectedJoint) {
       onChange({ ...scene, joints: scene.joints.filter((joint) => joint.id !== selectedJoint.id) });
@@ -156,6 +199,20 @@ export default function Simulator({
     }
   };
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && /input|textarea|select/i.test(target.tagName)) return;
+      if (!selectedPanel) return;
+      if (event.key.toLowerCase() === "r") {
+        event.preventDefault();
+        rotatePanel(selectedPanel.id, event.shiftKey ? -15 : 15);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedPanel, scene]);
+
   return (
     <div className="simulator">
       <aside className="sim-left">
@@ -183,10 +240,11 @@ export default function Simulator({
           </div>
           <div className="template-grid">
             {[
-              ["basic", "Mesa base"],
+              ["basic", "Cubo"],
+              ["towers", "Dos torres 4 alt."],
               ["wall", "Pared 3×2"],
               ["corner", "Esquina"],
-              ["tower", "Torre"],
+              ["tower", "Torre 2 alt."],
               ["backdrop", "Fondo Skadis"],
               ["empty", "Vaciar"],
             ].map(([id, label]) => (
@@ -197,6 +255,7 @@ export default function Simulator({
                 onClick={() => {
                   onChange(sceneTemplate(id as Parameters<typeof sceneTemplate>[0]));
                   setSelection(null);
+                  window.setTimeout(() => viewportRef.current?.fit(), 80);
                 }}
               >
                 {label}
@@ -311,7 +370,7 @@ export default function Simulator({
           showGrid={showGrid}
           onSelect={setSelection}
           onMovePanel={(id, x, y) => setPanel(id, { x, y })}
-          onMoveJoint={(id, x, y) => setJoint(id, { x, y })}
+          onMoveJoint={(id, x, y, z) => setJoint(id, { x, y, z })}
         />
         <div className="sim-bottom">
           <div className="sim-stat">
@@ -371,6 +430,19 @@ export default function Simulator({
               <NumberField label="Base Z" value={selectedPanel.z} onChange={(value) => setPanel(selectedPanel.id, { z: value })} step={10} suffix="mm" />
               <NumberField label="Giro" value={selectedPanel.rotation} onChange={(value) => setPanel(selectedPanel.id, { rotation: value })} min={-180} max={180} step={5} suffix="°" />
             </div>
+            <div className="size-chips rotation-chips">
+              {[-90, -15, 15, 90].map((delta) => (
+                <button
+                  type="button"
+                  key={delta}
+                  onClick={() => rotatePanel(selectedPanel.id, delta)}
+                  title={delta > 0 ? `Girar ${delta}° a la derecha` : `Girar ${Math.abs(delta)}° a la izquierda`}
+                >
+                  <RotateCw size={13} style={{ transform: delta < 0 ? "scaleX(-1)" : undefined }} /> {delta > 0 ? `+${delta}` : delta}°
+                </button>
+              ))}
+            </div>
+            <p className="micro-copy">Atajo: pulsa R para girar 15° (Shift+R hacia el otro lado).</p>
             <Segmented
               value={selectedPanel.kind}
               options={PANEL_TYPE_OPTIONS.map((type) => ({ value: type.id, label: type.name }))}

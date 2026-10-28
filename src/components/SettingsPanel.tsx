@@ -38,6 +38,7 @@ import {
 } from "./UI";
 
 const FAMILIES: { value: Family; label: string; detail: string }[] = [
+  { value: "template", label: "Base", detail: "Modelo exacto" },
   { value: "node", label: "Nodo", detail: "Esquina o unión" },
   { value: "angle", label: "Ángulo", detail: "Dos paneles" },
   { value: "leg", label: "Pata", detail: "Eleva el panel" },
@@ -84,7 +85,15 @@ const PANEL_OPTIONS: { value: PanelType; label: string; detail: string }[] = [
   { value: "foam", label: "Foam 5 mm", detail: "Panel con clavija" },
 ];
 
-
+const TEMPLATE_OPTIONS = [
+  { value: "0", label: "Cubo completo · ref 0" },
+  { value: "1", label: "Cubo alternativo · ref 1" },
+  { value: "2", label: "Tres lados · ref 2" },
+  { value: "3", label: "Doble 90 · ref 3" },
+  { value: "4", label: "Esquina 90 · ref 4" },
+  { value: "5", label: "Vertical doble · ref 5" },
+  { value: "6", label: "Estándar · ref 6" },
+];
 
 interface Props {
   settings: ConnectorSettings;
@@ -215,6 +224,60 @@ export default function SettingsPanel({
       </div>
 
       <div className="settings-scroll">
+        {settings.family === "template" && (
+          <Section
+            title="Base exacta"
+            hint="Tus 7 modelos de referencia"
+            icon={<Shapes size={17} />}
+            badge="STL original"
+          >
+            <SelectField
+              label="Modelo"
+              value={String(settings.template_id)}
+              options={TEMPLATE_OPTIONS}
+              onChange={(value) => patch({ template_id: Number(value) })}
+            />
+            <div className="field-grid">
+              <NumberField
+                label="Escala X/Y"
+                value={settings.template_scale_xy}
+                onChange={(value) => patch({ template_scale_xy: value })}
+                min={0.3}
+                max={3}
+                step={0.05}
+              />
+              <NumberField
+                label="Escala Z"
+                value={settings.template_scale_z}
+                onChange={(value) => patch({ template_scale_z: value })}
+                min={0.3}
+                max={3}
+                step={0.05}
+              />
+              <NumberField
+                label="Giro"
+                value={settings.template_rotate}
+                onChange={(value) => patch({ template_rotate: value })}
+                min={-180}
+                max={180}
+                step={5}
+                suffix="°"
+              />
+            </div>
+            <Toggle
+              label="Espejo en X"
+              checked={settings.template_mirror}
+              onChange={(checked) => patch({ template_mirror: checked })}
+            />
+            <div className="inline-note">
+              <span className="note-dot" />
+              <span>
+                Geometría original de tu set, sin remodelar. Mantén la escala en 1 para imprimir la pieza idéntica.
+              </span>
+            </div>
+          </Section>
+        )}
+        {settings.family !== "template" && (
         <Section
           title="Agarre"
           hint="Cómo se fija a la reja"
@@ -300,7 +363,9 @@ export default function SettingsPanel({
             Imprime el cupón una vez. Prueba los cinco canales y usa la holgura que mejor encaje en el conector final.
           </p>
         </Section>
+        )}
 
+        {settings.family !== "template" && (
         <Section title="Uniones" hint="Canales de la reja" icon={<Combine size={17} />}>
           {settings.family !== "angle" && (
             <SelectField
@@ -467,6 +532,7 @@ export default function SettingsPanel({
             Esta familia reproduce el lenguaje de los conectores de puck: cuerpo sólido, canales en el borde y labios festoneados.
           </p>
         </Section>
+        )}
 
         <Section title="Forma" hint="Cuerpo, color y placa" icon={<Shapes size={17} />}>
           <ColorField

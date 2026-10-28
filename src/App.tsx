@@ -38,7 +38,7 @@ import StatusBar from "./components/StatusBar";
 import Simulator from "./simulator/Simulator";
 
 const THEME_KEY = "conector-theme";
-const PROJECT_KEY = "conector-project-v4";
+const PROJECT_KEY = "conector-project-v5";
 const PRESETS_KEY = "conector-user-presets-v2";
 
 type Mode = "studio" | "simulator";
@@ -102,7 +102,7 @@ function normalizeScene(raw: unknown): SimulatorScene {
         .filter((joint) => joint && typeof joint.id === "string")
         .map((joint) => ({
           ...joint,
-          presetId: String(joint.presetId || "corner90"),
+          presetId: String(joint.presetId || "ref_esquina_90"),
           x: Number(joint.x) || 0,
           y: Number(joint.y) || 0,
           z: Number(joint.z) || 0,
@@ -144,11 +144,11 @@ export default function App() {
   const engine = usePythonEngine();
   const initial = useMemo(loadProject, []);
   const [settings, setSettings] = useState<ConnectorSettings>(
-    initial ? initial.settings : settingsForPreset("corner90"),
+    initial ? initial.settings : settingsForPreset("ref_esquina_90"),
   );
   const [scene, setScene] = useState<SimulatorScene>(initial ? initial.scene : starterScene());
   const [projectName, setProjectName] = useState(initial?.name || "Mi puesto de mercado");
-  const [activePreset, setActivePreset] = useState<string | null>(initial ? null : "corner90");
+  const [activePreset, setActivePreset] = useState<string | null>(initial ? null : "ref_esquina_90");
   const [mode, setMode] = useState<Mode>("studio");
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [build, setBuild] = useState<BuildResult | null>(null);

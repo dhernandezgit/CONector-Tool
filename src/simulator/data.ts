@@ -34,6 +34,102 @@ export function newJoint(x = 0, y = 0, z = 150, presetId = "corner90"): SimJoint
   };
 }
 
+export interface ConnectionPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** Every place where a union may legally sit: the corners and edge
+ * midpoints of the panels, top and bottom.  Unions are never free-floating. */
+export function panelConnectionPoints(panel: SimPanel): ConnectionPoint[] {
+  const a = (panel.rotation * Math.PI) / 180;
+  const dx = Math.cos(a);
+  const dy = Math.sin(a);
+  const halfW = panel.width / 2;
+  const points: ConnectionPoint[] = [];
+  for (const offset of [-halfW, halfW]) {
+    for (const dz of [0, panel.height / 2, panel.height]) {
+      points.push({ x: panel.x + dx * offset, y: panel.y + dy * offset, z: panel.z + dz });
+    }
+  }
+  for (const dz of [0, panel.height]) {
+    points.push({ x: panel.x, y: panel.y, z: panel.z + dz });
+  }
+  return points;
+}
+
+export function sceneConnectionPoints(scene: SimulatorScene): ConnectionPoint[] {
+  const result: ConnectionPoint[] = [];
+  for (const panel of scene.panels) {
+    for (const point of panelConnectionPoints(panel)) {
+      const exists = result.some(
+        (item) => Math.abs(item.x - point.x) < 0.6 && Math.abs(item.y - point.y) < 0.6 && Math.abs(item.z - point.z) < 0.6,
+      );
+      if (!exists) result.push(point);
+    }
+  }
+  return result;
+}
+
+/** Snap to the closest panel point.  Height counts less than X/Y so a union
+ * dragged along a panel edge does not jump to the opposite corner. */
+export function nearestConnectionPoint(
+  scene: SimulatorScene,
+  x: number,
+  y: number,
+  z: number,
+  maxDistance = 360,
+): ConnectionPoint | null {
+  let best: ConnectionPoint | null = null;
+  let bestDistance = Infinity;
+  for (const point of sceneConnectionPoints(scene)) {
+    const distance = Math.hypot(point.x - x, point.y - y, (point.z - z) * 0.55);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = point;
+    }
+  }
+  return best && bestDistance <= maxDistance ? best : null;
+}
+
+/** Keep every union attached after a panel is moved, resized or rotated. */
+export function snapJointsToPanels(scene: SimulatorScene): SimulatorScene {
+  if (!scene.panels.length || !scene.joints.length) return scene;
+  const points = sceneConnectionPoints(scene);
+  if (!points.length) return scene;
+  let changed = false;
+  const joints = scene.joints.map((joint) => {
+    let best = points[0];
+    let bestDistance = Infinity;
+    for (const point of points) {
+      const distance = Math.hypot(point.x - joint.x, point.y - joint.y, (point.z - joint.z) * 0.55);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = point;
+      }
+    }
+    if (Math.abs(best.x - joint.x) < 0.01 && Math.abs(best.y - joint.y) < 0.01 && Math.abs(best.z - joint.z) < 0.01) {
+      return joint;
+    }
+    changed = true;
+    return { ...joint, x: best.x, y: best.y, z: best.z };
+  });
+  return changed ? { ...scene, joints } : scene;
+}
+
+/** Drop unions that no longer coincide with a panel point. */
+export function pruneJoints(scene: SimulatorScene): SimulatorScene {
+  if (!scene.joints.length) return scene;
+  const points = sceneConnectionPoints(scene);
+  const joints = scene.joints.filter((joint) =>
+    points.some(
+      (point) => Math.abs(point.x - joint.x) < 1.5 && Math.abs(point.y - joint.y) < 1.5 && Math.abs(point.z - joint.z) < 1.5,
+    ),
+  );
+  return joints.length === scene.joints.length ? scene : { ...scene, joints };
+}
+
 export function sceneBounds(scene: SimulatorScene) {
   if (!scene.panels.length) {
     return { width: 0, depth: 0, height: 0, minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 };
@@ -102,7 +198,7 @@ export function jointSettings(joint: SimJoint): ConnectorSettings {
   return settingsForJoint(joint.presetId, joint.color, joint.name);
 }
 
-export function sceneTemplate(id: "basic" | "wall" | "corner" | "tower" | "backdrop" | "empty"): SimulatorScene {
+export function sceneTemplate(id: "basic" | "wall" | "corner" | "tower" | "towers" | "backdrop" | "empty"): SimulatorScene {
   if (id === "empty") {
     return {
       ...starterScene(),
@@ -111,6 +207,42 @@ export function sceneTemplate(id: "basic" | "wall" | "corner" | "tower" | "backd
     };
   }
   if (id === "basic") return starterScene();
+  if (id === "towers") {
+    const side = 300;
+    const panels: SimPanel[] = [];
+    const joints: SimJoint[] = [];
+    // Two square towers, four panels high, separated by exactly two panels.
+    for (const center of [-450, 450]) {
+      for (let level = 0; level < 4; level += 1) {
+        const panel = newPanel(center, 0, "wire", side, side);
+        panel.z = level * side;
+        panel.name = `Torre ${center < 0 ? "A" : "B"} · nivel ${level + 1}`;
+        panels.push(panel);
+      }
+      for (const edge of [center - side / 2, center + side / 2]) {
+        for (const z of [0, side, side * 2, side * 3, side * 4]) {
+          const joint = newJoint(edge, 0, z, "ref_estandar");
+          joint.name = `Torre ${center < 0 ? "A" : "B"} · unión ${joints.length + 1}`;
+          joints.push(joint);
+        }
+      }
+    }
+    // Two panels bridge the 600 mm gap at the top level.
+    for (const x of [-side / 2, side / 2]) {
+      const panel = newPanel(x, 0, "wire", side, side);
+      panel.z = side * 3;
+      panel.name = "Puente superior";
+      panels.push(panel);
+    }
+    for (const x of [0]) {
+      for (const z of [side * 3, side * 4]) {
+        const joint = newJoint(x, 0, z, "ref_estandar");
+        joint.name = `Puente · unión ${joints.length + 1}`;
+        joints.push(joint);
+      }
+    }
+    return { ...starterScene(), panels, joints };
+  }
   if (id === "wall") {
     const panels: SimPanel[] = [];
     const joints: SimJoint[] = [];
