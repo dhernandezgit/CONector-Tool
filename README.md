@@ -12,23 +12,18 @@ CONector Tool es una aplicación local-first: el motor de geometría está escri
 
 ## Qué incluye
 
-### Bases exactas
+### Conectores paramétricos
 
-- **7 bases de referencia** extra?das y medidas del set que adjuntaste: cubo completo, cubo alternativo, tres lados, doble 90?, esquina 90?, vertical doble y est?ndar.
-- Se abren con la geometr?a original y sus dimensiones exactas; puedes escalarlas, girarlas, espejarlas y cambiarles el color.
-- El modo **Base exacta** conserva los canales y el espacio de la pieza original. Para cambiar ?ngulos, n?mero de lados o agarre, se crea una **variante generativa**.
-- Atribuci?n: CloudedCat, *Wire Grid Connector Set*, CC BY-NC 4.0. Uso no comercial; no se incluyen los STL de pago de Etsy.
-
-### Estudio generativo
-
-- **Agarre:** reja de alambre de 4 mm, marco metálico de 3,8 mm, panel foam de 5 mm y medidas personalizadas. Holgura, boca del clip, pared, largo y número de cables.
-- **Cupón de calibración:** cinco canales para escoger la holgura real de tu impresora.
-- **Uniones:** esquina 90°, unión plana, T, cruz, esquina 3D, 4/5/6 vías, recta, 360°, ángulos de 30/45/60°, ángulo libre de 5–175° e inclinación compuesta.
-- **Brazos personalizados:** activa los ejes que necesites y crea combinaciones que no existen en las tiendas.
-- **Forma:** cuerpo redondo, cuadrado redondeado, hexagonal, octógono u orgánico; tamaño, alto, redondeo y color.
+- **Reja de alambre de 4 mm, marco metálico, foam y medidas personalizadas.** Control de holgura, boca del clip, pared, diámetro y número de cables.
+- **Cupón de calibración** con cinco canales para escoger la holgura real de tu impresora.
+- **Familia tipo carrete:** cinturón vertical, brazos superiores e inferiores y canales festoneados. Todos los parámetros se generan de nuevo; no hay STL de referencia empaquetados.
+- **Variantes:** esquina 90°, cubo, T, cruz, nódulo completo 360°, recta, horizontal 1/2/4, vertical 1/2, UP/DOWN, UP + Horizontal, DOWN + Horizontal y cinturón alto.
+- **Ángulos:** 15°, 30°, 45°, 60°, 90°, 120° y ángulo libre de 5–175°.
+- **Brazos personalizados:** activa los ejes y canales que necesites, cambia alto, cinturón, ancho de brazo y longitud de pata.
+- **Patas:** rectas, inclinadas a 30/45°, longitudes de 25 a 200 mm, elevadores y recorte para apoyo en mesa.
+- **Especiales:** ganchos, clavijas de foam, ojales para bridas y partido por la mitad. Las mitades se imprimen con caras planas para pegar o alinear.
 - **Placas decorativas:** 22 siluetas originales, borde, relieve, color, cara frontal/trasera/ambas y montaje por presión, imanes o tornillo M3.
 - **Importar dibujo:** SVG, PNG, JPG o WebP. La app detecta la silueta, conserva agujeros y la convierte en una placa decorativa o en un conector de borde.
-- **Especial:** patas rectas, inclinadas a 30/45°, elevadores, recorte de apoyo en mesa, ganchos, clavijas de foam, ojales para bridas y partido por la mitad con orejetas M3.
 - **Impresión:** material, boquilla, altura de capa, cama, comprobaciones de estanqueidad, voladizos, tamaño y estimación de material.
 
 ### Puesto 3D
@@ -38,7 +33,7 @@ CONector Tool es una aplicación local-first: el motor de geometría está escri
 - Color independiente para cada panel y cada unión.
 - Tipos de reja: **alambre**, **reja sólida**, **Skadis** y **foam/liso**.
 - Paneles de 30×30, 35×35, 40×40, 30×60 y 25×40 cm, más medidas personalizadas.
-- Plantillas: mesa base, pared 3×2, esquina, torre, fondo Skadis.
+- Plantillas: mesa base, pared 3×2, esquina, torre y fondo Skadis.
 - Medidas de ancho, fondo, alto y altura de mesa.
 - Lista de materiales y **exportación de kit 3MF** con todos los conectores repetidos por cantidad.
 - Exportación de captura PNG y JSON de la escena.
@@ -46,9 +41,9 @@ CONector Tool es una aplicación local-first: el motor de geometría está escri
 ## Cómo se usa
 
 1. Abre la app y espera a que el motor Python termine de cargar.
-2. Empieza por una **base exacta** o elige un preset generativo y ajusta el agarre a tu reja.
+2. Elige un preset o ajusta el agarre a tu reja.
 3. Genera el cupón de calibración y pruébalo antes de imprimir el modelo final.
-4. Elige la unión y la decoración. Si quieres una silueta propia, impórtala en **Forma → Placa decorativa**.
+4. Elige la unión, la decoración y, si lo necesitas, el split.
 5. Revisa la vista 3D, las comprobaciones y exporta STL/3MF.
 6. Pasa a **Puesto 3D** para componer el puesto, medir y generar el kit completo.
 
@@ -82,15 +77,7 @@ npm run typecheck
 npm run build
 ```
 
-Los tests cubren:
-
-- Mallas estancas, extrusiones con huecos y uniones por corte.
-- Perfiles de agarre, cupón de calibración y split con orejetas.
-- Familias de conector, ángulos, patas, ganchos y placas.
-- Importación de SVG y raster.
-- Exportación 3MF y kits con cantidades.
-- Utilidades del simulador: límites, plantillas, BOM y configuración de uniones.
-- Mezcla profunda y utilidades de formato.
+Los tests cubren mallas estancas, perfiles de agarre, cupón de calibración, split, familias de conector, ángulos, patas, ganchos, placas, importación SVG/raster, exportación 3MF, kits y utilidades del simulador.
 
 ## Despliegue
 
@@ -103,6 +90,7 @@ La app queda en `https://dhernandezgit.github.io/CONector-Tool/`.
 ```
 conectors/
   engine.py      # conectores, placas, patas, split, comprobaciones
+  spool.py       # generador paramétrico tipo carrete
   mesh.py        # mallas, extrusiones, corte planar, STL/3MF
   shapes.py      # siluetas decorativas originales
   shape.py       # importación SVG/raster
@@ -121,8 +109,9 @@ La geometría se construye con perfiles 2.5D, extrusiones y transformaciones. La
 ## Créditos y licencias
 
 - Código propio: MIT.
+- Inspiración de formas y gramática de producto: **CloudedCat**, *Wire Grid Connector Set*, publicado en Printables con licencia **CC BY-NC 4.0** (`https://www.printables.com/model/1721006-wire-grid-connector-set`). La app **no incluye ni redistribuye sus STL**; todas las geometrías se generan paramétricamente. La mención es un reconocimiento de la referencia de diseño.
 - Reutiliza patrones y utilidades MIT del proyecto [CalicoCutters](https://github.com/dhernandezgit/CalicoCutters-Tool), en particular `earcut` y el lector `svg.path`.
-- Inspiración de producto y categorías: conectores modulares para rejas de exposición de tiendas como SandoikStitches y modelos abiertos de conectores de cubo. **No se incluyen ni redistribuyen los STL de pago de esas tiendas**; las siluetas y geometrías de esta app son originales.
+- No se incluyen ni redistribuyen los STL de pago de Etsy u otras tiendas; las siluetas y geometrías de esta app son originales.
 - Pyodide, NumPy, Shapely, Pillow, OpenCV y React/Three.js conservan sus licencias.
 
 Hecho para que un puesto de mercado se monte en un rato y se vea como tú quieras.

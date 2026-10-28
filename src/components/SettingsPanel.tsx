@@ -1,6 +1,5 @@
 import { useRef, useState, type DragEvent } from "react";
 import {
-  Box,
   CircleHelp,
   Combine,
   Download,
@@ -65,10 +64,18 @@ const JOINT_OPTIONS = [
 ];
 
 const PORT_ANGLES = [
-  { value: 0, label: "0°" },
-  { value: 90, label: "90°" },
-  { value: 180, label: "180°" },
-  { value: 270, label: "270°" },
+  { value: 0, label: "0\u00b0" },
+  { value: 90, label: "90\u00b0" },
+  { value: 180, label: "180\u00b0" },
+  { value: 270, label: "270\u00b0" },
+];
+
+
+const VERTICAL_PORT_ANGLES = [
+  { value: 45, label: "45\u00b0" },
+  { value: 135, label: "135\u00b0" },
+  { value: 225, label: "225\u00b0" },
+  { value: 315, label: "315\u00b0" },
 ];
 
 const PANEL_OPTIONS: { value: PanelType; label: string; detail: string }[] = [
@@ -179,16 +186,7 @@ export default function SettingsPanel({
 
   const decor = settings.decor;
   const customShape: ImportedShape | null = decor.custom;
-  const isTemplate = settings.family === "template";
-  const templateToGenerative: Record<number, string> = {
-    0: "six",
-    1: "six",
-    2: "corner3d",
-    3: "tee",
-    4: "corner90",
-    5: "vertical2",
-    6: "horizontal1",
-  };
+
 
   return (
     <aside className="settings-panel">
@@ -202,7 +200,7 @@ export default function SettingsPanel({
         </button>
       </div>
 
-      <div className={isTemplate ? "family-grid hidden" : "family-grid"}>
+      <div className="family-grid">
         {FAMILIES.map((family) => (
           <button
             type="button"
@@ -217,88 +215,6 @@ export default function SettingsPanel({
       </div>
 
       <div className="settings-scroll">
-        {isTemplate && (
-          <Section title="Base exacta" hint="Referencia original" icon={<Box size={17} />}>
-            <div className="decor-note">
-              <span className="note-dot" />
-              <div>
-                <strong>{build?.name || settings.name}</strong>
-                <p>
-                  Base geométrica exacta de la colección de referencia (CloudedCat, CC BY-NC 4.0).
-                  {build
-                    ? ` Medidas actuales: ${build.dimensions.width.toFixed(1)} × ${build.dimensions.depth.toFixed(1)} × ${build.dimensions.height.toFixed(1)} mm.`
-                    : ""}
-                </p>
-              </div>
-            </div>
-            <div className="field-grid">
-              <NumberField
-                label="Escala XY"
-                value={settings.template_scale_xy}
-                onChange={(value) => patch({ template_scale_xy: value })}
-                min={0.35}
-                max={2.5}
-                step={0.05}
-              />
-              <NumberField
-                label="Escala de alto"
-                value={settings.template_scale_z}
-                onChange={(value) => patch({ template_scale_z: value })}
-                min={0.35}
-                max={2.5}
-                step={0.05}
-              />
-              <NumberField
-                label="Giro"
-                value={settings.template_rotate}
-                onChange={(value) => patch({ template_rotate: value })}
-                min={-180}
-                max={180}
-                step={5}
-                suffix="°"
-              />
-            </div>
-            <Toggle
-              label="Espejo"
-              detail="Invierte la pieza manteniendo los canales."
-              checked={settings.template_mirror}
-              onChange={(checked) => patch({ template_mirror: checked })}
-            />
-            <ColorField
-              label="Color del cuerpo"
-              value={settings.body_color}
-              onChange={(value) => patch({ body_color: value })}
-            />
-            <div className="inline-note">
-              <span className="note-dot" />
-              <span>
-                Las bases exactas se conservan enteras para respetar sus canales. El partido está disponible en las
-                variantes generativas.
-              </span>
-            </div>
-            <div className="inline-note">
-              <span className="note-dot" />
-              <span>
-                La escala cambia el tamaño, pero no reconstruye los canales. Para cambiar ángulos, número de lados o agarre,
-                crea una variante generativa.
-              </span>
-            </div>
-            <button
-              type="button"
-              className="secondary-button wide"
-              onClick={() =>
-                patch({
-                  family: "node",
-                  joint_preset: templateToGenerative[settings.template_id] || "corner90",
-                })
-              }
-            >
-              <SlidersHorizontal size={15} /> Crear variante generativa
-            </button>
-          </Section>
-        )}
-
-        <div className="generative-sections" style={{ display: isTemplate ? "none" : "contents" }}>
         <Section
           title="Agarre"
           hint="Cómo se fija a la reja"
@@ -454,7 +370,7 @@ export default function SettingsPanel({
             <div className="port-row">
               <span className="port-level static">Vertical</span>
               <div className="port-angles">
-                {PORT_ANGLES.map((angle) => (
+                {VERTICAL_PORT_ANGLES.map((angle) => (
                   <button
                     type="button"
                     key={angle.value}
@@ -499,9 +415,27 @@ export default function SettingsPanel({
               value={settings.body_height}
               onChange={(value) => patch({ body_height: value })}
               min={6}
-              max={70}
+              max={90}
               step={0.2}
               suffix="mm"
+            />
+            <NumberField
+              label="Altura del cintur?n"
+              value={settings.belt_height}
+              onChange={(value) => patch({ belt_height: value })}
+              min={4}
+              max={40}
+              step={0.5}
+              suffix="mm"
+            />
+            <NumberField
+              label="Ancho del brazo"
+              value={settings.arm_width}
+              onChange={(value) => patch({ arm_width: value })}
+              min={20}
+              max={150}
+              step={1}
+              suffix="?"
             />
             <NumberField
               label="Grosor de pared"
@@ -733,6 +667,17 @@ export default function SettingsPanel({
                 step={1}
                 suffix="mm"
               />
+              <div className="size-chips leg-chips">
+                {[25, 50, 75, 100, 150, 200].map((height) => (
+                  <button
+                    type="button"
+                    key={height}
+                    onClick={() => patch({ leg: { ...settings.leg, height } })}
+                  >
+                    {height} mm
+                  </button>
+                ))}
+              </div>
               <NumberField
                 label="Ángulo"
                 value={settings.leg.angle}
@@ -846,8 +791,6 @@ export default function SettingsPanel({
             )}
           </div>
         </Section>
-
-        </div>
 
         <Section title="Impresión" hint="Material y comprobaciones" icon={<Printer size={17} />} defaultOpen={false}>
           <div className="field-grid">

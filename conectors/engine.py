@@ -39,8 +39,7 @@ from .mesh import (
 )
 from .shapes import custom_polygon, decor_details, decor_polygon
 from .shape import Shape, analyze_bytes
-from .wirenode import wire_node_mesh
-from .template import template_meshes
+from .spool import spool_mesh
 
 MM = 1.0
 
@@ -58,11 +57,6 @@ def _deep_merge(base: dict, extra: dict) -> dict:
 DEFAULTS: dict[str, Any] = {
     "family": "node",
     "name": "Conector",
-    "template_id": 4,
-    "template_scale_xy": 1.0,
-    "template_scale_z": 1.0,
-    "template_rotate": 0.0,
-    "template_mirror": False,
     "panel_type": "wire",
     "wire_diameter": 4.0,
     "panel_thickness": 4.0,
@@ -78,14 +72,16 @@ DEFAULTS: dict[str, Any] = {
     "tilt": 0.0,
     "arms": [],
     "body_shape": "rounded",
-    "body_size": 20.0,
+    "body_size": 46.0,
     "body_height": 22.6,
+    "belt_height": 8.0,
+    "arm_width": 76.0,
     "body_chamfer": 3.0,
     "body_color": "#e98da6",
     "inner_radius": 6.0,
     "body_style": "auto",
     "horizontal_ports": [0.0, 90.0],
-    "vertical_ports": [0.0, 90.0],
+    "vertical_ports": [45.0],
     "top_channels": True,
     "bottom_channels": True,
     "scallops": True,
@@ -469,25 +465,6 @@ def _screw_pad_shape(axis: str, side: float, offset: float, width: float) -> Mes
     return mesh
 
 
-def _node_outer_radius(settings: dict) -> float:
-    size = _clamp(_f(settings.get("body_size"), 20.0), 8.0, 80.0)
-    horizontal = settings.get("horizontal_ports")
-    vertical = settings.get("vertical_ports")
-    if not isinstance(horizontal, list):
-        horizontal = []
-    if not isinstance(vertical, list):
-        vertical = []
-    directions = set()
-    for item in list(horizontal) + list(vertical):
-        try:
-            directions.add(round(float(item) % 360.0, 1))
-        except (TypeError, ValueError):
-            continue
-    if len(directions) <= 1 or len(directions) >= 4 or str(settings.get("body_style", "auto")) == "full":
-        return size / 2.0
-    return size
-
-
 def _screw_ear(angle_deg: float, outer_radius: float, offset: float, side: float) -> Mesh:
     """An external ear with a neck, an M3 clearance hole and a flat face."""
     pad_center = outer_radius + 5.2
@@ -609,6 +586,9 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
     color = _color(settings.get("decor", {}).get("color"), "#ef6f5e")
     body_color = _color(settings.get("body_color"), "#465a66")
     meshes: list[tuple[str, Mesh, str]] = []
+    body_size = _clamp(_f(settings.get("body_size"), 38.0), 8.0, 90.0)
+    decor = settings.get("decor", {})
+    decor_enabled = _bool(decor.get("enabled"), False)
 
     if family == "calibration":
         return [("Cupón de calibración", _calibration_mesh(settings), "#f2c14e")], warnings, [
@@ -622,54 +602,15 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
             "El conector de borde integra el agarre en la placa: imprime plano y sin soportes."
         ]
 
-    if family == "template":
-        parts, t_warnings = template_meshes(settings)
-        return [
-            (name, mesh, _color(settings.get("body_color"), "#e98da6"))
-            for name, mesh in parts
-        ], warnings + t_warnings, [
-            "Base de referencia exacta. Para cambiar canales o topología, usa el modo generativo."
-        ]
-
-    body_size = _clamp(_f(settings.get("body_size"), 38.0), 8.0, 80.0)
-    decor = settings.get("decor", {})
-    decor_enabled = _bool(decor.get("enabled"), True)
-
-    split = settings.get("split", {})
-    if family in {"node", "angle"} and _bool(split.get("enabled"), False):
-        if str(split.get("axis", "z")).lower() != "z":
-            raise ValueError("Para los nodos de reja usa el corte horizontal; el vertical necesita otra orientación.")
-        height = _clamp(_f(settings.get("body_height"), 22.6), 6.0, 70.0)
-        offset = _clamp(_f(split.get("offset"), height / 2.0), 0.6, height - 0.6)
-        lower = wire_node_mesh(settings, 0.0, offset, cap_end=True)
-        upper = wire_node_mesh(settings, offset, height, cap_start=True)
-        if _bool(split.get("screw_pads"), True):
-            radius = _node_outer_radius(settings)
-            for angle in (24.0, 66.0):
-                lower = lower.append(_screw_ear(angle, radius, offset, -1.0))
-                upper = upper.append(_screw_ear(angle, radius, offset, 1.0))
-        warnings.append(
-            "El conector va dividido. Las dos mitades comparten la cara de corte y las orejetas M3."
-        )
-        return [
-            ("Cuerpo A", lower, body_color),
-            ("Cuerpo B", upper, body_color),
-        ], warnings, [
-            "Imprime las dos mitades con la cara plana de corte apoyada en la cama."
-        ]
-
     if family == "plate":
         body = empty_mesh()
     else:
         # Compact solid puck with C-channel cavities, matching the wire-grid
         # connector set: grooves in the rim, scalloped lips, no protruding hub.
-        body = wire_node_mesh(settings)
-        if family == "leg":
-            leg = settings.get("leg", {})
-            if not _bool(leg.get("enabled"), True):
-                settings = copy.deepcopy(settings)
-                settings.setdefault("leg", {})["enabled"] = True
-            body = body.append(_leg_mesh(settings))
+        if family == "leg" and not _bool(settings.get("leg", {}).get("enabled"), False):
+            settings = copy.deepcopy(settings)
+            settings.setdefault("leg", {})["enabled"] = True
+        body = spool_mesh(settings)
         if family == "hook" or _bool(settings.get("special", {}).get("hook", False), False):
             body = body.append(_hook_mesh(settings))
         if _bool(settings.get("special", {}).get("peg", False), False):
@@ -813,7 +754,7 @@ def build(payload: dict) -> dict:
     for p in parts:
         if not p["watertight"]:
             checks.append({"level": "error", "title": "Malla no estanca", "detail": f"{p['name']} tiene bordes abiertos. Prueba otra orientación o desactiva el split."})
-        if p["overhang"] > 0.35 and family not in {"node", "angle", "template"}:
+        if p["overhang"] > 0.35 and family not in {"node", "angle"}:
             checks.append({"level": "warn", "title": "Voladizos altos", "detail": f"{p['name']} tiene un {p['overhang']*100:.0f}% de superficie en voladizo. Usa soportes o aplica orientación diagonal."})
         bed_w = _f(settings.get("print", {}).get("bed_width"), 256.0)
         bed_d = _f(settings.get("print", {}).get("bed_depth"), 256.0)

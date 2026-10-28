@@ -42,7 +42,7 @@ const ICONS: Record<string, JSX.Element> = {
   decor: <Sparkles size={19} />,
 };
 
-const CATEGORIES = ["Todos", "Bases exactas", "Estructura", "Ángulos", "Patas", "Especiales", "Decorados", "Herramientas"] as const;
+const CATEGORIES = ["Todos", "Estructura", "Ángulos", "Patas", "Especiales", "Decorados", "Herramientas"] as const;
 
 export default function PresetGallery({
   presets,

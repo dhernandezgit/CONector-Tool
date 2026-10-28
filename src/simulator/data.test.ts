@@ -52,7 +52,7 @@ describe("simulator scene", () => {
     const scene = sceneTemplate("basic");
     const settings = jointSettings(scene.joints[0]);
     expect(settings.decor.enabled).toBe(false);
-    expect(settings.family).toBe("template");
+    expect(settings.family).toBe("node");
     expect(settings.body_color).toBe(DEFAULT_CONNECTOR.body_color);
   });
 });

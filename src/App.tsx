@@ -3,6 +3,7 @@ import {
   Download,
   FolderOpen,
   HelpCircle,
+  Info,
   Moon,
   PanelTop,
   Rotate3D,
@@ -32,11 +33,12 @@ import SettingsPanel from "./components/SettingsPanel";
 import Viewport3D, { type ViewportHandle } from "./components/Viewport3D";
 import ExportDialog from "./components/ExportDialog";
 import HelpDialog from "./components/HelpDialog";
+import AboutDialog from "./components/AboutDialog";
 import StatusBar from "./components/StatusBar";
 import Simulator from "./simulator/Simulator";
 
 const THEME_KEY = "conector-theme";
-const PROJECT_KEY = "conector-project-v3";
+const PROJECT_KEY = "conector-project-v4";
 const PRESETS_KEY = "conector-user-presets-v2";
 
 type Mode = "studio" | "simulator";
@@ -142,11 +144,11 @@ export default function App() {
   const engine = usePythonEngine();
   const initial = useMemo(loadProject, []);
   const [settings, setSettings] = useState<ConnectorSettings>(
-    initial ? initial.settings : settingsForPreset("ref4"),
+    initial ? initial.settings : settingsForPreset("corner90"),
   );
   const [scene, setScene] = useState<SimulatorScene>(initial ? initial.scene : starterScene());
   const [projectName, setProjectName] = useState(initial?.name || "Mi puesto de mercado");
-  const [activePreset, setActivePreset] = useState<string | null>(initial ? null : "ref4");
+  const [activePreset, setActivePreset] = useState<string | null>(initial ? null : "corner90");
   const [mode, setMode] = useState<Mode>("studio");
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [build, setBuild] = useState<BuildResult | null>(null);
@@ -154,6 +156,7 @@ export default function App() {
   const [buildError, setBuildError] = useState("");
   const [exportOpen, setExportOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [userPresets, setUserPresets] = useState<UserPreset[]>(readUserPresets);
   const [autoRotate, setAutoRotate] = useState(false);
@@ -392,6 +395,9 @@ export default function App() {
           <button type="button" className="icon-button" onClick={() => setHelpOpen(true)} title="Ayuda">
             <HelpCircle size={17} />
           </button>
+          <button type="button" className="icon-button" onClick={() => setAboutOpen(true)} title="Acerca de">
+            <Info size={17} />
+          </button>
         </div>
       </header>
 
@@ -558,6 +564,7 @@ export default function App() {
         onExportProject={exportProject}
       />
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
