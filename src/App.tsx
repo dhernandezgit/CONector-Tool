@@ -27,6 +27,7 @@ import {
   starterScene,
 } from "./data/presets";
 import { deepMerge, downloadBlob, fmt, slug } from "./lib/utils";
+import { snapJointsToPanels } from "./simulator/data";
 import Logo from "./components/Logo";
 import PresetGallery from "./components/PresetGallery";
 import SettingsPanel from "./components/SettingsPanel";
@@ -111,7 +112,7 @@ function normalizeScene(raw: unknown): SimulatorScene {
           color: /^#[0-9a-f]{6}$/i.test(String(joint.color)) ? joint.color : "#ef6f5e",
         }))
     : base.joints;
-  return {
+  const scene: SimulatorScene = {
     ...base,
     ...value,
     panels,
@@ -119,6 +120,7 @@ function normalizeScene(raw: unknown): SimulatorScene {
     table: { ...base.table, ...(value.table || {}) },
     grid: Math.max(5, Number(value.grid) || base.grid),
   };
+  return panels.length ? snapJointsToPanels(scene) : { ...scene, joints: [] };
 }
 
 function loadProject(): ConnectorProject | null {
