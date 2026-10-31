@@ -2073,6 +2073,23 @@ kbd {
   color: var(--accent);
 }
 
+.size-chips button.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.size-chips button.unsafe {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+}
+
+.size-chips button.active.unsafe {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
 .palette-row .palette-swatch {
   width: 20px;
   height: 20px;

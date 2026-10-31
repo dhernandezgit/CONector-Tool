@@ -20,7 +20,7 @@ export function newPanel(x = 0, y = 0, kind: SimPanelKind = "wire", width = 300,
   };
 }
 
-export function newJoint(x = 0, y = 0, z = 150, presetId = "corner90"): SimJoint {
+export function newJoint(x = 0, y = 0, z = 150, presetId = "ref_esquina_90"): SimJoint {
   return {
     id: uid("joint"),
     name: "Unión",

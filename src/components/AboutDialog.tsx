@@ -45,7 +45,7 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
             <p>
               Las <strong>7 bases exactas</strong> incluidas en la app son tus modelos de referencia, derivados de ese set y
               distribuidos bajo <strong>CC BY-NC 4.0</strong> con atribución a CloudedCat: no son MIT ni deben usarse
-              comercialmente. El resto de conectores se genera paramétricamente en el navegador. No se incluyen archivos de
+              comercialmente. Las patas y decoraciones se generan paramétricamente en el navegador. No se incluyen archivos de
               pago de Etsy.
             </p>
             <a href="https://www.printables.com/model/1721006-wire-grid-connector-set" target="_blank" rel="noreferrer">
@@ -55,7 +55,7 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
         </div>
 
         <div className="about-footer">
-          <span>Si quieres cambiar una base, usa los presets; si quieres una forma nueva, ajusta agarre, brazos, cinturón, patas y decoración.</span>
+          <span>Para cambiar una base, añade patas en sus lados libres, elige una decoración, gírala o escálala. Guarda la variante como preset.</span>
           <a href="https://github.com/dhernandezgit/CONector-Tool" target="_blank" rel="noreferrer">
             <Github size={14} /> Repositorio
           </a>

@@ -18,28 +18,28 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="help-grid">
           <article>
             <span className="help-num">01</span>
-            <h3>Elige un preset</h3>
-            <p>Empieza por esquina, T, cruz, ángulo, pata, borde o una placa decorativa. Todos son puntos de partida editables.</p>
+            <h3>Elige una base</h3>
+            <p>La biblioteca tiene las 7 bases exactas. Elige la unión que necesites; las demás formas se crean modificando esa base.</p>
           </article>
           <article>
             <span className="help-num">02</span>
             <h3>Mide tu reja</h3>
-            <p>El perfil base usa cable de 4 mm. Si tu reja es de marco, cámbialo a 3,8 mm; para foam, usa la clavija de 5 mm.</p>
+            <p>Las bases están calibradas para la reja de referencia. Si tu reja tiene otro grosor, imprime el cupón y ajusta la holgura.</p>
           </article>
           <article>
             <span className="help-num">03</span>
             <h3>Prueba el cupón</h3>
-            <p>Imprime el cupón de calibración antes del conector final. Prueba los cinco canales y ajusta la holgura.</p>
+            <p>Imprime el cupón de calibración antes del conector final. Prueba los cinco canales y elige el que mejor encaje.</p>
           </article>
           <article>
             <span className="help-num">04</span>
             <h3>Decora</h3>
-            <p>Elige una silueta o importa un SVG, PNG, JPG o WebP. La app detecta el contorno y lo convierte en placa intercambiable.</p>
+            <p>Añade una de las 22 siluetas en un lado libre. La placa se imprime aparte, plana y en su color, y se encola en la base.</p>
           </article>
           <article>
             <span className="help-num">05</span>
-            <h3>Parte si hace falta</h3>
-            <p>El modo partido divide la pieza en dos mitades con orejetas M3. También puedes imprimir en diagonal para reforzar las capas.</p>
+            <h3>Añade patas</h3>
+            <p>Coloca patas en los lados libres para elevar la pieza. Con altura 0 se convierten en extensiones planas; el giro siempre es vertical.</p>
           </article>
           <article>
             <span className="help-num">06</span>

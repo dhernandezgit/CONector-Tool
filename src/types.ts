@@ -3,6 +3,7 @@ export type PanelType = "wire" | "frame" | "foam";
 export type DecorSide = "front" | "back" | "both";
 export type MountType = "press" | "magnet" | "screw";
 export type SplitAxis = "z" | "x";
+export type TemplateSide = "right" | "left" | "back" | "front";
 
 export interface ImportedShape {
   name: string;
@@ -22,6 +23,29 @@ export interface ConnectorSettings {
   template_scale_z: number;
   template_mirror: boolean;
   template_rotate: number;
+  template_legs: {
+    enabled: boolean;
+    sides: TemplateSide[];
+    length: number;
+    width: number;
+    height: number;
+    foot: number;
+    sole: number;
+    thickness: number;
+  };
+  template_decor: {
+    enabled: boolean;
+    side: TemplateSide;
+    shape: string;
+    custom: ImportedShape | null;
+    size: number;
+    thickness: number;
+    border: number;
+    relief: number;
+    color: string;
+    height_pct: number;
+    offset: number;
+  };
   panel_type: PanelType;
   wire_diameter: number;
   panel_thickness: number;

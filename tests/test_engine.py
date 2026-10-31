@@ -217,6 +217,84 @@ def test_reference_templates_are_exact() -> None:
         assert part["triangles"] == item["triangles"], item["name"]
 
 
+def test_reference_template_legs_and_decor() -> None:
+    base = build(settings(family="template", template_id=4, decor={"enabled": False}))
+    legs = build(
+        settings(
+            family="template",
+            template_id=4,
+            decor={"enabled": False},
+            template_legs={
+                "enabled": True,
+                "sides": ["right", "back"],
+                "height": 35,
+                "length": 28,
+                "width": 16,
+                "foot": 22,
+            },
+        )
+    )
+    assert len(legs["parts"]) == 1
+    leg_part = legs["parts"][0]
+    assert leg_part["watertight"]
+    assert leg_part["bounds"]["min"][2] == pytest.approx(0.0, abs=1e-6)
+    assert legs["dimensions"]["height"] == pytest.approx(base["dimensions"]["height"] + 35, abs=0.3)
+    assert legs["dimensions"]["width"] > base["dimensions"]["width"] + 30
+    assert legs["dimensions"]["depth"] > base["dimensions"]["depth"] + 30
+
+    decorated = build(
+        settings(
+            family="template",
+            template_id=4,
+            decor={"enabled": False},
+            template_decor={
+                "enabled": True,
+                "side": "back",
+                "shape": "cat",
+                "size": 19,
+                "thickness": 2.4,
+            },
+        )
+    )
+    assert len(decorated["parts"]) == 2
+    assert all(part["watertight"] for part in decorated["parts"])
+    plate = next(part for part in decorated["parts"] if part["name"] == "Decoración")
+    assert plate["volume"] > 100
+    assert plate["dimensions"][2] == pytest.approx(19.0, abs=0.6)
+
+
+def test_reference_template_addons_stay_upright_when_rotated() -> None:
+    result = build(
+        settings(
+            family="template",
+            template_id=4,
+            template_rotate=90,
+            decor={"enabled": False},
+            template_legs={"enabled": True, "sides": ["right", "back"], "height": 30},
+            template_decor={"enabled": True, "side": "back", "shape": "star", "size": 16},
+        )
+    )
+    assert len(result["parts"]) == 2
+    assert all(part["watertight"] for part in result["parts"])
+    # Every part is placed flat on the bed for printing, even when the
+    # decoration sits at mid-height in the assembled model.
+    assert all(part["print_bounds"]["min"][2] == pytest.approx(0.0, abs=1e-6) for part in result["parts"])
+    base_part = next(part for part in result["parts"] if part["name"].startswith("Base"))
+    assert base_part["bounds"]["min"][2] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_reference_template_warns_when_addon_covers_a_channel() -> None:
+    result = build(
+        settings(
+            family="template",
+            template_id=6,
+            decor={"enabled": False},
+            template_legs={"enabled": True, "sides": ["left"]},
+        )
+    )
+    assert any("canal" in warning.lower() for warning in result["warnings"])
+
+
 def test_reference_template_scaling_and_mirroring() -> None:
     base = build(settings(family="template", template_id=4, decor={"enabled": False}))
     scaled = build(

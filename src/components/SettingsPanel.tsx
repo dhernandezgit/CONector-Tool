@@ -5,9 +5,11 @@ import {
   Download,
   Hand,
   ImagePlus,
+  Move3D,
   Printer,
   Shapes,
   SlidersHorizontal,
+  Sparkles,
   Trash2,
   Upload,
   Wrench,
@@ -23,8 +25,14 @@ import type {
   PanelType,
   ShapeAnalysis,
   SplitAxis,
+  TemplateSide,
 } from "../types";
-import { SHAPE_OPTIONS } from "../data/presets";
+import {
+  SHAPE_OPTIONS,
+  TEMPLATE_DECOR_SIDE,
+  TEMPLATE_FREE_SIDES,
+  TEMPLATE_SIDE_OPTIONS,
+} from "../data/presets";
 import { deepMerge } from "../lib/utils";
 import {
   ColorField,
@@ -195,6 +203,35 @@ export default function SettingsPanel({
 
   const decor = settings.decor;
   const customShape: ImportedShape | null = decor.custom;
+  const templateLegs = settings.template_legs;
+  const templateDecor = settings.template_decor;
+  const freeSides = TEMPLATE_FREE_SIDES[settings.template_id] || [];
+  const sideLabel = (side: TemplateSide) =>
+    TEMPLATE_SIDE_OPTIONS.find((option) => option.value === side)?.label || side;
+  const selectedUnsafeLegSides = templateLegs.sides.filter((side) => !freeSides.includes(side));
+  const decorUnsafe = !freeSides.includes(templateDecor.side);
+
+  const selectTemplate = (value: string) => {
+    const id = Number(value);
+    const nextFree = TEMPLATE_FREE_SIDES[id] || [];
+    patch({
+      template_id: id,
+      template_legs: {
+        ...templateLegs,
+        sides: nextFree.length ? nextFree.slice(-2) : templateLegs.sides,
+      },
+      template_decor: {
+        ...templateDecor,
+        side: TEMPLATE_DECOR_SIDE[id] || nextFree[nextFree.length - 1] || "front",
+      },
+    });
+  };
+
+  const toggleLegSide = (side: TemplateSide) => {
+    const active = templateLegs.sides.includes(side);
+    const sides = active ? templateLegs.sides.filter((item) => item !== side) : [...templateLegs.sides, side];
+    patch({ template_legs: { ...templateLegs, sides } });
+  };
 
 
   return (
@@ -209,73 +246,329 @@ export default function SettingsPanel({
         </button>
       </div>
 
-      <div className="family-grid">
-        {FAMILIES.map((family) => (
-          <button
-            type="button"
-            key={family.value}
-            className={settings.family === family.value ? "family active" : "family"}
-            onClick={() => patch({ family: family.value })}
-          >
-            <strong>{family.label}</strong>
-            <small>{family.detail}</small>
-          </button>
-        ))}
-      </div>
+      {settings.family !== "template" && (
+        <div className="family-grid">
+          {FAMILIES.map((family) => (
+            <button
+              type="button"
+              key={family.value}
+              className={settings.family === family.value ? "family active" : "family"}
+              onClick={() => patch({ family: family.value })}
+            >
+              <strong>{family.label}</strong>
+              <small>{family.detail}</small>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="settings-scroll">
         {settings.family === "template" && (
-          <Section
-            title="Base exacta"
-            hint="Tus 7 modelos de referencia"
-            icon={<Shapes size={17} />}
-            badge="STL original"
-          >
-            <SelectField
-              label="Modelo"
-              value={String(settings.template_id)}
-              options={TEMPLATE_OPTIONS}
-              onChange={(value) => patch({ template_id: Number(value) })}
-            />
-            <div className="field-grid">
-              <NumberField
-                label="Escala X/Y"
-                value={settings.template_scale_xy}
-                onChange={(value) => patch({ template_scale_xy: value })}
-                min={0.3}
-                max={3}
-                step={0.05}
+          <>
+            <Section
+              title="Base exacta"
+              hint="7 modelos + extras paramétricos"
+              icon={<Shapes size={17} />}
+              badge="STL original"
+            >
+              <SelectField
+                label="Modelo"
+                value={String(settings.template_id)}
+                options={TEMPLATE_OPTIONS}
+                onChange={selectTemplate}
               />
-              <NumberField
-                label="Escala Z"
-                value={settings.template_scale_z}
-                onChange={(value) => patch({ template_scale_z: value })}
-                min={0.3}
-                max={3}
-                step={0.05}
+              <div className="size-chips" role="group" aria-label="Orientación de la pieza">
+                {[0, 90, 180, 270].map((angle) => (
+                  <button
+                    type="button"
+                    key={angle}
+                    className={Math.round(settings.template_rotate) === angle ? "active" : ""}
+                    onClick={() => patch({ template_rotate: angle })}
+                  >
+                    {angle}°
+                  </button>
+                ))}
+              </div>
+              <div className="field-grid">
+                <NumberField
+                  label="Giro fino"
+                  value={settings.template_rotate}
+                  onChange={(value) => patch({ template_rotate: value })}
+                  min={-180}
+                  max={360}
+                  step={5}
+                  suffix="°"
+                  hint="Siempre vertical"
+                />
+              </div>
+              <ColorField
+                label="Color del cuerpo"
+                value={settings.body_color}
+                onChange={(value) => patch({ body_color: value })}
               />
-              <NumberField
-                label="Giro"
-                value={settings.template_rotate}
-                onChange={(value) => patch({ template_rotate: value })}
-                min={-180}
-                max={180}
-                step={5}
-                suffix="°"
+              <div className="inline-note">
+                <span className="note-dot" />
+                <span>
+                  La pieza descansa siempre en la cama. El giro es alrededor de Z, así que no pierde la vertical ni el
+                  apoyo de las patas.
+                </span>
+              </div>
+            </Section>
+
+            <Section
+              title="Escala y espejo"
+              hint="Ajustes avanzados de la base"
+              icon={<SlidersHorizontal size={17} />}
+              defaultOpen={false}
+            >
+              <div className="field-grid">
+                <NumberField
+                  label="Escala X/Y"
+                  value={settings.template_scale_xy}
+                  onChange={(value) => patch({ template_scale_xy: value })}
+                  min={0.3}
+                  max={3}
+                  step={0.05}
+                />
+                <NumberField
+                  label="Escala Z"
+                  value={settings.template_scale_z}
+                  onChange={(value) => patch({ template_scale_z: value })}
+                  min={0.3}
+                  max={3}
+                  step={0.05}
+                />
+              </div>
+              <Toggle
+                label="Espejo en X"
+                checked={settings.template_mirror}
+                onChange={(checked) => patch({ template_mirror: checked })}
               />
-            </div>
-            <Toggle
-              label="Espejo en X"
-              checked={settings.template_mirror}
-              onChange={(checked) => patch({ template_mirror: checked })}
-            />
-            <div className="inline-note">
-              <span className="note-dot" />
-              <span>
-                Geometría original de tu set, sin remodelar. Mantén la escala en 1 para imprimir la pieza idéntica.
-              </span>
-            </div>
-          </Section>
+              <div className="inline-note">
+                <span className="note-dot" />
+                <span>Mantén la escala en 1 para imprimir la pieza idéntica al STL de referencia.</span>
+              </div>
+            </Section>
+
+            <Section
+              title="Patas"
+              hint="Extensiones completas en lados libres"
+              icon={<Move3D size={17} />}
+              badge={templateLegs.enabled ? `${templateLegs.sides.length} lados` : undefined}
+            >
+              <Toggle
+                label="Añadir patas"
+                detail="Elevan el conector y dejan un pie ancho sobre la mesa."
+                checked={templateLegs.enabled}
+                onChange={(checked) => patch({ template_legs: { ...templateLegs, enabled: checked } })}
+              />
+              {templateLegs.enabled && (
+                <>
+                  <div className="inline-note">
+                    <span className="note-dot" />
+                    <span>
+                      Lados libres de esta base:{" "}
+                      <strong>{freeSides.length ? freeSides.map(sideLabel).join(", ") : "ninguno"}</strong>.
+                      {freeSides.length === 0 && " Cambia de modelo para colocar patas sin tapar canales."}
+                    </span>
+                  </div>
+                  <div className="size-chips" role="group" aria-label="Lados de las patas">
+                    {TEMPLATE_SIDE_OPTIONS.map((option) => {
+                      const active = templateLegs.sides.includes(option.value);
+                      const unsafe = !freeSides.includes(option.value);
+                      return (
+                        <button
+                          type="button"
+                          key={option.value}
+                          className={`${active ? "active" : ""}${unsafe ? " unsafe" : ""}`}
+                          onClick={() => toggleLegSide(option.value)}
+                          title={unsafe ? "Este lado puede llevar un canal de reja" : "Lado libre"}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    className="link-button"
+                    disabled={freeSides.length === 0}
+                    onClick={() => patch({ template_legs: { ...templateLegs, sides: freeSides } })}
+                  >
+                    Usar solo los lados libres
+                  </button>
+                  <div className="field-grid">
+                    <NumberField
+                      label="Largo"
+                      value={templateLegs.length}
+                      onChange={(value) => patch({ template_legs: { ...templateLegs, length: value } })}
+                      min={10}
+                      max={120}
+                      step={1}
+                      suffix="mm"
+                    />
+                    <NumberField
+                      label="Ancho"
+                      value={templateLegs.width}
+                      onChange={(value) => patch({ template_legs: { ...templateLegs, width: value } })}
+                      min={5}
+                      max={70}
+                      step={1}
+                      suffix="mm"
+                      hint="máx. según el lado"
+                    />
+                    <NumberField
+                      label="Alto"
+                      value={templateLegs.height}
+                      onChange={(value) => patch({ template_legs: { ...templateLegs, height: value } })}
+                      min={0}
+                      max={220}
+                      step={1}
+                      suffix="mm"
+                      hint="0 = extensión plana"
+                    />
+                    <NumberField
+                      label="Pie"
+                      value={templateLegs.foot}
+                      onChange={(value) => patch({ template_legs: { ...templateLegs, foot: value } })}
+                      min={10}
+                      max={90}
+                      step={1}
+                      suffix="mm"
+                    />
+                  </div>
+                  {selectedUnsafeLegSides.length > 0 && (
+                    <div className="inline-warning">
+                      Algunas patas están en lados con canal: {selectedUnsafeLegSides.map(sideLabel).join(", ")}. Pueden
+                      tapar la entrada de la reja.
+                    </div>
+                  )}
+                </>
+              )}
+            </Section>
+
+            <Section
+              title="Decoración"
+              hint="Formas para el puesto"
+              icon={<Sparkles size={17} />}
+              badge={templateDecor.enabled ? "1 placa" : undefined}
+            >
+              <Toggle
+                label="Añadir decoración"
+                detail="Una silueta plana encolada en un lado libre."
+                checked={templateDecor.enabled}
+                onChange={(checked) => patch({ template_decor: { ...templateDecor, enabled: checked } })}
+              />
+              {templateDecor.enabled && (
+                <>
+                  <div className="shape-grid">
+                    {SHAPE_OPTIONS.map((shape) => (
+                      <button
+                        type="button"
+                        key={shape.id}
+                        className={templateDecor.shape === shape.id ? "shape-tile active" : "shape-tile"}
+                        style={{ ["--shape-color" as string]: shape.color }}
+                        onClick={() =>
+                          patch({
+                            template_decor: {
+                              ...templateDecor,
+                              shape: shape.id,
+                              color: shape.color,
+                              custom: null,
+                            },
+                          })
+                        }
+                        title={shape.name}
+                      >
+                        <span>{shape.emoji}</span>
+                        <small>{shape.name}</small>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="size-chips" role="group" aria-label="Lado de la decoración">
+                    {TEMPLATE_SIDE_OPTIONS.map((option) => {
+                      const active = templateDecor.side === option.value;
+                      const unsafe = !freeSides.includes(option.value);
+                      return (
+                        <button
+                          type="button"
+                          key={option.value}
+                          className={`${active ? "active" : ""}${unsafe ? " unsafe" : ""}`}
+                          onClick={() =>
+                            patch({ template_decor: { ...templateDecor, side: option.value } })
+                          }
+                          title={unsafe ? "Este lado puede llevar un canal de reja" : "Lado libre"}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="field-grid">
+                    <NumberField
+                      label="Tamaño"
+                      value={templateDecor.size}
+                      onChange={(value) => patch({ template_decor: { ...templateDecor, size: value } })}
+                      min={6}
+                      max={80}
+                      step={1}
+                      suffix="mm"
+                      hint="máx. según la cara"
+                    />
+                    <NumberField
+                      label="Grosor"
+                      value={templateDecor.thickness}
+                      onChange={(value) => patch({ template_decor: { ...templateDecor, thickness: value } })}
+                      min={1.2}
+                      max={8}
+                      step={0.1}
+                      suffix="mm"
+                    />
+                    <NumberField
+                      label="Altura"
+                      value={Math.round(templateDecor.height_pct * 100)}
+                      onChange={(value) =>
+                        patch({ template_decor: { ...templateDecor, height_pct: value / 100 } })
+                      }
+                      min={10}
+                      max={90}
+                      step={5}
+                      suffix="%"
+                    />
+                    <NumberField
+                      label="Desplazamiento"
+                      value={templateDecor.offset}
+                      onChange={(value) => patch({ template_decor: { ...templateDecor, offset: value } })}
+                      min={-30}
+                      max={30}
+                      step={1}
+                      suffix="mm"
+                      hint="se limita al lado"
+                    />
+                  </div>
+                  <ColorField
+                    label="Color de la decoración"
+                    value={templateDecor.color}
+                    onChange={(value) => patch({ template_decor: { ...templateDecor, color: value } })}
+                  />
+                  <div className="inline-note">
+                    <span className="note-dot" />
+                    <span>Se imprime aparte, plana y en su color. En el puesto queda encolada en la cara elegida.</span>
+                  </div>
+                  {decorUnsafe && (
+                    <div className="inline-warning">
+                      Este lado puede llevar un canal de reja. La placa podría taparlo; elige un lado libre.
+                    </div>
+                  )}
+
+                </>
+              )}
+            </Section>
+
+            <button type="button" className="secondary-button wide" onClick={onSavePreset}>
+              <SlidersHorizontal size={15} /> Guardar esta configuración como preset
+            </button>
+          </>
         )}
         {settings.family !== "template" && (
         <Section
@@ -534,6 +827,7 @@ export default function SettingsPanel({
         </Section>
         )}
 
+        {settings.family !== "template" && (
         <Section title="Forma" hint="Cuerpo, color y placa" icon={<Shapes size={17} />}>
           <ColorField
             label="Color del cuerpo"
@@ -714,7 +1008,9 @@ export default function SettingsPanel({
             <SlidersHorizontal size={15} /> Guardar esta configuración como preset
           </button>
         </Section>
+        )}
 
+        {settings.family !== "template" && (
         <Section title="Especial" hint="Patas, cortes y piezas" icon={<Wrench size={17} />} defaultOpen={false}>
           <Toggle
             label="Pata o elevador"
@@ -857,6 +1153,7 @@ export default function SettingsPanel({
             )}
           </div>
         </Section>
+        )}
 
         <Section title="Impresión" hint="Material y comprobaciones" icon={<Printer size={17} />} defaultOpen={false}>
           <div className="field-grid">

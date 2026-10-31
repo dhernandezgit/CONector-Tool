@@ -1,4 +1,3 @@
-import { useMemo, useState } from "react";
 import {
   Box,
   Boxes,
@@ -42,8 +41,6 @@ const ICONS: Record<string, JSX.Element> = {
   decor: <Sparkles size={19} />,
 };
 
-const CATEGORIES = ["Todos", "Bases exactas", "Estructura", "Ángulos", "Patas", "Especiales", "Decorados", "Herramientas"] as const;
-
 export default function PresetGallery({
   presets,
   activeId,
@@ -55,11 +52,6 @@ export default function PresetGallery({
   onSelect: (preset: Preset) => void;
   onOpenHelp?: () => void;
 }) {
-  const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("Todos");
-  const filtered = useMemo(
-    () => (category === "Todos" ? presets : presets.filter((preset) => preset.category === category)),
-    [presets, category],
-  );
   return (
     <div className="preset-panel">
       <div className="preset-heading">
@@ -69,20 +61,8 @@ export default function PresetGallery({
         </div>
         <span className="count-pill">{presets.length}</span>
       </div>
-      <div className="preset-categories" role="tablist" aria-label="Categorías de presets">
-        {CATEGORIES.map((item) => (
-          <button
-            type="button"
-            key={item}
-            className={item === category ? "chip active" : "chip"}
-            onClick={() => setCategory(item)}
-          >
-            {item}
-          </button>
-        ))}
-      </div>
       <div className="preset-grid">
-        {filtered.map((preset) => (
+        {presets.map((preset) => (
           <button
             type="button"
             key={preset.id}

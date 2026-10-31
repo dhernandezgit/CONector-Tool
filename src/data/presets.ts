@@ -10,13 +10,36 @@ import type {
 import { clone, deepMerge } from "../lib/utils";
 
 export const DEFAULT_CONNECTOR: ConnectorSettings = {
-  family: "node",
+  family: "template",
   name: "Conector",
   template_id: 4,
   template_scale_xy: 1,
   template_scale_z: 1,
   template_mirror: false,
   template_rotate: 0,
+  template_legs: {
+    enabled: false,
+    sides: ["right", "back"],
+    length: 24,
+    width: 12,
+    height: 30,
+    foot: 18,
+    sole: 3,
+    thickness: 4,
+  },
+  template_decor: {
+    enabled: false,
+    side: "right",
+    shape: "cat",
+    custom: null,
+    size: 19,
+    thickness: 2.4,
+    border: 0.8,
+    relief: 0.5,
+    color: "#ef8ca5",
+    height_pct: 0.5,
+    offset: 0,
+  },
   panel_type: "wire",
   wire_diameter: 4,
   panel_thickness: 4,
@@ -117,25 +140,47 @@ export const ARMS_BY_PRESET: Record<string, string[]> = {
 };
 
 export const JOINT_PRESET_OPTIONS = [
-  { id: "ref_esquina_90", name: "Base · Esquina 90" },
-  { id: "ref_estandar", name: "Base · Estándar" },
-  { id: "ref_doble_90", name: "Base · Doble 90" },
-  { id: "ref_vertical_doble", name: "Base · Vertical doble" },
-  { id: "ref_tres_lados", name: "Base · Tres lados" },
-  { id: "ref_cubo_alternativo", name: "Base · Cubo alternativo" },
-  { id: "ref_cubo_completo", name: "Base · Cubo completo" },
-  { id: "corner90", name: "Generativo · Esquina 90°" },
-  { id: "corner3d", name: "Generativo · Esquina cubo" },
-  { id: "flat", name: "Generativo · Recta / plana" },
-  { id: "tee", name: "Generativo · T de 3 paneles" },
-  { id: "cross", name: "Generativo · Cruz / 4 vías" },
-  { id: "six", name: "Generativo · Nodo completo" },
-  { id: "horizontal2", name: "Generativo · Horizontal 2 vías" },
-  { id: "vertical1", name: "Generativo · Vertical 1 vía" },
-  { id: "vertical2", name: "Generativo · Vertical 2 vías" },
+  { id: "ref_esquina_90", name: "Esquina 90" },
+  { id: "ref_estandar", name: "Estándar" },
+  { id: "ref_doble_90", name: "Doble 90" },
+  { id: "ref_vertical_doble", name: "Vertical doble" },
+  { id: "ref_tres_lados", name: "Tres lados" },
+  { id: "ref_cubo_alternativo", name: "Cubo alternativo" },
+  { id: "ref_cubo_completo", name: "Cubo completo" },
 ];
 
-export const PRESETS: Preset[] = [
+export const TEMPLATE_SIDE_OPTIONS = [
+  { value: "right", label: "Derecha (+X)" },
+  { value: "left", label: "Izquierda (−X)" },
+  { value: "back", label: "Fondo (+Y)" },
+  { value: "front", label: "Frente (−Y)" },
+] as const;
+
+// Sides without a wire channel, derived from the reference meshes.  They are
+// recommendations: the UI warns if a leg or decoration is placed over a channel.
+export const TEMPLATE_FREE_SIDES: Record<number, Array<"right" | "left" | "back" | "front">> = {
+  0: [],
+  1: [],
+  2: ["right"],
+  3: ["right"],
+  4: ["right", "back"],
+  5: ["left", "right"],
+  6: ["right", "front", "back"],
+};
+
+// Free side that faces the default camera, so a new decoration is visible
+// straight away.  "right" is +X and "front" is -Y.
+export const TEMPLATE_DECOR_SIDE: Record<number, "right" | "left" | "back" | "front"> = {
+  0: "front",
+  1: "front",
+  2: "right",
+  3: "right",
+  4: "right",
+  5: "right",
+  6: "front",
+};
+
+const ALL_PRESETS: Preset[] = [
   {
     id: "ref_esquina_90",
     name: "Base · Esquina 90",
@@ -143,7 +188,12 @@ export const PRESETS: Preset[] = [
     category: "Bases exactas",
     icon: "corner",
     accent: "#e98da6",
-    patch: { family: "template", template_id: 4 },
+    patch: {
+      family: "template",
+      template_id: 4,
+      template_legs: { sides: ["right", "back"] },
+      template_decor: { side: "right" },
+    },
   },
   {
     id: "ref_estandar",
@@ -152,7 +202,12 @@ export const PRESETS: Preset[] = [
     category: "Bases exactas",
     icon: "flat",
     accent: "#79a8d8",
-    patch: { family: "template", template_id: 6 },
+    patch: {
+      family: "template",
+      template_id: 6,
+      template_legs: { sides: ["front", "back"] },
+      template_decor: { side: "front" },
+    },
   },
   {
     id: "ref_doble_90",
@@ -161,7 +216,12 @@ export const PRESETS: Preset[] = [
     category: "Bases exactas",
     icon: "tee",
     accent: "#3e9a8f",
-    patch: { family: "template", template_id: 3 },
+    patch: {
+      family: "template",
+      template_id: 3,
+      template_legs: { sides: ["right"] },
+      template_decor: { side: "right" },
+    },
   },
   {
     id: "ref_vertical_doble",
@@ -170,7 +230,12 @@ export const PRESETS: Preset[] = [
     category: "Bases exactas",
     icon: "base",
     accent: "#8b7bc6",
-    patch: { family: "template", template_id: 5 },
+    patch: {
+      family: "template",
+      template_id: 5,
+      template_legs: { sides: ["left", "right"] },
+      template_decor: { side: "right" },
+    },
   },
   {
     id: "ref_tres_lados",
@@ -179,7 +244,12 @@ export const PRESETS: Preset[] = [
     category: "Bases exactas",
     icon: "six",
     accent: "#e6b63c",
-    patch: { family: "template", template_id: 2 },
+    patch: {
+      family: "template",
+      template_id: 2,
+      template_legs: { sides: ["right"] },
+      template_decor: { side: "right" },
+    },
   },
   {
     id: "ref_cubo_alternativo",
@@ -188,7 +258,12 @@ export const PRESETS: Preset[] = [
     category: "Bases exactas",
     icon: "cube",
     accent: "#d9789b",
-    patch: { family: "template", template_id: 1 },
+    patch: {
+      family: "template",
+      template_id: 1,
+      template_legs: { sides: ["right", "back"] },
+      template_decor: { side: "front" },
+    },
   },
   {
     id: "ref_cubo_completo",
@@ -197,7 +272,12 @@ export const PRESETS: Preset[] = [
     category: "Bases exactas",
     icon: "cube",
     accent: "#5b8db8",
-    patch: { family: "template", template_id: 0 },
+    patch: {
+      family: "template",
+      template_id: 0,
+      template_legs: { sides: ["right", "back"] },
+      template_decor: { side: "front" },
+    },
   },
   {
     id: "corner90",
@@ -957,6 +1037,12 @@ export const PRESETS: Preset[] = [
   },
 ];
 
+// The gallery only shows the seven exact reference bases.  Everything else is
+// built from one of those bases with the parametric leg/decoration layer, so
+// the old generative presets stay internal for legacy projects but are not
+// offered in the library.
+export const PRESETS: Preset[] = ALL_PRESETS.filter((preset) => preset.category === "Bases exactas");
+
 export const SHAPE_OPTIONS: ShapeOption[] = [
   { id: "cat", name: "Gato", emoji: "🐱", color: "#e98da6" },
   { id: "star", name: "Estrella", emoji: "⭐", color: "#e6b64b" },
@@ -1041,7 +1127,7 @@ const SPOOL_OVERRIDES: Record<string, DeepPartial<ConnectorSettings>> = {
 };
 
 export function settingsForPreset(id: string): ConnectorSettings {
-  const preset = PRESETS.find((item) => item.id === id);
+  const preset = ALL_PRESETS.find((item) => item.id === id);
   if (!preset) return clone(DEFAULT_CONNECTOR);
   let settings = deepMerge(DEFAULT_CONNECTOR, preset.patch);
   const spool = SPOOL_OVERRIDES[id];

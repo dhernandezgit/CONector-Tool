@@ -38,6 +38,7 @@ export default forwardRef<ViewportHandle, Props>(function Viewport3D(
   const centerRef = useRef(new THREE.Vector3(0, 0, 10));
   const radiusRef = useRef(80);
   const firstFitRef = useRef(false);
+  const lastFitRadiusRef = useRef(0);
   const autoRotateRef = useRef(autoRotate);
   autoRotateRef.current = autoRotate;
 
@@ -209,7 +210,7 @@ export default forwardRef<ViewportHandle, Props>(function Viewport3D(
     const loader = new STLLoader();
     const box = new THREE.Box3();
     for (const part of build.parts) {
-      if (!showDecor && part.name.startsWith("Placa")) continue;
+      if (!showDecor && (part.name.startsWith("Placa") || part.name.startsWith("Decoración"))) continue;
       try {
         const bytes = base64ToBytes(part.b64);
         const buffer = new ArrayBuffer(bytes.byteLength);
@@ -240,18 +241,24 @@ export default forwardRef<ViewportHandle, Props>(function Viewport3D(
       group.position.set(-center.x, -center.y, -box.min.z);
       centerRef.current.set(center.x, center.y, center.z);
       const size = box.getSize(new THREE.Vector3());
-      radiusRef.current = Math.max(size.length() / 2, 30);
+      radiusRef.current = Math.max(size.length() / 2, 18);
       const controls = controlsRef.current;
       if (controls) {
         controls.target.set(0, 0, Math.max(8, size.z * 0.45));
-        if (!firstFitRef.current) {
+        const r = Math.max(radiusRef.current, 20);
+        // Refit when the model changes size significantly (for example when
+        // legs are added) but leave the user's orbit alone for small tweaks.
+        const shouldFit =
+          !firstFitRef.current ||
+          Math.abs(r - lastFitRadiusRef.current) > Math.max(6, lastFitRadiusRef.current * 0.25);
+        if (shouldFit) {
           const camera = cameraRef.current;
           if (camera) {
-            const r = Math.max(radiusRef.current, 35);
             camera.position.set(r * 2.15, -r * 2.8, r * 2.0);
             controls.target.set(0, 0, Math.max(8, size.z * 0.36));
             controls.update();
           }
+          lastFitRadiusRef.current = r;
           firstFitRef.current = true;
         }
       }
@@ -267,7 +274,7 @@ export default forwardRef<ViewportHandle, Props>(function Viewport3D(
       if (!camera || !controls) return;
       const target = centerRef.current.clone();
       target.z = Math.max(8, target.z * 0.65);
-      const radius = Math.max(radiusRef.current, 40);
+      const radius = Math.max(radiusRef.current, 20);
       const positions: Record<string, THREE.Vector3> = {
         iso: new THREE.Vector3(radius * 2.15, -radius * 2.8, radius * 2.0),
         front: new THREE.Vector3(0, -radius * 3.7, radius * 1.0),

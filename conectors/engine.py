@@ -63,6 +63,29 @@ DEFAULTS: dict[str, Any] = {
     "template_scale_z": 1.0,
     "template_mirror": False,
     "template_rotate": 0.0,
+    "template_legs": {
+        "enabled": False,
+        "sides": ["right", "back"],
+        "length": 24.0,
+        "width": 12.0,
+        "height": 30.0,
+        "foot": 18.0,
+        "sole": 3.0,
+        "thickness": 4.0,
+    },
+    "template_decor": {
+        "enabled": False,
+        "side": "right",
+        "shape": "cat",
+        "custom": None,
+        "size": 19.0,
+        "thickness": 2.4,
+        "border": 0.8,
+        "relief": 0.5,
+        "color": "#ef8ca5",
+        "height_pct": 0.5,
+        "offset": 0.0,
+    },
     "panel_type": "wire",
     "wire_diameter": 4.0,
     "panel_thickness": 4.0,
@@ -598,13 +621,22 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
 
     if family == "template":
         reference, reference_warnings = template_meshes(settings)
-        for label, mesh in reference:
+        for label, mesh, part_color in reference:
             if len(mesh.faces):
-                meshes.append((label, mesh, _color(settings.get("body_color"), "#465a66")))
+                meshes.append((label, mesh, part_color))
         warnings.extend(reference_warnings)
         details.append(
-            "Base exacta del set de referencia: se imprime tal cual, con sus canales originales."
+            "Base exacta del set de referencia: conserva sus canales originales. "
+            "Las patas y decoraciones son añadidos paramétricos."
         )
+        if _bool(settings.get("template_legs", {}).get("enabled"), False):
+            details.append(
+                "Las patas apoyan en la cama y elevan el conector; gíralo con el control de orientación sin perder la vertical."
+            )
+        if _bool(settings.get("template_decor", {}).get("enabled"), False):
+            details.append(
+                "La decoración se imprime aparte, plana y en su color, y se encola en la cara elegida."
+            )
         return meshes, warnings, details
 
     if family == "calibration":

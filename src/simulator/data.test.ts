@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CONNECTOR } from "../data/presets";
+import {
+  DEFAULT_CONNECTOR,
+  JOINT_PRESET_OPTIONS,
+  PRESETS,
+  TEMPLATE_FREE_SIDES,
+  settingsForPreset,
+} from "../data/presets";
 import {
   jointBom,
   kitItems,
@@ -14,6 +20,31 @@ import {
   snapJointsToPanels,
   jointSettings,
 } from "./data";
+
+describe("focused presets", () => {
+  it("shows only the seven exact bases in the gallery", () => {
+    expect(PRESETS.length).toBe(7);
+    expect(PRESETS.every((preset) => preset.category === "Bases exactas")).toBe(true);
+    expect(PRESETS.every((preset) => preset.id.startsWith("ref_"))).toBe(true);
+    expect(JOINT_PRESET_OPTIONS).toHaveLength(7);
+    expect(JOINT_PRESET_OPTIONS.every((option) => option.id.startsWith("ref_"))).toBe(true);
+  });
+
+  it("loads a base and keeps legacy ids resolvable", () => {
+    const base = settingsForPreset("ref_esquina_90");
+    expect(base.family).toBe("template");
+    expect(base.template_id).toBe(4);
+    expect(base.template_legs.enabled).toBe(false);
+    expect(base.template_decor.enabled).toBe(false);
+    expect(settingsForPreset("calibration").family).toBe("calibration");
+  });
+
+  it("marks the free sides of each exact base", () => {
+    expect(TEMPLATE_FREE_SIDES[4]).toEqual(["right", "back"]);
+    expect(TEMPLATE_FREE_SIDES[6]).toEqual(["right", "front", "back"]);
+    expect(TEMPLATE_FREE_SIDES[0]).toEqual([]);
+  });
+});
 
 describe("simulator scene", () => {
   it("creates panels and joints with unique ids", () => {
