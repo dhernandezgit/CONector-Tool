@@ -20,8 +20,10 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
             <span className="help-num">01</span>
             <h3>Elige una pieza o un grupo</h3>
             <p>
-              El catálogo incluye paneles, expositores, estantes, accesorios y el toldo. Los grupos rápidos colocan una
-              composición completa y se pueden mover o girar como una sola pieza.
+              El catálogo incluye paneles, expositores, estantes, baldas, organizadores laterales, accesorios y el toldo.
+              La escena inicial es la doble torre con una estantería central hecha con dos organizadores y dos toldos
+              sobre el puente; los grupos rápidos colocan una composición completa y se pueden mover o girar como una sola
+              pieza.
             </p>
           </article>
           <article>
@@ -34,18 +36,22 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
           </article>
           <article>
             <span className="help-num">03</span>
-            <h3>Conecta por las esferas</h3>
+            <h3>Arrastra y conecta</h3>
             <p>
-              Las esferas grandes son los puertos de las esquinas y bordes. Toca una esfera, luego una amarilla compatible:
-              las piezas se acercan y se crea la unión. Las verdes ya están conectadas y la rosa es el origen elegido.
+              Arrastra una pieza cerca de un puerto: se imanta, se mueve en directo y muestra una línea con el panel destino
+              y el conector que se formará. Al soltar queda unida. También puedes seleccionar una pieza y usar las esferas
+              rosas: las libres son rosas suaves, las conectadas rosas oscuras, el origen rosa intenso y el destino rosa
+              brillante.
             </p>
           </article>
           <article>
             <span className="help-num">04</span>
             <h3>Cambia el conector</h3>
             <p>
-              Selecciona una esfera de unión para ver sus piezas y cambiar el tipo de conector. Solo aparecen las opciones
-              válidas para el número de paneles y su ángulo: recto, esquina, L, T, Skadis, cola de milano o rejilla.
+              Selecciona una unión para ver sus piezas y cambiar el tipo de conector. Se ofrecen todos los conectores
+              compatibles con el número de paneles, no solo los de un sistema: puedes mezclar slatwall, Skadis y rejilla, y
+              el editor elige automáticamente un tipo válido. El toldo se ancla con dos soportes y dos brazos; incluye
+              faldón frontal y no tiene patas al suelo.
             </p>
           </article>
           <article>
@@ -54,7 +60,8 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
             <p>
               Con Mayús + clic añade o quita piezas de la selección. Al arrastrar una pieza seleccionada se mueve todo el
               conjunto. Usa Ctrl+C / Ctrl+V para copiar y pegar, Ctrl+A para seleccionar todo, G para agrupar y las flechas
-              para ajustar 1 cm (Mayús: 5 cm).
+              para ajustar 1 cm (Mayús: 5 cm). Si una pieza pertenece a un grupo, el color y los campos X/Y/altura/rotación
+              se aplican a todo el grupo.
             </p>
           </article>
           <article>

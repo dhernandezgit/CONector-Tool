@@ -2889,6 +2889,59 @@ kbd {
   color: #fff;
 }
 
+.alley-quick-add {
+  display: grid;
+  gap: 6px;
+  padding: 0 15px 11px;
+}
+
+.alley-quick-add .alley-field-label {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.alley-quick-add-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.alley-quick-add-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-soft) 45%, var(--panel));
+  color: var(--ink-soft);
+  padding: 5px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alley-quick-add-row button:last-child {
+  grid-column: span 2;
+  justify-content: center;
+}
+
+.alley-quick-add-row button:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 75%, var(--panel));
+}
+
+.alley-quick-add-row button span {
+  font-size: 13px;
+  line-height: 1;
+}
+
 .alley-catalog-scroll {
   flex: 1;
   min-height: 0;
@@ -3224,8 +3277,8 @@ kbd {
   border-radius: 50%;
 }
 
-.alley-viewport-badge .dot.teal {
-  background: var(--teal);
+.alley-viewport-badge .dot.pink {
+  background: var(--accent);
 }
 
 .alley-viewport-badge .muted {
@@ -3322,6 +3375,34 @@ kbd {
   color: var(--ink-soft);
   font-size: 10.5px;
   z-index: 6;
+}
+
+.alley-drag-preview {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: calc(100% - 28px);
+  padding: 8px 11px;
+  border: 1px solid color-mix(in srgb, #e47f9c 55%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, #fff1f5 88%, transparent);
+  box-shadow: var(--shadow);
+  color: var(--ink-soft);
+  font-size: 10.5px;
+  pointer-events: none;
+  z-index: 7;
+}
+
+.alley-drag-preview strong {
+  color: #b44e70;
+}
+
+.alley-drag-preview .muted {
+  color: #9a6b7b;
 }
 
 .alley-pending strong {
@@ -3844,20 +3925,21 @@ kbd {
   flex: 0 0 auto;
 }
 
-.alley-legend i.teal {
-  background: var(--teal);
+.alley-legend i.pink-free {
+  background: #f5b8c8;
 }
 
-.alley-legend i.green {
-  background: #69b86a;
+.alley-legend i.pink-connected {
+  background: #c77b93;
 }
 
-.alley-legend i.pink {
-  background: var(--accent);
+.alley-legend i.pink-origin {
+  background: #d81b60;
 }
 
-.alley-legend i.yellow {
-  background: var(--yellow);
+.alley-legend i.pink-target {
+  background: #ff9fc0;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #d81b60 45%, transparent);
 }
 
 .alley-note {

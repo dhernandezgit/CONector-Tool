@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { CATALOG_BY_TYPE, CONNECTORS, GROUPS_BY_ID } from "./catalog";
-import { allowedConnectorTypes, catalogFor, computeJoints, itemAabb, scenePorts } from "./geometry";
+import {
+  allowedConnectorTypes,
+  catalogFor,
+  computeJoints,
+  defaultConnectorType,
+  findSnapForMove,
+  itemAabb,
+  portsVisible,
+  scenePorts,
+  tableAabb,
+} from "./geometry";
 import {
   addCatalogItem,
   addGroup,
@@ -13,10 +23,12 @@ import {
   emptyScene,
   expandSelectionWithGroups,
   groupSelection,
+  isLegacyStarterScene,
   moveItems,
-  moveMountedItem,
   pasteSelection,
+  recolorItems,
   removeTable,
+  resetJointType,
   rotateItems,
   sceneBom,
   sceneFileName,
@@ -26,7 +38,6 @@ import {
   starterScene,
   toggleJointSuppressed,
   ungroupSelection,
-  unmountItem,
   updateTable,
 } from "./scene";
 
@@ -35,15 +46,23 @@ function countItems(scene: ReturnType<typeof emptyScene>, type: string) {
 }
 
 describe("Artist Alley starter scene", () => {
-  it("loads a complete editable stall", () => {
+  it("loads the editable double tower with shelves and organizers", () => {
     const scene = starterScene();
-    expect(scene.items).toHaveLength(8);
+    expect(scene.items).toHaveLength(44);
     expect(scene.groups).toHaveLength(1);
-    expect(countItems(scene, "slatwall30")).toBe(4);
-    expect(countItems(scene, "display4")).toBe(1);
-    expect(countItems(scene, "riser3")).toBe(1);
-    expect(countItems(scene, "wire30")).toBe(1);
-    expect(countItems(scene, "awning30")).toBe(1);
+    expect(countItems(scene, "wire30")).toBe(28);
+    expect(countItems(scene, "wireshelf30")).toBe(12);
+    expect(countItems(scene, "organizer")).toBe(2);
+    expect(countItems(scene, "awning30")).toBe(2);
+    const organizers = scene.items.filter((item) => item.type === "organizer");
+    expect(organizers.every((item) => !item.mount)).toBe(true);
+    expect(new Set(organizers.map((item) => item.x))).toEqual(new Set([-150, 150]));
+    expect(new Set(scene.items.filter((item) => item.type === "wireshelf30").map((item) => item.baseZ))).toEqual(
+      new Set([0, 300, 600, 900, 40, 95, 150, 205].map((level) => scene.table.height + level)),
+    );
+    expect(scene.joints.some((joint) => joint.type === "wire-grid")).toBe(true);
+    expect(scene.joints.some((joint) => joint.type === "organizer-slot")).toBe(true);
+    expect(scene.joints.filter((joint) => joint.type === "awning-foot")).toHaveLength(4);
     expect(scene.joints.length).toBeGreaterThan(0);
   });
 
@@ -59,9 +78,9 @@ describe("Artist Alley starter scene", () => {
 });
 
 describe("panels, joints and connectors", () => {
-  it("builds a 2x2 slatwall wall with integrated dovetail joints", () => {
+  it("builds a 2x4 slatwall wall with integrated dovetail joints", () => {
     const scene = addGroup(emptyScene(), "wall-slatwall", { anchor: { x: 0, y: 0 } }).scene;
-    expect(scene.items).toHaveLength(4);
+    expect(scene.items).toHaveLength(8);
     expect(scene.joints.length).toBeGreaterThan(0);
     expect(scene.joints.some((joint) => joint.type === "dovetail")).toBe(true);
     const bom = sceneBom(scene);
@@ -69,7 +88,7 @@ describe("panels, joints and connectors", () => {
     expect(bom.parts.some((line) => line.name.includes("Conector de borde"))).toBe(false);
   });
 
-  it("uses an edge corner connector for a 90 degree slatwall corner", () => {
+  it("offers every valid connector for a 90 degree slatwall corner", () => {
     const scene = addGroup(emptyScene(), "corner-slatwall", { anchor: { x: 0, y: 0 } }).scene;
     expect(scene.items).toHaveLength(4);
     const corner = scene.joints.find((joint) => joint.type === "edge-2-corner");
@@ -77,17 +96,163 @@ describe("panels, joints and connectors", () => {
     if (corner) {
       const types = allowedConnectorTypes(scene, corner);
       expect(types).toContain("edge-2-corner");
-      expect(types).not.toContain("dovetail");
+      expect(types).toContain("dovetail");
+      expect(types).toContain("skadis-h");
+      expect(types).toContain("wire-grid");
     }
   });
 
-  it("connects an awning to a wire grid and counts its kit only once", () => {
-    const scene = addGroup(emptyScene(), "awning-wall", { anchor: { x: 0, y: 0 } }).scene;
-    const awningJoint = scene.joints.find((joint) => joint.type === "awning-foot");
-    expect(awningJoint).toBeTruthy();
-    const bom = sceneBom(scene);
-    const gridLines = bom.parts.filter((line) => line.name.includes("Conector de rejilla para pata"));
-    expect(gridLines.reduce((sum, line) => sum + line.qty, 0)).toBe(2);
+  it("builds an angled wire bay with grid connectors", () => {
+    const scene = addGroup(emptyScene(), "wire-angled", { anchor: { x: 0, y: 0 } }).scene;
+    expect(scene.items).toHaveLength(10);
+    expect(scene.items.every((item) => item.type === "wire30")).toBe(true);
+    expect(new Set(scene.items.map((item) => item.rotation))).toEqual(new Set([0, 30, 330]));
+    expect(scene.joints.length).toBeGreaterThan(0);
+    expect(scene.joints.every((joint) => joint.type === "wire-grid")).toBe(true);
+  });
+
+  it("keeps every quick example buildable with panels and useful accessories", () => {
+    for (const group of Object.values(GROUPS_BY_ID)) {
+      expect(group.items.length).toBeGreaterThan(0);
+      for (const spec of group.items) {
+        expect(CATALOG_BY_TYPE[spec.type]).toBeTruthy();
+      }
+      const scene = addGroup(emptyScene(), group.id, { anchor: { x: 0, y: 0 } }).scene;
+      expect(scene.items).toHaveLength(group.items.length);
+      expect(
+        scene.items.some(
+          (item) => CATALOG_BY_TYPE[item.type]?.category === "paneles" || item.type === "organizer",
+        ),
+      ).toBe(true);
+      expect(scene.joints.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("joins slatwall and Skadis panels without system restrictions", () => {
+    const first = addCatalogItem(emptyScene(), "slatwall30", { x: 0, y: 0, baseZ: 0 });
+    const second = addCatalogItem(first.scene, "skadis30", { x: 300, y: 0, baseZ: 0 });
+    const joint = second.scene.joints.find(
+      (candidate) =>
+        candidate.ports.some((port) => port.itemId === first.itemId) &&
+        candidate.ports.some((port) => port.itemId === second.itemId),
+    );
+    expect(joint).toBeTruthy();
+    expect(joint?.type).toBe("edge-2-flat");
+    if (joint) expect(allowedConnectorTypes(second.scene, joint).length).toBeGreaterThan(1);
+  });
+
+  it("places a second organizer shelf on a free spot", () => {
+    const scene = starterScene();
+    const added = addGroup(scene, "organizer-shelf");
+    expect(added.created).toBe(6);
+    expect(added.scene.items).toHaveLength(scene.items.length + 6);
+  });
+
+  it("builds a single tower with four shelves", () => {
+    const scene = addGroup(emptyScene(), "single-tower", { anchor: { x: 0, y: 0 } }).scene;
+    expect(countItems(scene, "wire30")).toBe(12);
+    expect(countItems(scene, "wireshelf30")).toBe(4);
+    expect(countItems(scene, "organizer")).toBe(0);
+  });
+
+  it("builds an organizer shelf with two side frames and four shelves", () => {
+    expect(CATALOG_BY_TYPE.organizer.dims).toEqual({ w: 150, d: 12, h: 245 });
+    expect(CATALOG_BY_TYPE.organizer.mountable).toBeFalsy();
+    expect(CATALOG_BY_TYPE.organizer.ports).toHaveLength(8);
+    const scene = addGroup(emptyScene(), "organizer-shelf", { anchor: { x: 0, y: 0 } }).scene;
+    expect(countItems(scene, "organizer")).toBe(2);
+    expect(countItems(scene, "wireshelf30")).toBe(4);
+    const frames = scene.items.filter((item) => item.type === "organizer");
+    expect(new Set(frames.map((item) => item.x))).toEqual(new Set([-150, 150]));
+    expect(frames.every((item) => !item.mount)).toBe(true);
+    expect(new Set(scene.items.filter((item) => item.type === "wireshelf30").map((item) => item.baseZ))).toEqual(
+      new Set([40, 95, 150, 205].map((level) => scene.table.height + level)),
+    );
+    expect(scene.joints.filter((joint) => joint.type === "organizer-slot")).toHaveLength(16);
+  });
+
+  it("anchors an awning to a panel top without floor legs", () => {
+    const base = addGroup(emptyScene(), "wall-slatwall", { anchor: { x: 0, y: 0 } }).scene;
+    const panel = base.items.find(
+      (item) => item.type === "slatwall30" && item.baseZ === base.table.height && item.x === -150,
+    );
+    expect(panel).toBeTruthy();
+    if (!panel) return;
+    const result = addCatalogItem(base, "awning30", { panelId: panel.id });
+    const awning = result.scene.items.find((item) => item.id === result.itemId);
+    expect(awning?.baseZ).toBe(panel.baseZ + 300);
+    expect(awning?.groupId).toBe(panel.groupId);
+    const joint = result.scene.joints.find(
+      (candidate) => candidate.type === "awning-foot" && candidate.ports.some((port) => port.itemId === awning?.id),
+    );
+    expect(joint).toBeTruthy();
+    const bom = sceneBom(result.scene);
+    expect(bom.parts.some((line) => line.name.includes("Pata"))).toBe(false);
+    expect(bom.parts.some((line) => line.name.includes("Soporte trasero de toldo"))).toBe(true);
+    expect(bom.parts.some((line) => line.name.includes("Anclaje de toldo"))).toBe(true);
+    expect(CATALOG_BY_TYPE.awning30.ports.map((port) => port.id)).toEqual(["clip-left", "clip-right"]);
+  });
+
+  it("anchors a 35 cm awning to a 35 cm panel", () => {
+    const base = addCatalogItem(emptyScene(), "slatwall35", { x: 0, y: 0 }).scene;
+    const panel = base.items.find((item) => item.type === "slatwall35");
+    expect(panel).toBeTruthy();
+    if (!panel) return;
+    const result = addCatalogItem(base, "awning35", { panelId: panel.id });
+    expect(result.scene.joints.filter((joint) => joint.type === "awning-foot")).toHaveLength(2);
+  });
+
+  it("does not pretend a mismatched awning is anchored", () => {
+    const base = addCatalogItem(emptyScene(), "slatwall15", { x: 0, y: 0 }).scene;
+    const smallPanel = base.items.find((item) => item.type === "slatwall15");
+    expect(smallPanel).toBeTruthy();
+    if (!smallPanel) return;
+    const result = addCatalogItem(base, "awning30", { panelId: smallPanel.id });
+    expect(result.scene.joints.some((joint) => joint.type === "awning-foot")).toBe(false);
+  });
+
+  it("gives the horizontal shelf four corners and four organizer supports", () => {
+    const shelf = CATALOG_BY_TYPE.wireshelf30;
+    expect(shelf.horizontal).toBe(true);
+    expect(shelf.ports).toHaveLength(8);
+    expect(shelf.ports.every((port) => port.pos[2] === 0)).toBe(true);
+    expect(shelf.ports.filter((port) => Math.abs(port.pos[1]) === 69)).toHaveLength(4);
+  });
+
+  it("snaps a loose shelf to a tower corner and recommends a wire connector", () => {
+    const scene = addGroup(emptyScene(), "single-tower", { anchor: { x: 0, y: 0 } }).scene;
+    const added = addCatalogItem(scene, "wireshelf30", {
+      x: 350,
+      y: 350,
+      baseZ: scene.table.height,
+    });
+    const shelf = added.scene.items.find((item) => item.id === added.itemId);
+    expect(shelf).toBeTruthy();
+    if (!shelf) return;
+    const snap = findSnapForMove(added.scene, [shelf.id], [0, 0, 0], 160);
+    expect(snap).toBeTruthy();
+    if (snap) {
+      expect(defaultConnectorType(added.scene, [
+        { itemId: snap.source.itemId, portId: snap.source.portId },
+        { itemId: snap.target.itemId, portId: snap.target.portId },
+      ])).toBe("wire-grid");
+    }
+  });
+
+  it("generates 30 and 45 degree joints in the angled examples", () => {
+    const starter = addGroup(emptyScene(), "starter", { anchor: { x: 0, y: 0 } }).scene;
+    expect(starter.joints.some((joint) => joint.type === "edge-2-45")).toBe(true);
+    const stepped = addGroup(emptyScene(), "stepped-wall", { anchor: { x: 0, y: 0 } }).scene;
+    expect(stepped.joints.some((joint) => joint.type === "edge-2-30")).toBe(true);
+    const uBooth = addGroup(emptyScene(), "u-booth", { anchor: { x: 0, y: 0 } }).scene;
+    expect(uBooth.joints.some((joint) => joint.type === "edge-2-45")).toBe(true);
+  });
+
+  it("uses triangular panels as a sloped finish", () => {
+    const scene = addGroup(emptyScene(), "triangle-finish", { anchor: { x: 0, y: 0 } }).scene;
+    expect(scene.items).toHaveLength(4);
+    expect(scene.items.filter((item) => item.type === "triangle")).toHaveLength(2);
+    expect(scene.joints.some((joint) => joint.type === "dovetail")).toBe(true);
   });
 
   it("changes and suppresses a connector without moving the pieces", () => {
@@ -117,30 +282,28 @@ describe("editing and reuse", () => {
     const first = addGroup(emptyScene(), "wall-slatwall", { anchor: { x: 0, y: 0 } });
     const second = addGroup(first.scene, "wall-slatwall", { anchor: { x: 0, y: 0 } });
     expect(second.created).toBe(0);
-    expect(second.scene.items).toHaveLength(4);
+    expect(second.scene.items).toHaveLength(8);
     expect(second.scene.groups).toHaveLength(1);
   });
 
   it("deletes a panel without breaking the rest of the scene", () => {
-    const scene = addGroup(emptyScene(), "organizer-wall", { anchor: { x: 0, y: 0 } }).scene;
-    expect(scene.items).toHaveLength(4);
+    const scene = addGroup(emptyScene(), "wall-slatwall", { anchor: { x: 0, y: 0 } }).scene;
     const panel = scene.items.find((item) => item.type === "slatwall30");
-    const organizer = scene.items.find((item) => item.type === "organizer");
     expect(panel).toBeTruthy();
-    expect(organizer?.mount).toBeTruthy();
     if (!panel) return;
-    const next = deleteItems(scene, [panel.id]);
-    expect(next.items).toHaveLength(3);
-    expect(next.items.find((item) => item.id === organizer?.id)?.mount).toBeUndefined();
-    expect(next.items.some((item) => item.type === "bins")).toBe(true);
-    expect(next.items.some((item) => item.type === "shelfhook")).toBe(true);
+    const added = addCatalogItem(scene, "organizer", { panelId: panel.id });
+    expect(added.scene.items).toHaveLength(9);
+    const next = deleteItems(added.scene, [panel.id]);
+    expect(next.items).toHaveLength(8);
+    expect(next.items.find((item) => item.id === added.itemId)?.mount).toBeUndefined();
+    expect(next.items.filter((item) => item.type === "slatwall30")).toHaveLength(7);
   });
 
   it("moves and rotates a group as a unit", () => {
-    const scene = addGroup(emptyScene(), "display-set", { anchor: { x: 0, y: 0 } }).scene;
+    const scene = addGroup(emptyScene(), "small-panels", { anchor: { x: 0, y: 0 } }).scene;
     const groupId = scene.groups[0].id;
     const ids = expandSelectionWithGroups(scene, [scene.items[0].id]);
-    expect(ids).toHaveLength(3);
+    expect(ids).toHaveLength(6);
     const moved = moveItems(scene, ids, 100, 50);
     const movedItems = moved.items.filter((item) => item.groupId === groupId);
     const original = scene.items.filter((item) => item.groupId === groupId);
@@ -149,6 +312,55 @@ describe("editing and reuse", () => {
     const rotated = rotateItems(moved, [scene.items[0].id], 90);
     const rotatedItems = rotated.items.filter((item) => item.groupId === groupId);
     expect(rotatedItems[0].rotation).toBe(90);
+  });
+
+  it("recolors every piece in a group from one selected piece", () => {
+    const scene = addGroup(emptyScene(), "single-tower", { anchor: { x: 0, y: 0 } }).scene;
+    const shelf = scene.items.find((item) => item.type === "wireshelf30");
+    expect(shelf?.groupId).toBeTruthy();
+    if (!shelf?.groupId) return;
+    const recolored = recolorItems(scene, [shelf.id], "#123456");
+    const groupItems = recolored.items.filter((item) => item.groupId === shelf.groupId);
+    expect(groupItems.length).toBe(scene.items.length);
+    expect(groupItems.every((item) => item.color === "#123456")).toBe(true);
+  });
+
+  it("recomputes an automatic connector when geometry changes", () => {
+    const scene = addGroup(emptyScene(), "corner-slatwall", { anchor: { x: 0, y: 0 } }).scene;
+    const corner = scene.joints.find((candidate) => candidate.type === "edge-2-corner");
+    expect(corner).toBeTruthy();
+    if (!corner) return;
+    const stale = {
+      ...scene,
+      joints: scene.joints.map((joint) =>
+        joint.id === corner.id ? { ...joint, type: "edge-2-flat" as const, manual: false } : joint,
+      ),
+    };
+    const recomputed = computeJoints(stale, stale.joints);
+    expect(recomputed.find((candidate) => candidate.id === corner.id)?.type).toBe("edge-2-corner");
+  });
+
+  it("keeps a manual connector and can return it to automatic", () => {
+    const scene = addGroup(emptyScene(), "corner-slatwall", { anchor: { x: 0, y: 0 } }).scene;
+    const joint = scene.joints.find((candidate) => candidate.type === "edge-2-corner");
+    expect(joint).toBeTruthy();
+    if (!joint) return;
+    const manual = setJointType(scene, joint.id, "dovetail");
+    expect(manual.joints.find((candidate) => candidate.id === joint.id)?.manual).toBe(true);
+    const restored = sceneFromJson(sceneToJson(manual));
+    const restoredJoint = restored.joints.find((candidate) => candidate.id === joint.id);
+    expect(restoredJoint?.type).toBe("dovetail");
+    expect(restoredJoint?.manual).toBe(true);
+    const automatic = resetJointType(restored, joint.id);
+    expect(automatic.joints.find((candidate) => candidate.id === joint.id)?.type).toBe("edge-2-corner");
+    expect(automatic.joints.find((candidate) => candidate.id === joint.id)?.manual).toBe(false);
+  });
+
+  it("recognizes the old ten-panel starter for a one-time default upgrade", () => {
+    const legacy = addGroup(emptyScene(), "starter", { anchor: { x: 0, y: 0 } }).scene;
+    expect(legacy.items).toHaveLength(10);
+    expect(isLegacyStarterScene(legacy)).toBe(true);
+    expect(isLegacyStarterScene({ ...legacy, items: legacy.items.slice(0, 9) })).toBe(false);
   });
 
   it("groups, ungroups and duplicates without leaving duplicate positions", () => {
@@ -167,17 +379,20 @@ describe("editing and reuse", () => {
 });
 
 describe("accessories on panels", () => {
-  it("mounts, moves and unmounts an organizer", () => {
-    const base = addGroup(emptyScene(), "wall-slatwall", { anchor: { x: 0, y: 0 } }).scene;
-    const panel = base.items.find((item) => item.type === "slatwall30");
-    expect(panel).toBeTruthy();
-    if (!panel) return;
-    const added = addCatalogItem(base, "organizer", { panelId: panel.id });
-    expect(added.scene.items.find((item) => item.id === added.itemId)?.mount?.panelId).toBe(panel.id);
-    const moved = moveMountedItem(added.scene, added.itemId, 0.3, 0.6);
-    expect(moved.items.find((item) => item.id === added.itemId)?.mount?.u).toBeCloseTo(0.3);
-    const unmounted = unmountItem(moved, added.itemId);
-    expect(unmounted.items.find((item) => item.id === added.itemId)?.mount).toBeUndefined();
+  it("places two free-standing organizer frames and connects a shelf in their slots", () => {
+    const base = emptyScene();
+    const left = addCatalogItem(base, "organizer", { x: -150, y: 0 });
+    const right = addCatalogItem(left.scene, "organizer", { x: 150, y: 0 });
+    const leftFrame = right.scene.items.find((item) => item.id === left.itemId);
+    const rightFrame = right.scene.items.find((item) => item.id === right.itemId);
+    expect(leftFrame?.mount).toBeUndefined();
+    expect(rightFrame?.mount).toBeUndefined();
+    const shelf = addCatalogItem(right.scene, "wireshelf30", {
+      x: 0,
+      y: 0,
+      baseZ: right.scene.table.height + 40,
+    });
+    expect(shelf.scene.joints.filter((joint) => joint.type === "organizer-slot")).toHaveLength(4);
   });
 
   it("recomputes mounted positions when the panel rotates", () => {
@@ -209,6 +424,14 @@ describe("scene helpers", () => {
       expect(connector.minPanels).toBeLessThanOrEqual(connector.maxPanels);
     }
     expect(GROUPS_BY_ID.starter.items.length).toBeGreaterThan(4);
+  });
+
+  it("shows port spheres only while editing an item selection", () => {
+    expect(portsVisible(true, null)).toBe(false);
+    expect(portsVisible(false, { type: "item", ids: ["item"] })).toBe(false);
+    expect(portsVisible(true, { type: "joint", ids: ["joint"] })).toBe(false);
+    expect(portsVisible(true, { type: "item", ids: ["item"] })).toBe(true);
+    expect(portsVisible(true, { type: "items", ids: ["a", "b"] })).toBe(true);
   });
 
   it("recomputes joints from ports after a manual move", () => {
@@ -269,13 +492,33 @@ describe("towers and L-shaped work tables", () => {
     expect(scene.joints.length).toBeGreaterThan(20);
   });
 
-  it("places an L-shaped workspace with two perpendicular tables", () => {
+  it("places a symmetric L-shaped workspace with two perpendicular tables", () => {
     const scene = addGroup(emptyScene(), "workspace-l-work", { anchor: { x: 0, y: 0 } }).scene;
     expect(scene.tables).toHaveLength(2);
     expect(scene.tables[1].rotation).toBe(90);
     expect(scene.tables[0].height).toBe(scene.tables[1].height);
-    expect(scene.items).toHaveLength(7);
+    expect(scene.items).toHaveLength(8);
+    expect(scene.items.every((item) => item.type === "slatwall30")).toBe(true);
     expect(scene.items.every((item) => item.baseZ === scene.table.height)).toBe(true);
+    const primary = tableAabb(scene.tables[0]);
+    const lateral = tableAabb(scene.tables[1]);
+    expect(primary.maxX).toBeCloseTo(lateral.minX);
+    expect(primary.minY).toBeCloseTo(lateral.minY);
+    expect(primary.maxY - primary.minY).toBeCloseTo(600);
+    expect(lateral.maxY - lateral.minY).toBeCloseTo(1800);
+  });
+
+  it("adds an L table with equal arms and a flush front edge", () => {
+    const base = emptyScene();
+    const resized = updateTable(base, base.table.id, { width: 1800, depth: 600 });
+    const added = addTable(resized, "l");
+    const primary = tableAabb(added.scene.tables[0]);
+    const lateral = tableAabb(added.scene.tables[1]);
+    expect(added.scene.tables[1].rotation).toBe(90);
+    expect(primary.maxX).toBeCloseTo(lateral.minX);
+    expect(primary.minY).toBeCloseTo(lateral.minY);
+    expect(primary.maxY - primary.minY).toBeCloseTo(600);
+    expect(lateral.maxY - lateral.minY).toBeCloseTo(1800);
   });
 
   it("adds, edits and removes extra tables while keeping a shared height", () => {
@@ -292,14 +535,14 @@ describe("towers and L-shaped work tables", () => {
 
 describe("clipboard and local project files", () => {
   it("copies a whole group and pastes it with fresh ids", () => {
-    const scene = addGroup(emptyScene(), "display-set", { anchor: { x: 0, y: 0 } }).scene;
+    const scene = addGroup(emptyScene(), "small-panels", { anchor: { x: 0, y: 0 } }).scene;
     const clipboard = copySelection(scene, [scene.items[0].id]);
-    expect(clipboard?.items).toHaveLength(3);
+    expect(clipboard?.items).toHaveLength(6);
     expect(clipboard?.groups).toHaveLength(1);
     if (!clipboard) return;
     const pasted = pasteSelection(scene, clipboard, 90);
-    expect(pasted.ids).toHaveLength(3);
-    expect(pasted.scene.items).toHaveLength(6);
+    expect(pasted.ids).toHaveLength(6);
+    expect(pasted.scene.items).toHaveLength(12);
     expect(pasted.scene.groups).toHaveLength(2);
     expect(pasted.ids.every((id) => !scene.items.some((item) => item.id === id))).toBe(true);
   });

@@ -5,17 +5,20 @@ import { CATALOG_BY_TYPE, CONNECTORS } from "./catalog";
 import {
   catalogFor,
   connectedPortKeys,
+  defaultConnectorType,
   findSnapForMove,
   itemColor,
   itemDims,
   panelOf,
   planeNormal,
   portCompatible,
+  portsVisible,
   portWorld,
   rotateLocal,
   sceneBounds,
   scenePorts,
   sceneTables,
+  type SnapCandidate,
 } from "./geometry";
 import type {
   AlleyItem,
@@ -24,6 +27,7 @@ import type {
   AlleyScene,
   AlleySelection,
   AlleyViewName,
+  ConnectorType,
   PortRef,
   Vec3,
   WorldPort,
@@ -38,6 +42,14 @@ export interface AlleyViewportHandle {
   screenshot: () => string;
 }
 
+export interface AlleyDragPreview {
+  targetItemId: string;
+  targetName: string;
+  connectorType: ConnectorType;
+  connectorName: string;
+  panelCount: number;
+}
+
 interface Props {
   scene: AlleyScene;
   selection: AlleySelection | null;
@@ -49,6 +61,7 @@ interface Props {
   onPortClick: (port: PortRef) => void;
   onMoveItems: (ids: string[], dx: number, dy: number, dz: number) => void;
   onMoveMount: (itemId: string, u: number, v: number) => void;
+  onDragPreview?: (preview: AlleyDragPreview | null) => void;
   onCameraChange?: (azimuth: number, polar: number) => void;
 }
 
@@ -285,6 +298,45 @@ function buildWirePanel(item: AlleyItem, selected: boolean) {
   return group;
 }
 
+function buildWireShelf(item: AlleyItem, selected: boolean) {
+  const group = new THREE.Group();
+  const dims = itemDims(item);
+  const color = new THREE.Color(itemColor(item));
+  const frameMat = mat(`#${color.clone().multiplyScalar(0.72).getHexString()}`, { roughness: 0.42, metalness: 0.28 });
+  const bar = 7;
+  const z = Math.max(4, dims.h / 2);
+  addBox(group, [dims.w, bar, 8], [0, -dims.d / 2 + bar / 2, z], frameMat);
+  addBox(group, [dims.w, bar, 8], [0, dims.d / 2 - bar / 2, z], frameMat);
+  addBox(group, [bar, dims.d, 8], [-dims.w / 2 + bar / 2, 0, z], frameMat);
+  addBox(group, [bar, dims.d, 8], [dims.w / 2 - bar / 2, 0, z], frameMat);
+  const pitch = 50;
+  const points: number[] = [];
+  for (let x = -dims.w / 2 + pitch; x < dims.w / 2 - pitch / 2; x += pitch) {
+    points.push(x, -dims.d / 2 + bar, z + 4, x, dims.d / 2 - bar, z + 4);
+  }
+  for (let y = -dims.d / 2 + pitch; y < dims.d / 2 - pitch / 2; y += pitch) {
+    points.push(-dims.w / 2 + bar, y, z + 4, dims.w / 2 - bar, y, z + 4);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+  group.add(
+    new THREE.LineSegments(
+      geometry,
+      new THREE.LineBasicMaterial({ color: frameMat.color, transparent: true, opacity: 0.8 }),
+    ),
+  );
+  const hit = new THREE.Mesh(
+    new THREE.PlaneGeometry(dims.w, dims.d),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }),
+  );
+  hit.rotation.x = -Math.PI / 2;
+  hit.position.z = z;
+  hit.userData.pickTarget = true;
+  group.add(hit);
+  if (selected) addOutline(group, dims);
+  return group;
+}
+
 function buildTrianglePanel(item: AlleyItem, selected: boolean) {
   const group = new THREE.Group();
   const dims = itemDims(item);
@@ -387,15 +439,24 @@ function buildRiser(item: AlleyItem, selected: boolean) {
 function buildOrganizer(item: AlleyItem, selected: boolean) {
   const group = new THREE.Group();
   const dims = itemDims(item);
-  const color = itemColor(item);
-  const backMat = mat(color, { roughness: 0.7 });
-  addBox(group, [dims.w, 8, dims.h], [0, dims.d / 2 - 4, dims.h / 2], backMat);
-  const shelfMat = mat("#fff8f4", { roughness: 0.62 });
-  for (let level = 0; level < 4; level += 1) {
-    const z = dims.h * (0.18 + level * 0.21);
-    addBox(group, [dims.w - 12, dims.d - 8, 7], [0, 0, z], shelfMat);
-    addBox(group, [dims.w - 12, 6, 20], [0, -dims.d / 2 + 3, z + 12], backMat);
-    addBox(group, [dims.w - 20, dims.d - 12, 18], [0, 0, z + 11], mat(["#f7d9e4", "#cfe8e2", "#f4d99a", "#d9c2e8"][level], { roughness: 0.8, transparent: true, opacity: 0.8 }));
+  const color = new THREE.Color(itemColor(item));
+  const frameMat = mat(`#${color.clone().multiplyScalar(0.78).getHexString()}`, {
+    roughness: 0.5,
+    metalness: 0.12,
+  });
+  const postY = dims.w / 2 - 6;
+  const bar = 12;
+  for (const y of [-postY, postY]) {
+    addBox(group, [dims.d, bar, dims.h], [0, y, dims.h / 2], frameMat);
+    addBox(group, [dims.d + 6, 18, 6], [0, y, 3], frameMat);
+  }
+  addBox(group, [dims.d, dims.w, bar], [0, 0, dims.h - bar / 2], frameMat);
+  // Slot ledges are where a horizontal shelf/panel rests.
+  const slotHeights = Array.from(new Set(catalogFor(item).ports.map((port) => port.pos[2]))).sort((a, b) => a - b);
+  for (const z of slotHeights) {
+    for (const y of [-postY, postY]) {
+      addBox(group, [dims.d + 10, 16, 5], [0, y, z], frameMat);
+    }
   }
   if (selected) addOutline(group, dims);
   return group;
@@ -482,37 +543,82 @@ function buildAwning(item: AlleyItem, selected: boolean) {
   const group = new THREE.Group();
   const dims = itemDims(item);
   const color = itemColor(item);
-  const legMat = mat("#f8e6ea", { roughness: 0.55 });
   const frameMat = mat("#d98fa5", { roughness: 0.55 });
-  const legX = dims.w * 0.3;
+  const footMat = mat("#f8e6ea", { roughness: 0.55 });
+  const legX = dims.w * 0.45;
+  const legHeight = dims.h;
+  const canopyDepth = dims.d;
+  const armReach = Math.min(canopyDepth * 0.6, 185);
+  const flapHeight = 108;
+
+  // Two rear supports plug into the top anchors of the panel. They are short
+  // legs, not floor legs; the awning cantilevers forward from the panel top.
   for (const x of [-legX, legX]) {
-    addBox(group, [11, 11, dims.h - 30], [x, 0, (dims.h - 30) / 2], legMat);
-    addBox(group, [22, 22, 8], [x, 0, 4], frameMat);
+    addBox(group, [14, 14, legHeight], [x, 0, legHeight / 2], frameMat);
+    addBox(group, [26, 24, 11], [x, 0, 5.5], footMat);
   }
+  addBox(group, [dims.w * 0.94, 10, 9], [0, 0, legHeight - 7], frameMat);
+
+  // Horizontal arms support the middle of the canopy, exactly like the pack.
+  for (const x of [-legX, legX]) {
+    cylinderBetween(
+      group,
+      new THREE.Vector3(x, 0, legHeight - 10),
+      new THREE.Vector3(x, -armReach, legHeight - 10),
+      4,
+      frameMat,
+    );
+  }
+  addBox(group, [dims.w * 0.9, 8, 8], [0, -armReach, legHeight - 10], frameMat);
+
   const canopyTexture = stripeTexture(color);
   const canopy = new THREE.Mesh(
-    new THREE.BoxGeometry(dims.w, dims.d * 0.9, 8),
-    new THREE.MeshStandardMaterial({ map: canopyTexture, roughness: 0.7, side: THREE.DoubleSide }),
+    new THREE.PlaneGeometry(dims.w, canopyDepth),
+    new THREE.MeshStandardMaterial({
+      map: canopyTexture,
+      roughness: 0.75,
+      side: THREE.DoubleSide,
+    }),
   );
-  canopy.position.set(0, -dims.d * 0.3, dims.h - 18);
-  canopy.rotation.x = -0.12;
+  // PlaneGeometry already lies in the horizontal XY plane in this Z-up scene.
+  canopy.position.set(0, -canopyDepth / 2, legHeight - 7);
   canopy.castShadow = true;
   canopy.receiveShadow = true;
   group.add(canopy);
-  const frontZ = dims.h - 26;
-  for (let i = 0; i < 9; i += 1) {
-    const x = -dims.w / 2 + (i + 0.5) * (dims.w / 9);
-    const scallop = new THREE.Mesh(new THREE.SphereGeometry(8, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(color, { roughness: 0.7 }));
-    scallop.position.set(x, -dims.d * 0.75, frontZ);
-    scallop.rotation.x = Math.PI / 2;
-    group.add(scallop);
+
+  // Thin frame rails around the canopy.
+  addBox(group, [dims.w, 9, 7], [0, 0, legHeight - 7], frameMat);
+  addBox(group, [dims.w, 9, 7], [0, -canopyDepth, legHeight - 7], frameMat);
+  for (const x of [-dims.w / 2, dims.w / 2]) {
+    addBox(group, [7, canopyDepth, 7], [x, -canopyDepth / 2, legHeight - 7], frameMat);
   }
-  for (const x of [-legX, legX]) {
-    const armStart = new THREE.Vector3(x, 0, dims.h - 42);
-    const armEnd = new THREE.Vector3(x, -dims.d * 0.62, dims.h - 4);
-    cylinderBetween(group, armStart, armEnd, 4.5, frameMat);
-  }
-  addBox(group, [dims.w * 0.9, 9, 9], [0, dims.d * 0.12, dims.h - 32], frameMat);
+
+  // The front valance is the large hanging flap of the real awning.
+  const flap = new THREE.Mesh(
+    new THREE.PlaneGeometry(dims.w, flapHeight),
+    new THREE.MeshStandardMaterial({
+      map: stripeTexture(color),
+      roughness: 0.78,
+      side: THREE.DoubleSide,
+      transparent: true,
+      alphaTest: 0.05,
+    }),
+  );
+  flap.rotation.x = Math.PI / 2;
+  flap.position.set(0, -canopyDepth, legHeight - flapHeight / 2);
+  flap.castShadow = true;
+  flap.receiveShadow = true;
+  group.add(flap);
+
+  // Rounded bottom edge: a soft fabric roll instead of hard scallops.
+  const roll = new THREE.Mesh(
+    new THREE.CylinderGeometry(4, 4, dims.w, 16, 1, false, 0, Math.PI),
+    mat(color, { roughness: 0.8 }),
+  );
+  roll.rotation.z = Math.PI / 2;
+  roll.position.set(0, -canopyDepth, legHeight - flapHeight + 4);
+  group.add(roll);
+
   if (selected) addOutline(group, dims);
   return group;
 }
@@ -562,6 +668,9 @@ function buildItem(item: AlleyItem, selected: boolean): THREE.Group {
     case "riser3":
     case "minishelf":
       group = buildRiser(item, selected);
+      break;
+    case "wireshelf30":
+      group = buildWireShelf(item, selected);
       break;
     case "organizer":
       group = buildOrganizer(item, selected);
@@ -661,6 +770,41 @@ function updateCameraFrustum(
   ortho.updateProjectionMatrix();
 }
 
+function previewForSnap(
+  scene: AlleyScene,
+  movedIds: string[],
+  delta: Vec3,
+  snap: SnapCandidate,
+): AlleyDragPreview | null {
+  const moved = new Set(movedIds);
+  const items = scene.items.map((item) =>
+    moved.has(item.id)
+      ? { ...item, x: item.x + delta[0], y: item.y + delta[1], baseZ: item.baseZ + delta[2] }
+      : item,
+  );
+  const previewScene: AlleyScene = { ...scene, items, joints: [] };
+  const refs: PortRef[] = [];
+  for (const port of scenePorts(previewScene)) {
+    if (port.system === "mount") continue;
+    if (Math.hypot(port.x - snap.target.x, port.y - snap.target.y, port.z - snap.target.z) <= 2) {
+      refs.push({ itemId: port.itemId, portId: port.portId });
+    }
+  }
+  if (refs.length < 2) {
+    refs.push({ itemId: snap.source.itemId, portId: snap.source.portId });
+    refs.push({ itemId: snap.target.itemId, portId: snap.target.portId });
+  }
+  const connectorType = defaultConnectorType(previewScene, refs);
+  const target = items.find((item) => item.id === snap.target.itemId);
+  return {
+    targetItemId: snap.target.itemId,
+    targetName: target?.name || "panel",
+    connectorType,
+    connectorName: CONNECTORS[connectorType]?.name || connectorType,
+    panelCount: new Set(refs.map((ref) => ref.itemId)).size,
+  };
+}
+
 export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
   {
     scene,
@@ -673,6 +817,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     onPortClick,
     onMoveItems,
     onMoveMount,
+    onDragPreview,
     onCameraChange,
   },
   ref,
@@ -716,8 +861,8 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
   sceneDataRef.current = scene;
   const selectionRef = useRef(selection);
   selectionRef.current = selection;
-  const callbacks = useRef({ onSelect, onPortClick, onMoveItems, onMoveMount, onCameraChange });
-  callbacks.current = { onSelect, onPortClick, onMoveItems, onMoveMount, onCameraChange };
+  const callbacks = useRef({ onSelect, onPortClick, onMoveItems, onMoveMount, onDragPreview, onCameraChange });
+  callbacks.current = { onSelect, onPortClick, onMoveItems, onMoveMount, onDragPreview, onCameraChange };
   const gridRef = useRef(scene.grid);
   gridRef.current = scene.grid;
   const lastCameraReport = useRef({ azimuth: 0, polar: 0, at: 0 });
@@ -786,6 +931,53 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     snapMarker.renderOrder = 30;
     scene3.add(snapMarker);
     snapMarkerRef.current = snapMarker;
+
+    const snapLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+      new THREE.LineBasicMaterial({ color: 0xf4a7bb, transparent: true, opacity: 0.9, depthTest: false }),
+    );
+    snapLine.visible = false;
+    snapLine.renderOrder = 29;
+    scene3.add(snapLine);
+    const snapPreview = new THREE.Mesh(
+      new THREE.SphereGeometry(18, 16, 12),
+      new THREE.MeshBasicMaterial({ color: 0xf4a7bb, transparent: true, opacity: 0.42, depthTest: false, depthWrite: false }),
+    );
+    snapPreview.visible = false;
+    snapPreview.renderOrder = 29;
+    scene3.add(snapPreview);
+    let lastPreviewKey = "";
+
+    const clearSnapPreview = () => {
+      snapMarker.visible = false;
+      snapLine.visible = false;
+      snapPreview.visible = false;
+      if (lastPreviewKey) {
+        lastPreviewKey = "";
+        callbacks.current.onDragPreview?.(null);
+      }
+    };
+
+    const showSnapPreview = (snap: SnapCandidate, preview: AlleyDragPreview) => {
+      const color = new THREE.Color(CONNECTORS[preview.connectorType]?.color || "#f4a7bb");
+      snapMarker.visible = true;
+      snapMarker.position.set(snap.target.x, snap.target.y, snap.target.z);
+      (snapMarker.material as THREE.MeshBasicMaterial).color.copy(color);
+      snapPreview.visible = true;
+      snapPreview.position.set(snap.target.x, snap.target.y, snap.target.z);
+      (snapPreview.material as THREE.MeshBasicMaterial).color.copy(color);
+      snapLine.visible = true;
+      const positions = snapLine.geometry.getAttribute("position") as THREE.BufferAttribute;
+      positions.setXYZ(0, snap.source.x, snap.source.y, snap.source.z);
+      positions.setXYZ(1, snap.target.x, snap.target.y, snap.target.z);
+      positions.needsUpdate = true;
+      (snapLine.material as THREE.LineBasicMaterial).color.copy(color);
+      const key = `${preview.targetItemId}|${preview.connectorType}|${preview.panelCount}`;
+      if (key !== lastPreviewKey) {
+        lastPreviewKey = key;
+        callbacks.current.onDragPreview?.(preview);
+      }
+    };
 
     const ray = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
@@ -861,8 +1053,29 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
       }
     };
 
+    const resolveDragDelta = (
+      event: PointerEvent,
+      drag: NonNullable<typeof dragRef.current>,
+      maxDistance: number,
+    ): { delta: Vec3; snap: SnapCandidate | null } => {
+      const point = planePoint(event, drag.startZ);
+      if (!point) return { delta: drag.delta, snap: null };
+      const grid = gridRef.current || 1;
+      let dx = point.x - drag.startPointer.x;
+      let dy = point.y - drag.startPointer.y;
+      const snappedX = Math.round((drag.startX + dx) / grid) * grid;
+      const snappedY = Math.round((drag.startY + dy) / grid) * grid;
+      dx = snappedX - drag.startX;
+      dy = snappedY - drag.startY;
+      const snap = findSnapForMove(sceneDataRef.current, drag.ids, [dx, dy, 0], maxDistance);
+      const delta: Vec3 = snap ? [snap.dx, snap.dy, snap.dz] : [dx, dy, 0];
+      drag.delta = delta;
+      return { delta, snap };
+    };
+
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
+      clearSnapPreview();
       pointerStart.current = { x: event.clientX, y: event.clientY };
       const port = portAt(event);
       if (port) {
@@ -1014,33 +1227,28 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
         if (group) group.position.set(panel.x + local[0], panel.y + local[1], panel.baseZ + local[2]);
         return;
       }
-      const point = planePoint(event, drag.startZ);
-      if (!point) return;
-      const grid = gridRef.current || 1;
-      let dx = point.x - drag.startPointer.x;
-      let dy = point.y - drag.startPointer.y;
-      const snappedX = Math.round((drag.startX + dx) / grid) * grid;
-      const snappedY = Math.round((drag.startY + dy) / grid) * grid;
-      dx = snappedX - drag.startX;
-      dy = snappedY - drag.startY;
-      const data = sceneDataRef.current;
-      const snap = findSnapForMove(data, drag.ids, [dx, dy, 0], 78);
-      const delta: Vec3 = snap ? [snap.dx, snap.dy, snap.dz] : [dx, dy, 0];
-      drag.delta = delta;
+      const { delta, snap } = resolveDragDelta(event, drag, 160);
       setItemPreview(drag.ids, delta);
-      const marker = snapMarkerRef.current;
-      if (marker) {
-        marker.visible = Boolean(snap);
-        if (snap) marker.position.set(snap.target.x, snap.target.y, snap.target.z);
+      if (snap) {
+        const preview = previewForSnap(sceneDataRef.current, drag.ids, delta, snap);
+        if (preview) showSnapPreview(snap, preview);
+        else clearSnapPreview();
+      } else {
+        clearSnapPreview();
       }
     };
 
     const onPointerUp = (event: PointerEvent) => {
       const drag = dragRef.current;
       if (!drag) return;
+      if (drag.moved && drag.kind === "items") {
+        const final = resolveDragDelta(event, drag, 180);
+        drag.delta = final.delta;
+        setItemPreview(drag.ids, final.delta);
+      }
+      clearSnapPreview();
       dragRef.current = null;
       controls.enabled = true;
-      if (snapMarkerRef.current) snapMarkerRef.current.visible = false;
       try {
         renderer.domElement.releasePointerCapture(event.pointerId);
       } catch {
@@ -1059,6 +1267,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
       if (hoverPortRef.current) hoverPortRef.current.scale.setScalar(1);
       hoverPortRef.current = null;
       renderer.domElement.style.cursor = "";
+      if (dragRef.current) clearSnapPreview();
     };
 
     renderer.domElement.addEventListener("pointerdown", onPointerDown, true);
@@ -1230,7 +1439,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
       pickables.push(group);
     }
 
-    if (showPorts) {
+    if (portsVisible(showPorts, selection)) {
       const connected = connectedPortKeys(scene);
       const pending = pendingPort
         ? (() => {
@@ -1241,13 +1450,13 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
       for (const port of scenePorts(scene)) {
         if (port.system === "mount") continue;
         const key = `${port.itemId}:${port.portId}`;
-        let color = connected.has(key) ? "#69b86a" : "#42b6a6";
+        let color = connected.has(key) ? "#c77b93" : "#f5b8c8";
         let radius = connected.has(key) ? 13 : 16;
         if (pending && pending.itemId === port.itemId && pending.portId === port.portId) {
-          color = "#e47f9c";
+          color = "#d81b60";
           radius = 21;
         } else if (pending && portCompatible(pending, port)) {
-          color = "#f4c542";
+          color = "#ff9fc0";
           radius = 19;
         }
         const sphere = buildPortSphere(port, color, radius);
@@ -1365,9 +1574,9 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     <div className="alley-viewport">
       <div className="alley-canvas" ref={hostRef} />
       <div className="alley-viewport-badge">
-        <span className="dot teal" />
+        <span className="dot pink" />
         <span>Sandbox Artist Alley</span>
-        <span className="muted">· arrastra piezas · toca una esfera para conectar</span>
+        <span className="muted">· selecciona una pieza para ver los puertos</span>
       </div>
       <div className="alley-viewport-hint">Arrastra el fondo para orbitar · rueda para acercar · R gira 90°</div>
     </div>

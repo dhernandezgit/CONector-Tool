@@ -11,6 +11,8 @@ import type {
 } from "./types";
 
 const TABLE = 750;
+/** Four usable shelf heights inside the panel organizer side frame. */
+const ORGANIZER_SLOT_HEIGHTS = [40, 95, 150, 205] as const;
 
 function bom(name: string, qty: number, category: string, note?: string): BomLine {
   return { name, qty, category, note };
@@ -34,22 +36,16 @@ function corner(
   };
 }
 
-/** Four structural corners, the two awning feet positions and the two
- * accessory mounting points of a flat display panel. */
-function panelPorts(w: number, h: number, system: AlleySystem, awning = false): AlleyPortDef[] {
-  const ports: AlleyPortDef[] = [
+/** Four structural corners plus the two upper anchors used by awnings. */
+function panelPorts(w: number, h: number, system: AlleySystem): AlleyPortDef[] {
+  return [
     corner("bl", "Esquina inferior izquierda", -w / 2, 0, -1, -1, system),
     corner("br", "Esquina inferior derecha", w / 2, 0, 1, -1, system),
     corner("tl", "Esquina superior izquierda", -w / 2, h, -1, 1, system),
     corner("tr", "Esquina superior derecha", w / 2, h, 1, 1, system),
+    { id: "top-a", label: "Anclaje de toldo izquierdo", system, pos: [-w * 0.45, 0, h], normal: [0, 0, 1] },
+    { id: "top-b", label: "Anclaje de toldo derecho", system, pos: [w * 0.45, 0, h], normal: [0, 0, 1] },
   ];
-  if (awning) {
-    ports.push(
-      { id: "top-a", label: "Anclaje de toldo izquierdo", system, pos: [-w * 0.3, 0, h], normal: [0, 0, 1] },
-      { id: "top-b", label: "Anclaje de toldo derecho", system, pos: [w * 0.3, 0, h], normal: [0, 0, 1] },
-    );
-  }
-  return ports;
 }
 
 function sidePorts(w: number, h: number, system: AlleySystem = "dovetail"): AlleyPortDef[] {
@@ -71,7 +67,6 @@ function panel(
   icon: string,
   bomName: string,
   description: string,
-  awning = false,
 ): AlleyCatalogItem {
   return {
     type,
@@ -81,7 +76,7 @@ function panel(
     dims: { w, d, h },
     color,
     icon,
-    ports: panelPorts(w, h, system, awning),
+    ports: panelPorts(w, h, system),
     bom: [bom(bomName, 1, "Paneles")],
     defaultBase: "table",
     description,
@@ -329,7 +324,6 @@ export const CATALOG: AlleyCatalogItem[] = [
     "▥",
     "Panel de rejilla 30 cm",
     "Rejilla metálica de 30 cm. El toldo se ancla en sus dos puntos superiores.",
-    true,
   ),
   panel(
     "wire35",
@@ -343,7 +337,6 @@ export const CATALOG: AlleyCatalogItem[] = [
     "▥",
     "Panel de rejilla 35 cm",
     "Rejilla metálica grande para el toldo de 35 cm.",
-    true,
   ),
   panel(
     "wire15",
@@ -488,18 +481,59 @@ export const CATALOG: AlleyCatalogItem[] = [
     tags: ["estante", "mini"],
   },
   {
-    ...accessory(
-      "organizer",
-      "Organizador de panel",
-      "4 niveles",
-      { w: 150, d: 30, h: 245 },
-      "#d9c2e8",
-      "🗂️",
-      [bom("Organizador de panel 4 niveles", 1, "Estantes")],
-      "Organizador de cuatro niveles que se cuelga de un panel. Perfecto para washi, pegatinas y prints pequeños.",
-      ["organizador", "panel", "4 niveles"],
-    ),
+    type: "wireshelf30",
+    name: "Balda de rejilla 30",
+    subtitle: "300 × 300 mm",
     category: "estantes",
+    dims: { w: 300, d: 300, h: 12 },
+    color: "#d9dee3",
+    icon: "▤",
+    ports: [
+      { id: "fl", label: "Esquina frontal izquierda", system: "wire", pos: [-150, -150, 0], normal: [0, 0, -1] },
+      { id: "fr", label: "Esquina frontal derecha", system: "wire", pos: [150, -150, 0], normal: [0, 0, -1] },
+      { id: "bl", label: "Esquina trasera izquierda", system: "wire", pos: [-150, 150, 0], normal: [0, 0, -1] },
+      { id: "br", label: "Esquina trasera derecha", system: "wire", pos: [150, 150, 0], normal: [0, 0, -1] },
+      { id: "ml-front", label: "Soporte izquierdo frontal", system: "wire", pos: [-150, -69, 0], normal: [1, 0, 0] },
+      { id: "mr-front", label: "Soporte derecho frontal", system: "wire", pos: [150, -69, 0], normal: [-1, 0, 0] },
+      { id: "ml-back", label: "Soporte izquierdo trasero", system: "wire", pos: [-150, 69, 0], normal: [1, 0, 0] },
+      { id: "mr-back", label: "Soporte derecho trasero", system: "wire", pos: [150, 69, 0], normal: [-1, 0, 0] },
+    ],
+    bom: [bom("Balda de rejilla 30", 1, "Estantes", "Balda horizontal para crear un nivel de exposición")],
+    defaultBase: "table",
+    description:
+      "Balda horizontal de rejilla de 30 × 30 cm. Se apoya en las esquinas de una torre y convierte cada cubo en una superficie útil.",
+    horizontal: true,
+    tags: ["balda", "rejilla", "horizontal", "torre"],
+  },
+  {
+    type: "organizer",
+    name: "Organizador de panel",
+    subtitle: "Lateral · 4 ranuras",
+    category: "estantes",
+    dims: { w: 150, d: 12, h: 245 },
+    color: "#d9c2e8",
+    icon: "🗄️",
+    ports: ORGANIZER_SLOT_HEIGHTS.flatMap((z, index) => [
+      {
+        id: `slot-${index + 1}-front`,
+        label: `Ranura ${index + 1} frontal`,
+        system: "dovetail" as AlleySystem,
+        pos: [0, -69, z] as [number, number, number],
+        normal: [1, 0, 0] as [number, number, number],
+      },
+      {
+        id: `slot-${index + 1}-back`,
+        label: `Ranura ${index + 1} trasera`,
+        system: "dovetail" as AlleySystem,
+        pos: [0, 69, z] as [number, number, number],
+        normal: [1, 0, 0] as [number, number, number],
+      },
+    ]),
+    bom: [bom("Lateral de organizador", 1, "Estantes", "Se necesitan dos para formar una estantería")],
+    defaultBase: "table",
+    description:
+      "Lateral con cuatro ranuras para baldas. Coloca dos, uno a cada lado, y desliza paneles o baldas para convertir el hueco en una estantería.",
+    tags: ["organizador", "estantería", "panel", "4 alturas"],
   },
   accessory(
     "shelfhook",
@@ -537,54 +571,56 @@ export const CATALOG: AlleyCatalogItem[] = [
   {
     type: "awning30",
     name: "Toldo 30 cm",
-    subtitle: "Tela A–D · patas",
+    subtitle: "Tela A–D · anclaje superior",
     category: "accesorios",
-    dims: { w: 300, d: 360, h: 330 },
+    dims: { w: 300, d: 306, h: 125 },
     color: "#f4a7bb",
     icon: "⛱️",
     ports: [
-      { id: "foot-left", label: "Pata izquierda", system: "wire", pos: [-90, 0, 0], normal: [0, 0, -1] },
-      { id: "foot-right", label: "Pata derecha", system: "wire", pos: [90, 0, 0], normal: [0, 0, -1] },
+      { id: "clip-left", label: "Anclaje izquierdo", system: "edge", pos: [-135, 0, 0], normal: [0, 0, -1] },
+      { id: "clip-right", label: "Anclaje derecho", system: "edge", pos: [135, 0, 0], normal: [0, 0, -1] },
     ],
     bom: [
       bom("Tela de toldo A", 1, "Toldo"),
       bom("Tela de toldo B", 1, "Toldo"),
       bom("Tela de toldo C", 1, "Toldo"),
       bom("Tela de toldo D", 1, "Toldo"),
-      bom("Pata de toldo 30 cm", 2, "Toldo"),
+      bom("Soporte trasero de toldo 30 cm", 2, "Toldo"),
       bom("Brazo de toldo 30 cm", 2, "Toldo"),
       bom("Enlace de toldo", 1, "Toldo"),
-      bom("Conector de rejilla para pata", 2, "Conectores", "Se engancha en los puntos superiores de una rejilla"),
+      bom("Anclaje de toldo", 2, "Conectores", "Conecta los soportes con los anclajes superiores del panel"),
     ],
     defaultBase: "table",
-    description: "Toldo plegable de 30 cm con tela a rayas. Sus dos patas se insertan en los conectores de una rejilla.",
-    tags: ["toldo", "awning", "rejilla"],
+    description:
+      "Toldo plegable de 30 cm con tela a rayas y faldón frontal. Se ancla en la parte superior de un panel con dos soportes y dos brazos; no tiene patas al suelo.",
+    tags: ["toldo", "awning", "anclaje", "panel"],
   },
   {
     type: "awning35",
     name: "Toldo 35 cm",
-    subtitle: "Tela A–D · patas",
+    subtitle: "Tela A–D · anclaje superior",
     category: "accesorios",
-    dims: { w: 350, d: 400, h: 350 },
+    dims: { w: 350, d: 356, h: 125 },
     color: "#f4a7bb",
     icon: "⛱️",
     ports: [
-      { id: "foot-left", label: "Pata izquierda", system: "wire", pos: [-105, 0, 0], normal: [0, 0, -1] },
-      { id: "foot-right", label: "Pata derecha", system: "wire", pos: [105, 0, 0], normal: [0, 0, -1] },
+      { id: "clip-left", label: "Anclaje izquierdo", system: "edge", pos: [-157.5, 0, 0], normal: [0, 0, -1] },
+      { id: "clip-right", label: "Anclaje derecho", system: "edge", pos: [157.5, 0, 0], normal: [0, 0, -1] },
     ],
     bom: [
       bom("Tela de toldo A", 1, "Toldo"),
       bom("Tela de toldo B", 1, "Toldo"),
       bom("Tela de toldo C", 1, "Toldo"),
       bom("Tela de toldo D", 1, "Toldo"),
-      bom("Pata de toldo 35 cm", 2, "Toldo"),
+      bom("Soporte trasero de toldo 35 cm", 2, "Toldo"),
       bom("Brazo de toldo 35 cm", 2, "Toldo"),
       bom("Enlace de toldo", 1, "Toldo"),
-      bom("Conector de rejilla para pata", 2, "Conectores"),
+      bom("Anclaje de toldo", 2, "Conectores", "Conecta los soportes con los anclajes superiores del panel"),
     ],
     defaultBase: "table",
-    description: "Toldo plegable de 35 cm para una rejilla grande.",
-    tags: ["toldo", "awning", "rejilla"],
+    description:
+      "Toldo plegable de 35 cm con tela a rayas y faldón frontal. Se ancla en la parte superior de un panel grande con dos soportes y dos brazos; no tiene patas al suelo.",
+    tags: ["toldo", "awning", "anclaje", "panel"],
   },
   {
     type: "fanhandle",
@@ -612,6 +648,30 @@ export const CATALOG_BY_TYPE = Object.fromEntries(CATALOG.map((item) => [item.ty
 
 const GRID = 300;
 
+/**
+ * Place a panel so one of its vertical edges meets `anchor`. `corner` names
+ * the panel corner that lands on the anchor, which lets examples reuse the
+ * same corner ports at 30°, 45° or 90° without hand-written trigonometry.
+ */
+function panelAtCorner(
+  type: string,
+  anchor: { x: number; y: number },
+  rotation: number,
+  corner: "left" | "right",
+  baseZ: number,
+  width = GRID,
+): AlleyGroupItemSpec {
+  const sign = corner === "left" ? 1 : -1;
+  const radians = (rotation * Math.PI) / 180;
+  return {
+    type,
+    x: anchor.x + (sign * width * Math.cos(radians)) / 2,
+    y: anchor.y + (sign * width * Math.sin(radians)) / 2,
+    baseZ,
+    rotation,
+  };
+}
+
 /** Three-sided 30 cm cube: front + two sides, deliberately open at the back. */
 function towerSpecs(centerX: number, levels = 4): AlleyGroupItemSpec[] {
   const specs: AlleyGroupItemSpec[] = [];
@@ -624,79 +684,167 @@ function towerSpecs(centerX: number, levels = 4): AlleyGroupItemSpec[] {
   return specs;
 }
 
+/** Two side frames facing each other, with four horizontal shelves between. */
+const ORGANIZER_SHELF_ITEMS: AlleyGroupItemSpec[] = [
+  { type: "organizer", x: -150, y: 0, baseZ: 0 },
+  { type: "organizer", x: 150, y: 0, baseZ: 0 },
+  ...ORGANIZER_SLOT_HEIGHTS.map((z) => ({ type: "wireshelf30", x: 0, y: 0, baseZ: z })),
+];
+
 const TWIN_TOWER_ITEMS: AlleyGroupItemSpec[] = [
   ...towerSpecs(-750),
   ...towerSpecs(750),
   ...[-450, -150, 150, 450].map((x) => ({ type: "wire30", x, y: -GRID / 2, baseZ: 900 })),
+  ...[-750, 750].flatMap((centerX) =>
+    [0, 1, 2, 3].map((level) => ({ type: "wireshelf30", x: centerX, y: 0, baseZ: level * GRID })),
+  ),
+  // The central organizer pair turns the gap between the towers into shelving.
+  ...ORGANIZER_SHELF_ITEMS,
+  // Two linked-looking awnings crown the bridge and show the full canopy shape.
+  { type: "awning30", x: -150, y: -150, baseZ: 1200 },
+  { type: "awning30", x: 150, y: -150, baseZ: 1200 },
 ];
 
+const SINGLE_TOWER_ITEMS: AlleyGroupItemSpec[] = [
+  ...towerSpecs(0),
+  ...[0, 1, 2, 3].map((level) => ({ type: "wireshelf30", x: 0, y: 0, baseZ: level * GRID })),
+];
+
+/** A symmetric slatwall bay: three panels at the front and two 45° wings. */
+const STARTER_ITEMS: AlleyGroupItemSpec[] = [
+  ...[-GRID, 0, GRID].flatMap((x) => [
+    { type: "slatwall30", x, y: 200, baseZ: 0 },
+    { type: "slatwall30", x, y: 200, baseZ: GRID },
+  ]),
+  ...[-1, 1].flatMap((side) =>
+    [0, GRID].map((baseZ) =>
+      panelAtCorner("slatwall30", { x: side * (GRID * 1.5), y: 200 }, side * 45, side < 0 ? "right" : "left", baseZ),
+    ),
+  ),
+];
+
+/** Wire-grid bay with 30° wings to show angled panels in the wire family. */
+const WIRE_ANGLED_ITEMS: AlleyGroupItemSpec[] = [
+  ...[-GRID, 0, GRID].flatMap((x) => [
+    { type: "wire30", x, y: 0, baseZ: 0 },
+    { type: "wire30", x, y: 0, baseZ: GRID },
+  ]),
+  ...[-1, 1].flatMap((side) =>
+    [0, GRID].map((baseZ) =>
+      panelAtCorner("wire30", { x: side * (GRID * 1.5), y: 0 }, side * 30, side < 0 ? "right" : "left", baseZ),
+    ),
+  ),
+];
+
+/** Every small slatwall size in one 30 × 75 cm sample wall. */
+const SMALL_PANEL_ITEMS: AlleyGroupItemSpec[] = [
+  { type: "slatwall15x30", x: -GRID / 4, y: 0, baseZ: 0 },
+  { type: "slatwall15x30", x: GRID / 4, y: 0, baseZ: 0 },
+  { type: "slatwall30x15", x: 0, y: 0, baseZ: GRID },
+  { type: "slatwall30x15", x: 0, y: 0, baseZ: GRID + GRID / 2 },
+  { type: "slatwall15", x: -GRID / 4, y: 0, baseZ: GRID * 2 },
+  { type: "slatwall15", x: GRID / 4, y: 0, baseZ: GRID * 2 },
+];
+
+/** Flat coloured panels below, wire grids above; both use wire connectors. */
+const FLAT_WIRE_ITEMS: AlleyGroupItemSpec[] = [
+  { type: "flat30", x: -GRID, y: 0, baseZ: 0, color: "#f3c7d4" },
+  { type: "flat30", x: 0, y: 0, baseZ: 0, color: "#cfe8e2" },
+  { type: "flat30", x: GRID, y: 0, baseZ: 0, color: "#f7e3b0" },
+  ...[-GRID, 0, GRID].map((x) => ({ type: "wire30", x, y: 0, baseZ: GRID })),
+];
+
+/** Two slatwall panels capped by two triangles for a sloped silhouette. */
+const TRIANGLE_FINISH_ITEMS: AlleyGroupItemSpec[] = [
+  { type: "slatwall30", x: 0, y: 0, baseZ: 0 },
+  { type: "slatwall30", x: 0, y: 0, baseZ: GRID },
+  { type: "triangle", x: GRID, y: 0, baseZ: 0 },
+  { type: "triangle", x: GRID, y: 0, baseZ: GRID },
+];
+
+/** Five-panel back wall with two 45° side wings, all slatwall. */
+const U_BOOTH_ITEMS: AlleyGroupItemSpec[] = [
+  ...[-2, -1, 0, 1, 2].flatMap((column) => [
+    { type: "slatwall30", x: column * GRID, y: 200, baseZ: 0 },
+    { type: "slatwall30", x: column * GRID, y: 200, baseZ: GRID },
+  ]),
+  ...[-1, 1].flatMap((side) =>
+    [0, GRID].map((baseZ) =>
+      panelAtCorner("slatwall30", { x: side * (GRID * 2.5), y: 200 }, side * 45, side < 0 ? "right" : "left", baseZ),
+    ),
+  ),
+];
+
+/** Stepped 3-2-1 wall with two 30° returns at the base. */
+const STEPPED_WALL_ITEMS: AlleyGroupItemSpec[] = [
+  ...[-GRID, 0, GRID].flatMap((x, index) =>
+    [0, 1, 2].slice(0, 3 - index).map((level) => ({ type: "slatwall30", x, y: 100, baseZ: level * GRID })),
+  ),
+  panelAtCorner("slatwall30", { x: -GRID * 1.5, y: 100 }, -30, "right", 0),
+  panelAtCorner("slatwall30", { x: GRID * 1.5, y: 100 }, 30, "left", 0),
+];
+
+/**
+ * Two equal 180 × 60 cm tables meeting at a true 90° corner. The lateral table
+ * starts flush with the primary table's front edge, so both arms are the same
+ * length and there is no T-shaped overhang at the joint.
+ */
 const L_TABLES: AlleyTableSpec[] = [
   { name: "Mesa principal", width: 1800, depth: 600, x: -450, y: 0, rotation: 0 },
-  { name: "Mesa lateral", width: 1800, depth: 600, x: 750, y: 0, rotation: 90 },
+  { name: "Mesa lateral", width: 1800, depth: 600, x: 750, y: 600, rotation: 90 },
 ];
 
+/** Low one-level slatwall screens along the back edge of both L tables. */
 const L_WORK_ITEMS: AlleyGroupItemSpec[] = [
-  { type: "display4", x: -1050, y: -100, baseZ: 0 },
-  { type: "riser3", x: -700, y: -80, baseZ: 0 },
-  { type: "minishelf", x: -350, y: -100, baseZ: 0 },
-  { type: "display3", x: 0, y: -100, baseZ: 0 },
-  { type: "riser3", x: 750, y: -450, baseZ: 0, rotation: 90 },
-  { type: "riser1", x: 750, y: 150, baseZ: 0, rotation: 90 },
-  { type: "display4", x: 750, y: 600, baseZ: 0, rotation: 90 },
+  ...[-900, -600, -300, 0].map((x) => ({ type: "slatwall30", x, y: 200, baseZ: 0 })),
+  ...[150, 450, 750, 1050].map((y) => ({ type: "slatwall30", x: 900, y, baseZ: 0, rotation: 90 })),
 ];
 
 const L_WALL_ITEMS: AlleyGroupItemSpec[] = [
   ...[-1200, -900, -600, -300, 0, 300].flatMap((x) => [
     { type: "slatwall30", x, y: 200, baseZ: 0 },
-    { type: "slatwall30", x, y: 200, baseZ: 300 },
+    { type: "slatwall30", x, y: 200, baseZ: GRID },
   ]),
-  ...[-750, -450, -150, 150, 450, 750].flatMap((y) => [
+  ...[-150, 150, 450, 750, 1050, 1350].flatMap((y) => [
     { type: "slatwall30", x: 900, y, baseZ: 0, rotation: 90 },
-    { type: "slatwall30", x: 900, y, baseZ: 300, rotation: 90 },
+    { type: "slatwall30", x: 900, y, baseZ: GRID, rotation: 90 },
   ]),
-  ...L_WORK_ITEMS,
 ];
 
 export const GROUPS: AlleyGroupPreset[] = [
   {
     id: "starter",
-    name: "Puesto Artist Alley",
-    description: "Pared slatwall 2×2, expositor 4\", riser de 3 niveles y toldo sobre rejilla.",
+    name: "Bahía slatwall 3+2",
+    description:
+      "Tres paneles de slatwall al frente y dos alas a 45°, en dos niveles. Una base sencilla para una pared de productos.",
     icon: "🏪",
-    items: [
-      { type: "slatwall30", x: -700, y: 200, baseZ: 0 },
-      { type: "slatwall30", x: -400, y: 200, baseZ: 0 },
-      { type: "slatwall30", x: -700, y: 200, baseZ: 300 },
-      { type: "slatwall30", x: -400, y: 200, baseZ: 300 },
-      { type: "display4", x: -100, y: -250, baseZ: 0 },
-      { type: "riser3", x: 250, y: -250, baseZ: 0 },
-      { type: "wire30", x: 750, y: 150, baseZ: 0 },
-      { type: "awning30", x: 750, y: 150, baseZ: 300 },
-    ],
+    items: STARTER_ITEMS,
   },
   {
     id: "wall-slatwall",
-    name: "Pared slatwall 2×2",
-    description: "Cuatro paneles de 30 cm con uniones de cola de milano.",
+    name: "Pared slatwall 2×4",
+    description: "Ocho paneles de 30 cm en dos columnas y cuatro alturas, con uniones de cola de milano.",
     icon: "▤",
-    items: [
-      { type: "slatwall30", x: -150, y: 0, baseZ: 0 },
-      { type: "slatwall30", x: 150, y: 0, baseZ: 0 },
-      { type: "slatwall30", x: -150, y: 0, baseZ: 300 },
-      { type: "slatwall30", x: 150, y: 0, baseZ: 300 },
-    ],
+    items: [-150, 150].flatMap((x) =>
+      [0, 1, 2, 3].map((level) => ({ type: "slatwall30", x, y: 0, baseZ: level * GRID })),
+    ),
+  },
+  {
+    id: "organizer-shelf",
+    name: "Estantería de organizadores",
+    description:
+      "Dos organizadores laterales, uno a cada lado, y cuatro baldas de rejilla. Las baldas se deslizan en las ranuras y convierten el hueco en una estantería.",
+    icon: "🗄️",
+    items: ORGANIZER_SHELF_ITEMS,
   },
   {
     id: "wall-skadis",
-    name: "Pared Skadis 2×2",
-    description: "Cuatro paneles perforados con conectores Skadis.",
+    name: "Pared Skadis 2×4",
+    description: "Ocho paneles perforados en dos columnas y cuatro alturas, con placas Skadis.",
     icon: "▦",
-    items: [
-      { type: "skadis30", x: -150, y: 0, baseZ: 0 },
-      { type: "skadis30", x: 150, y: 0, baseZ: 0 },
-      { type: "skadis30", x: -150, y: 0, baseZ: 300 },
-      { type: "skadis30", x: 150, y: 0, baseZ: 300 },
-    ],
+    items: [-150, 150].flatMap((x) =>
+      [0, 1, 2, 3].map((level) => ({ type: "skadis30", x, y: 0, baseZ: level * GRID })),
+    ),
   },
   {
     id: "corner-slatwall",
@@ -711,82 +859,70 @@ export const GROUPS: AlleyGroupPreset[] = [
     ],
   },
   {
-    id: "awning-wall",
-    name: "Toldo + rejilla",
-    description: "Una rejilla de 30 cm con el toldo anclado en su parte superior.",
-    icon: "⛱️",
-    items: [
-      { type: "wire30", x: 0, y: 0, baseZ: 0 },
-      { type: "awning30", x: 0, y: 0, baseZ: 300 },
-    ],
+    id: "wire-angled",
+    name: "Rejilla angular 30°",
+    description:
+      "Tres rejillas al frente y dos alas a 30° en dos niveles. Solo paneles; las uniones de rejilla se generan al conectar.",
+    icon: "▥",
+    items: WIRE_ANGLED_ITEMS,
   },
   {
-    id: "display-set",
-    name: "Set de expositores",
-    description: "Expositor de 4\", riser de 3 niveles y mini estante, listos para colocar.",
-    icon: "🖼️",
-    items: [
-      { type: "display4", x: -180, y: 0, baseZ: 0 },
-      { type: "riser3", x: 150, y: 0, baseZ: 0 },
-      { type: "minishelf", x: 420, y: 0, baseZ: 0 },
-    ],
+    id: "small-panels",
+    name: "Mini pared 1/4 y 1/2",
+    description: "Dos medios paneles verticales, dos horizontales y dos cuartos para probar todas las medidas pequeñas.",
+    icon: "🧩",
+    items: SMALL_PANEL_ITEMS,
   },
   {
-    id: "organizer-wall",
-    name: "Panel organizado",
-    description: "Panel slatwall con organizador de cuatro niveles, bandejas y gancho.",
-    icon: "🗂️",
-    items: [
-      { type: "slatwall30", x: 0, y: 0, baseZ: 0 },
-      { type: "organizer", x: 0, y: 0, baseZ: 0, mountOnIndex: 0, mountU: 0.5, mountV: 0.66 },
-      { type: "bins", x: 0, y: 0, baseZ: 0, mountOnIndex: 0, mountU: 0.5, mountV: 0.27 },
-      { type: "shelfhook", x: 0, y: 0, baseZ: 0, mountOnIndex: 0, mountU: 0.16, mountV: 0.5 },
-    ],
+    id: "flat-wire",
+    name: "Fondo liso + rejilla",
+    description: "Tres paneles lisos de color como fondo y tres rejillas encima, con uniones de rejilla.",
+    icon: "▧",
+    items: FLAT_WIRE_ITEMS,
+  },
+  {
+    id: "triangle-finish",
+    name: "Remate triangular",
+    description: "Dos paneles slatwall y dos triángulos que rematan el borde con una pendiente.",
+    icon: "◺",
+    items: TRIANGLE_FINISH_ITEMS,
   },
   {
     id: "twin-towers",
     name: "Doble torre 4 cubos",
     description:
-      "Dos torres de rejilla de 30 cm y 4 cubos, abiertas por detrás, separadas por 4 cubos y unidas arriba por 4 rejillas.",
+      "Dos torres de rejilla de 30 cm y 4 cubos con baldas horizontales, abiertas por detrás, separadas por 4 cubos y unidas arriba por 4 rejillas. En el hueco central, dos organizadores laterales sostienen cuatro baldas; arriba, dos toldos cubren el puente.",
     icon: "🏗️",
     items: TWIN_TOWER_ITEMS,
   },
   {
+    id: "single-tower",
+    name: "Torre 4 cubos",
+    description:
+      "Una torre de rejilla de 30 cm y 4 cubos con cuatro baldas horizontales. Ideal para un puesto pequeño o como módulo adicional.",
+    icon: "🗼",
+    items: SINGLE_TOWER_ITEMS,
+  },
+  {
     id: "u-booth",
-    name: "Stand en U 5×2",
-    description: "Pared de fondo de 5 × 2 paneles y dos laterales de 2 niveles. Una base sólida para una mesa de 180 cm.",
+    name: "Stand en U angular",
+    description:
+      "Pared de fondo de 5 × 2 paneles y dos alas laterales a 45°. Solo paneles; las uniones se generan al conectar.",
     icon: "🧱",
-    items: [
-      ...[-600, -300, 0, 300, 600].flatMap((x) => [
-        { type: "slatwall30", x, y: 200, baseZ: 0 },
-        { type: "slatwall30", x, y: 200, baseZ: 300 },
-      ]),
-      ...[-750, 750].flatMap((x) => [
-        { type: "slatwall30", x, y: 50, baseZ: 0, rotation: 90 },
-        { type: "slatwall30", x, y: 50, baseZ: 300, rotation: 90 },
-      ]),
-      { type: "display4", x: -450, y: -120, baseZ: 0 },
-      { type: "riser3", x: 0, y: -100, baseZ: 0 },
-      { type: "display3", x: 420, y: -120, baseZ: 0 },
-    ],
+    items: U_BOOTH_ITEMS,
   },
   {
     id: "stepped-wall",
     name: "Pared escalonada 3-2-1",
-    description: "Tres columnas de paneles que suben en escalera para dar altura sin tapar la mesa.",
+    description:
+      "Tres columnas escalonadas y dos remates a 30° en la base. Solo paneles; las uniones se generan al conectar.",
     icon: "🪜",
-    items: [
-      ...[-300, 0, 300].flatMap((x, index) =>
-        [0, 1, 2].slice(0, 3 - index).map((level) => ({ type: "slatwall30", x, y: 100, baseZ: level * 300 })),
-      ),
-      { type: "display4", x: -250, y: -100, baseZ: 0 },
-      { type: "riser3", x: 150, y: -100, baseZ: 0 },
-    ],
+    items: STEPPED_WALL_ITEMS,
   },
   {
     id: "workspace-l-work",
     name: "Mesa en L de trabajo",
-    description: "Dos mesas de 180 × 60 cm en esquina, con expositores y risers en las dos alas.",
+    description: "Dos mesas de 180 × 60 cm en L simétrica con biombos bajos de slatwall en las dos alas.",
     icon: "📐",
     tables: L_TABLES,
     items: L_WORK_ITEMS,
@@ -794,7 +930,7 @@ export const GROUPS: AlleyGroupPreset[] = [
   {
     id: "workspace-l-wall",
     name: "Mesa en L + pared",
-    description: "La configuración de trabajo en L con dos paredes slatwall de dos niveles y producto listo para exponer.",
+    description: "La configuración de trabajo en L con dos paredes slatwall de dos niveles, solo paneles y uniones.",
     icon: "🛠️",
     tables: L_TABLES,
     items: L_WALL_ITEMS,
@@ -1029,16 +1165,30 @@ export const CONNECTORS: Record<ConnectorType, ConnectorDef> = {
     minPanels: 2,
     maxPanels: 8,
   },
-  "awning-foot": {
-    id: "awning-foot",
-    name: "Pata de toldo + conector de rejilla",
-    short: "Anclaje de toldo",
-    category: "Conectores de rejilla",
-    color: "#8eb7d6",
-    bomName: "Conector de rejilla para pata de toldo",
-    systems: ["wire"],
+  "organizer-slot": {
+    id: "organizer-slot",
+    name: "Ranura de organizador",
+    short: "Ranura",
+    category: "Organizador",
+    color: "#b98ac9",
+    bomName: "Ranura de organizador (integrada)",
+    systems: ["dovetail", "wire"],
     minPanels: 2,
     maxPanels: 2,
+    integrated: true,
+    note: "La balda se desliza en la ranura del organizador; no necesita una pieza extra.",
+  },
+  "awning-foot": {
+    id: "awning-foot",
+    name: "Anclaje de toldo",
+    short: "Anclaje",
+    category: "Toldo",
+    color: "#d9789b",
+    bomName: "Anclaje de toldo",
+    systems: ["edge", "dovetail", "skadis", "wire"],
+    minPanels: 2,
+    maxPanels: 2,
+    note: "Conecta el soporte del toldo con el anclaje superior del panel. El toldo no tiene patas al suelo.",
   },
 };
 
@@ -1063,6 +1213,7 @@ export const CONNECTOR_ORDER: ConnectorType[] = [
   "skadis-x",
   "dovetail",
   "wire-grid",
+  "organizer-slot",
   "awning-foot",
 ];
 

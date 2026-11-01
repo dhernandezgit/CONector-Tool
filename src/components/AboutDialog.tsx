@@ -16,9 +16,11 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
         </div>
 
         <p className="about-lead">
-          Un sandbox 3D para montar y editar un puesto de artistas con paneles, expositores, estantes, accesorios y toldo.
-          Puedes probar composiciones, trabajar sobre una o varias mesas en L, copiar y pegar grupos, guardar el proyecto en
-          un archivo local y preparar la lista de materiales antes de montar el puesto real.
+          Un sandbox 3D para montar y editar un puesto de artistas con paneles, expositores, estantes, baldas,
+          organizadores, accesorios y toldo. La escena inicial es una doble torre de cuatro cubos con una estantería
+          central de organizadores y dos toldos. Puedes probar composiciones, trabajar sobre una o varias mesas en L,
+          copiar y pegar grupos, guardar el proyecto en un archivo local y preparar la lista de materiales antes de montar
+          el puesto real.
         </p>
 
         <div className="about-grid">
@@ -27,8 +29,10 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
             <p>
               Representaciones originales y simplificadas inspiradas en las piezas del Artist Alley STL Pack: paneles
               slatwall, Skadis, rejilla y triangulares, también en medidas de 1/4 y 1/2 y en versión lisa coloreada;
-              expositores de 2,5 a 5 pulgadas; risers, mini estante, organizador, bandejas, ganchos, clips, toldo y mango de
-              abanico.
+              expositores de 2,5 a 5 pulgadas; risers, mini estante, balda horizontal, organizadores laterales con
+              ranuras, bandejas, ganchos, clips, toldo con faldón y sin patas al suelo, y mango de abanico. Los ejemplos
+              rápidos combinan paneles con baldas y organizadores, y los conectores se eligen automáticamente entre los
+              válidos para cada unión.
             </p>
           </section>
           <section>

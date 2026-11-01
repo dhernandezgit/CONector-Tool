@@ -43,7 +43,6 @@ import {
   addGroup,
   addTable,
   clearScene,
-  commitScene,
   copySelection,
   countGroupItems,
   deleteGroup,
@@ -57,7 +56,9 @@ import {
   moveMountedItem,
   mountItem,
   pasteSelection,
+  recolorItems,
   removeTable,
+  resetJointType,
   rotateItems,
   sceneBom,
   selectedPanelForMount,
@@ -79,7 +80,7 @@ import type {
   ConnectorType,
   PortRef,
 } from "./types";
-import AlleyViewport, { type AlleyViewportHandle } from "./AlleyViewport";
+import AlleyViewport, { type AlleyDragPreview, type AlleyViewportHandle } from "./AlleyViewport";
 import ViewCube from "./ViewCube";
 import { ColorField, NumberField, RangeField, Segmented, SelectField, Toggle } from "../components/UI";
 import { clamp } from "../lib/utils";
@@ -106,6 +107,14 @@ function dot(color: string) {
   return <span className="alley-dot" style={{ background: color }} />;
 }
 
+const QUICK_ADD = [
+  { kind: "item", id: "slatwall30", label: "Panel 30", icon: "▤" },
+  { kind: "item", id: "wire30", label: "Rejilla 30", icon: "▥" },
+  { kind: "item", id: "wireshelf30", label: "Balda 30", icon: "▤" },
+  { kind: "preset", id: "organizer-shelf", label: "Estantería", icon: "🗄️" },
+  { kind: "item", id: "awning30", label: "Toldo 30", icon: "⛱️" },
+] as const;
+
 export default function AlleySandbox({
   scene,
   projectName,
@@ -122,6 +131,7 @@ export default function AlleySandbox({
   const pasteCountRef = useRef(0);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [selection, setSelection] = useState<AlleySelection | null>(null);
+  const [dragPreview, setDragPreview] = useState<AlleyDragPreview | null>(null);
   const [pendingPort, setPendingPort] = useState<PortRef | null>(null);
   const [category, setCategory] = useState<CategoryFilter>("todos");
   const [query, setQuery] = useState("");
@@ -142,6 +152,8 @@ export default function AlleySandbox({
   );
   const selectedGroup = selectedItem?.groupId ? groupFor(scene, selectedItem.groupId) : undefined;
   const selectedGroupItems = selectedGroup ? itemsInGroup(scene, selectedGroup.id) : [];
+  const selectionColor = selectedItems.length ? itemColor(selectedItems[0]) : "#f3c7d4";
+  const selectionHasMixedColor = selectedItems.some((item) => itemColor(item) !== selectionColor);
   const selectedPanel = selectedPanelForMount(scene, selection);
   const bom = useMemo(() => sceneBom(scene), [scene]);
   const activeJoints = scene.joints.filter((joint) => !joint.suppressed).length;
@@ -209,12 +221,37 @@ export default function AlleySandbox({
     if (!tables.some((table) => table.id === selectedTableId)) setSelectedTableId(tables[0]?.id || null);
   }, [selectedTableId, tables]);
 
-  const updateItem = useCallback(
-    (id: string, patch: Partial<AlleyItem>) => {
-      const items = scene.items.map((item) => (item.id === id ? { ...item, ...patch } : item));
-      mutate(commitScene({ ...scene, items }));
+  /** Position fields move the whole group; mounted accessories stay on their panel. */
+  const moveSelectedTo = useCallback(
+    (axis: "x" | "y" | "z", value: number) => {
+      if (!selectedItem) return;
+      const ids = selectedItem.groupId ? expandSelectionWithGroups(scene, [selectedItem.id]) : [selectedItem.id];
+      const dx = axis === "x" ? value - selectedItem.x : 0;
+      const dy = axis === "y" ? value - selectedItem.y : 0;
+      const dz = axis === "z" ? value - selectedItem.baseZ : 0;
+      if (!dx && !dy && !dz) return;
+      mutate(moveItems(scene, ids, dx, dy, dz));
     },
-    [mutate, scene],
+    [mutate, scene, selectedItem],
+  );
+
+  /** Rotation fields rotate around the group pivot, matching the R/E shortcuts. */
+  const rotateSelectedTo = useCallback(
+    (value: number) => {
+      if (!selectedItem) return;
+      const delta = value - selectedItem.rotation;
+      if (!delta) return;
+      mutate(rotateItems(scene, [selectedItem.id], delta));
+    },
+    [mutate, scene, selectedItem],
+  );
+
+  const recolorSelected = useCallback(
+    (value: string) => {
+      if (!selection || selection.type === "joint") return;
+      mutate(recolorItems(scene, selection.ids, value));
+    },
+    [mutate, scene, selection],
   );
 
   const patchTable = useCallback(
@@ -253,6 +290,8 @@ export default function AlleySandbox({
     (type: string) => {
       const catalog = CATALOG_BY_TYPE[type];
       if (!catalog) return;
+      const isAwning = type.startsWith("awning");
+      const hostPanel = isAwning ? selectedPanel : undefined;
       const result = addCatalogItem(scene, type, { panelId: selectedPanel?.id });
       mutate(result.scene);
       setSelection({ type: "item", ids: [result.itemId] });
@@ -262,16 +301,29 @@ export default function AlleySandbox({
         return;
       }
       const added = result.scene.items.find((item) => item.id === result.itemId);
+      const awningAnchored =
+        Boolean(added) &&
+        result.scene.joints.some(
+          (joint) => joint.type === "awning-foot" && joint.ports.some((port) => port.itemId === added!.id),
+        );
       if (added?.mount) {
         const panel = result.scene.items.find((item) => item.id === added.mount?.panelId);
         onToast(`${catalog.name} montado en ${panel ? itemTypeLabel(panel) : "el panel"}.`);
+      } else if (isAwning && hostPanel && awningAnchored) {
+        onToast(`${catalog.name} anclado en la parte superior de ${itemTypeLabel(hostPanel)}.`);
+      } else if (isAwning && hostPanel) {
+        onToast(
+          `${catalog.name} colocado sobre ${itemTypeLabel(hostPanel)}, pero sus anclajes no coinciden. Usa un panel del mismo ancho.`,
+        );
+      } else if (isAwning) {
+        onToast(`${catalog.name} añadido. Selecciona un panel y vuelve a añadirlo para anclarlo.`);
       } else if (catalog.mountable) {
         onToast(`${catalog.name} colocado en la mesa. Añade un panel para montarlo.`);
       } else {
         onToast(`${catalog.name} añadido. Arrástralo o conéctalo por las esferas.`);
       }
     },
-    [mutate, onToast, scene, selectedPanel?.id],
+    [mutate, onToast, scene, selectedPanel],
   );
 
   const addPreset = useCallback(
@@ -433,7 +485,7 @@ export default function AlleySandbox({
       if (!pendingPort) {
         setPendingPort(port);
         setSelection({ type: "item", ids: [item.id] });
-        onToast("Origen elegido. Toca una esfera amarilla para conectar, o Esc para cancelar.");
+        onToast("Origen elegido. Toca una esfera rosa compatible para conectar, o Esc para cancelar.");
         return;
       }
       if (pendingPort.itemId === port.itemId && pendingPort.portId === port.portId) {
@@ -453,7 +505,7 @@ export default function AlleySandbox({
         return;
       }
       if (!portCompatible(source, target)) {
-        onToast("Esas esferas no comparten sistema: prueba una esfera amarilla.");
+        onToast("Esas esferas no comparten sistema: prueba una esfera rosa compatible.");
         return;
       }
       if (item.mount) {
@@ -708,6 +760,32 @@ export default function AlleySandbox({
           ))}
         </div>
 
+        {category !== "grupos" && (
+          <div className="alley-quick-add">
+            <span className="alley-field-label">Añadir rápido</span>
+            <div className="alley-quick-add-row">
+              {QUICK_ADD.map((entry) => {
+                const item = entry.kind === "item" ? CATALOG_BY_TYPE[entry.id] : undefined;
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => (entry.kind === "item" ? addItem(entry.id) : addPreset(entry.id))}
+                    title={
+                      entry.kind === "item"
+                        ? item?.name
+                        : "Dos organizadores laterales, uno a cada lado, y cuatro baldas"
+                    }
+                  >
+                    <span>{entry.icon}</span>
+                    {entry.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="alley-catalog-scroll">
           {(category === "todos" || category === "grupos") && filteredGroups.length > 0 && (
             <section className="alley-catalog-section">
@@ -837,7 +915,7 @@ export default function AlleySandbox({
               type="button"
               className={`alley-tool${showPorts ? " active" : ""}`}
               onClick={() => setShowPorts((value) => !value)}
-              title="Mostrar u ocultar esferas de conexión"
+              title="Mostrar esferas al seleccionar una pieza"
             >
               {showPorts ? <Eye size={16} /> : <EyeOff size={16} />}
               <span className="alley-tool-mini">Esferas</span>
@@ -875,6 +953,7 @@ export default function AlleySandbox({
             onPortClick={handlePortClick}
             onMoveItems={handleMoveItems}
             onMoveMount={handleMoveMount}
+            onDragPreview={setDragPreview}
             onCameraChange={(azimuth, polar) => setCameraAngles({ azimuth, polar })}
           />
           <ViewCube
@@ -917,11 +996,21 @@ export default function AlleySandbox({
               <span className="alley-dock-hint">Arrastra para mover todo · flechas para ajustar</span>
             </div>
           )}
+          {dragPreview && (
+            <div className="alley-drag-preview">
+              <Link2 size={15} />
+              <span>
+                Se unirá a <strong>{dragPreview.targetName}</strong>
+                {dragPreview.panelCount > 2 ? ` y ${dragPreview.panelCount - 1} pieza${dragPreview.panelCount === 3 ? "" : "s"} más` : ""}
+              </span>
+              <span className="muted">· {dragPreview.connectorName}</span>
+            </div>
+          )}
           {pendingPort && (
             <div className="alley-pending">
               <Link2 size={15} />
               <span>
-                Conectando desde <strong>{pendingItem ? itemTypeLabel(pendingItem) : "una pieza"}</strong>. Toca una esfera amarilla.
+                Conectando desde <strong>{pendingItem ? itemTypeLabel(pendingItem) : "una pieza"}</strong>. Toca una esfera rosa compatible.
               </span>
               <button type="button" onClick={() => setPendingPort(null)}>
                 Cancelar
@@ -1069,14 +1158,14 @@ export default function AlleySandbox({
               <section className="alley-panel">
                 <h3>Leyenda de conexiones</h3>
                 <div className="alley-legend">
-                  <span><i className="teal" /> Puerto libre</span>
-                  <span><i className="green" /> Ya conectado</span>
-                  <span><i className="pink" /> Origen elegido</span>
-                  <span><i className="yellow" /> Destino compatible</span>
+                  <span><i className="pink-free" /> Puerto libre</span>
+                  <span><i className="pink-connected" /> Ya conectado</span>
+                  <span><i className="pink-origin" /> Origen elegido</span>
+                  <span><i className="pink-target" /> Destino compatible</span>
                 </div>
                 <p className="alley-note">
-                  Las esferas grandes son los puertos de las esquinas y bordes. Toca una y luego otra compatible para
-                  acercar las piezas y crear la unión.
+                  Las esferas aparecen al seleccionar una pieza. Toca una y luego otra compatible para acercar las piezas
+                  y crear la unión.
                 </p>
               </section>
 
@@ -1122,6 +1211,7 @@ export default function AlleySandbox({
                   <p>{catalogFor(selectedItem).subtitle}</p>
                 </div>
               </div>
+              <p className="alley-note">{catalogFor(selectedItem).description}</p>
 
               {selectedGroup && (
                 <div className="alley-group-banner">
@@ -1136,11 +1226,18 @@ export default function AlleySandbox({
 
               <section className="alley-panel">
                 <h3>Transformar</h3>
-                <div className="alley-field-grid three">
-                  <NumberField label="X" value={Math.round(selectedItem.x)} min={-3000} max={3000} step={10} suffix="mm" onChange={(value) => updateItem(selectedItem.id, { x: value })} />
-                  <NumberField label="Y" value={Math.round(selectedItem.y)} min={-3000} max={3000} step={10} suffix="mm" onChange={(value) => updateItem(selectedItem.id, { y: value })} />
-                  <NumberField label="Altura" value={Math.round(selectedItem.baseZ)} min={0} max={3000} step={10} suffix="mm" onChange={(value) => updateItem(selectedItem.id, { baseZ: value })} />
-                </div>
+                {selectedItem.mount ? (
+                  <p className="alley-note">
+                    Está montado en un panel. Usa los controles de <strong>Montaje en panel</strong> para moverlo; el panel
+                    y el grupo se mueven juntos.
+                  </p>
+                ) : (
+                  <div className="alley-field-grid three">
+                    <NumberField label="X" value={Math.round(selectedItem.x)} min={-3000} max={3000} step={10} suffix="mm" onChange={(value) => moveSelectedTo("x", value)} />
+                    <NumberField label="Y" value={Math.round(selectedItem.y)} min={-3000} max={3000} step={10} suffix="mm" onChange={(value) => moveSelectedTo("y", value)} />
+                    <NumberField label="Altura" value={Math.round(selectedItem.baseZ)} min={0} max={3000} step={10} suffix="mm" onChange={(value) => moveSelectedTo("z", value)} />
+                  </div>
+                )}
                 <div className="alley-rotation-row">
                   <span className="alley-field-label">Rotación</span>
                   <Segmented
@@ -1152,20 +1249,23 @@ export default function AlleySandbox({
                       { value: "180", label: "180°" },
                       { value: "270", label: "270°" },
                     ]}
-                    onChange={(value) => updateItem(selectedItem.id, { rotation: Number(value) })}
+                    onChange={(value) => rotateSelectedTo(Number(value))}
                   />
                 </div>
-                <NumberField label="Ángulo fino" value={Math.round(selectedItem.rotation)} min={0} max={359} step={5} suffix="°" onChange={(value) => updateItem(selectedItem.id, { rotation: value })} />
+                <NumberField label="Ángulo fino" value={Math.round(selectedItem.rotation)} min={0} max={359} step={5} suffix="°" onChange={(value) => rotateSelectedTo(value)} />
                 <div className="alley-inline-actions alley-rotation-actions">
                   <button type="button" className="alley-small-button" onClick={() => rotate(-90)}><RotateCcw size={14} /> Girar -90°</button>
                   <button type="button" className="alley-small-button" onClick={() => rotate(90)}><RotateCw size={14} /> Girar +90°</button>
                 </div>
-                <p className="alley-note">Atajos: R o E para girar +90°, Q para -90°.</p>
+                <p className="alley-note">
+                  Atajos: R o E para girar +90°, Q para -90°. Si la pieza pertenece a un grupo, estos campos mueven o giran
+                  el grupo completo.
+                </p>
               </section>
 
               <section className="alley-panel">
                 <h3>Color</h3>
-                <ColorField label="Acabado" value={itemColor(selectedItem)} onChange={(value) => updateItem(selectedItem.id, { color: value })} />
+                <ColorField label="Acabado" value={itemColor(selectedItem)} onChange={(value) => recolorSelected(value)} />
                 <div className="alley-swatches">
                   {PALETTE.map((color) => (
                     <button
@@ -1173,11 +1273,16 @@ export default function AlleySandbox({
                       key={color}
                       style={{ background: color }}
                       className={itemColor(selectedItem) === color ? "active" : ""}
-                      onClick={() => updateItem(selectedItem.id, { color })}
+                      onClick={() => recolorSelected(color)}
                       aria-label={`Color ${color}`}
                     />
                   ))}
                 </div>
+                <p className="alley-note">
+                  {selectedGroup
+                    ? `El color se aplica a todo el grupo: ${selectedGroupItems.length} piezas.`
+                    : "El color se aplica a esta pieza."}
+                </p>
               </section>
 
               {catalogFor(selectedItem).mountable && (
@@ -1293,8 +1398,22 @@ export default function AlleySandbox({
                   value={selectedJoint.type}
                   options={jointTypeOptions}
                   onChange={(value) => mutate(setJointType(scene, selectedJoint.id, value as ConnectorType))}
-                  hint="Solo se muestran conectores válidos para el número y ángulo de paneles."
+                  hint="Se muestran todos los conectores compatibles con el número de piezas."
                 />
+                <p className="alley-note">
+                  {selectedJoint.manual
+                    ? "Conector elegido manualmente. Se mantiene al mover las piezas mientras siga siendo válido."
+                    : "Conector automático: se adapta a la geometría de la unión."}
+                </p>
+                {selectedJoint.manual && (
+                  <button
+                    type="button"
+                    className="secondary-button wide"
+                    onClick={() => mutate(resetJointType(scene, selectedJoint.id))}
+                  >
+                    <Sparkles size={15} /> Volver a automático
+                  </button>
+                )}
                 {CONNECTORS[selectedJoint.type]?.note && (
                   <p className="alley-note">{CONNECTORS[selectedJoint.type].note}</p>
                 )}
@@ -1360,6 +1479,27 @@ export default function AlleySandbox({
                 <p className="alley-note">
                   Arrastra cualquier pieza seleccionada para mover todo el conjunto. Las flechas ajustan 1 cm; con
                   Mayús, 5 cm. Si las piezas pertenecen a un grupo, se moverá el grupo completo.
+                </p>
+              </section>
+              <section className="alley-panel">
+                <h3>Color de la selección</h3>
+                <ColorField label="Acabado" value={selectionColor} onChange={(value) => recolorSelected(value)} />
+                <div className="alley-swatches">
+                  {PALETTE.map((color) => (
+                    <button
+                      type="button"
+                      key={color}
+                      style={{ background: color }}
+                      className={!selectionHasMixedColor && selectionColor === color ? "active" : ""}
+                      onClick={() => recolorSelected(color)}
+                      aria-label={`Color ${color}`}
+                    />
+                  ))}
+                </div>
+                <p className="alley-note">
+                  {selectionHasMixedColor
+                    ? "La selección tiene varios colores. Elige uno para aplicarlo a todas las piezas y a sus grupos completos."
+                    : "El color se aplica a todas las piezas seleccionadas y a sus grupos completos."}
                 </p>
               </section>
               <div className="alley-inspector-actions">

@@ -91,7 +91,13 @@ export function scenePorts(scene: AlleyScene): WorldPort[] {
   return ports;
 }
 
+/** Ports are an editing aid: they stay hidden until an item selection exists. */
+export function portsVisible(showPorts: boolean, selection: AlleySelection | null): boolean {
+  return showPorts && Boolean(selection && selection.type !== "joint");
+}
+
 export function planeNormal(item: AlleyItem): Vec3 {
+  if (catalogFor(item).horizontal) return [0, 0, 1];
   return rotateNormal(item, [0, 1, 0]);
 }
 
@@ -132,61 +138,65 @@ export function defaultConnectorType(scene: AlleyScene, refs: Array<PortRef>): C
   const systems = uniqueSystems(ports);
   const count = items.length;
   const hasAwning = items.some((item) => item.type.startsWith("awning"));
-  if (systems.has("wire")) {
-    return hasAwning ? "awning-foot" : "wire-grid";
-  }
-  if (systems.size === 1 && systems.has("skadis")) {
-    if (count >= 4) return "skadis-x";
-    if (count === 3) return "skadis-z";
-    const zs = items.map((item) => item.baseZ);
-    return Math.max(...zs) - Math.min(...zs) > 2 ? "skadis-v" : "skadis-h";
-  }
-  if (systems.size === 1 && systems.has("dovetail")) {
-    const flat = items.every((item) => planeAngle(items[0], item) < 12);
-    if (flat) return "dovetail";
-  }
-  if (count === 2) {
+  let preferred: ConnectorType;
+  if (hasAwning) {
+    preferred = "awning-foot";
+  } else if (items.some((item) => item.type === "organizer")) {
+    preferred = "organizer-slot";
+  } else if (systems.size === 1 && systems.has("wire")) {
+    preferred = "wire-grid";
+  } else if (systems.size === 1 && systems.has("skadis")) {
+    if (count >= 4) preferred = "skadis-x";
+    else if (count === 3) preferred = "skadis-z";
+    else {
+      const zs = items.map((item) => item.baseZ);
+      preferred = Math.max(...zs) - Math.min(...zs) > 2 ? "skadis-v" : "skadis-h";
+    }
+  } else if (systems.size === 1 && systems.has("dovetail") && items.every((item) => planeAngle(items[0], item) < 12)) {
+    preferred = "dovetail";
+  } else if (count === 2) {
     const angle = planeAngle(items[0], items[1]);
-    if (angle < 15) return "edge-2-flat";
-    if (angle >= 25 && angle <= 35) return "edge-2-30";
-    if (angle >= 40 && angle <= 50) return "edge-2-45";
-    return "edge-2-corner";
-  }
-  if (count === 3) {
+    if (angle < 15) preferred = "edge-2-flat";
+    else if (angle >= 25 && angle <= 35) preferred = "edge-2-30";
+    else if (angle >= 40 && angle <= 50) preferred = "edge-2-45";
+    else preferred = "edge-2-corner";
+  } else if (count === 3) {
     const parallelPair =
       planeAngle(items[0], items[1]) < 15 || planeAngle(items[0], items[2]) < 15 || planeAngle(items[1], items[2]) < 15;
-    if (items.every((item) => planeAngle(items[0], item) < 15)) return "edge-3-flat";
-    return parallelPair ? "edge-3-T" : "edge-3-L";
-  }
-  if (count === 4) {
-    if (items.every((item) => planeAngle(items[0], item) < 15)) return "edge-4-flat";
+    preferred = items.every((item) => planeAngle(items[0], item) < 15)
+      ? "edge-3-flat"
+      : parallelPair
+        ? "edge-3-T"
+        : "edge-3-L";
+  } else if (count === 4) {
     const angles = items.map((item) => planeAngle(items[0], item));
-    if (angles.every((angle) => angle < 15 || angle > 75)) return "edge-4-corner";
-    return "edge-4-L";
+    preferred = items.every((item) => planeAngle(items[0], item) < 15)
+      ? "edge-4-flat"
+      : angles.every((angle) => angle < 15 || angle > 75)
+        ? "edge-4-corner"
+        : "edge-4-L";
+  } else if (count === 5) {
+    preferred = "edge-5-corner";
+  } else {
+    preferred = "edge-7";
   }
-  if (count === 5) return "edge-5-corner";
-  return "edge-7";
+  const preview: AlleyJoint = { id: "preview", x: 0, y: 0, z: 0, type: preferred, ports: refs };
+  if (connectorAllowed(scene, preview, preferred)) return preferred;
+  return allowedConnectorTypes(scene, preview)[0] || "edge-2-flat";
 }
 
+/**
+ * Connector choice is a recommendation, not a gate. Any connector with the
+ * right panel count can be used; the editor automatically falls back to a
+ * valid type when the geometry changes.
+ */
 export function connectorAllowed(scene: AlleyScene, joint: AlleyJoint, type: ConnectorType): boolean {
   const def = CONNECTORS[type];
   if (!def) return false;
   const items = itemsForPorts(scene, joint.ports);
-  if (items.length < def.minPanels || items.length > def.maxPanels) return false;
-  const systems = new Set(
-    joint.ports
-      .map((ref) => {
-        const item = scene.items.find((candidate) => candidate.id === ref.itemId);
-        return item ? portWorld(item, ref.portId)?.system : undefined;
-      })
-      .filter((system): system is AlleySystem => Boolean(system)),
-  );
-  if (systems.has("wire")) {
-    return type === "wire-grid" || type === "awning-foot";
-  }
-  if (type.startsWith("skadis-")) return systems.size === 1 && systems.has("skadis");
-  if (type === "dovetail") return systems.size === 1 && systems.has("dovetail");
-  return systems.has("edge") || systems.has("dovetail") || systems.has("skadis");
+  if (type === "awning-foot" && !items.some((item) => item.type.startsWith("awning"))) return false;
+  if (type === "organizer-slot" && !items.some((item) => item.type === "organizer")) return false;
+  return items.length >= def.minPanels && items.length <= def.maxPanels;
 }
 
 export function allowedConnectorTypes(scene: AlleyScene, joint: AlleyJoint): ConnectorType[] {
@@ -201,32 +211,33 @@ export function allowedConnectorTypes(scene: AlleyScene, joint: AlleyJoint): Con
       .filter((system): system is AlleySystem => Boolean(system)),
   );
   const angle = count >= 2 ? planeAngle(items[0], items[1]) : 90;
-  const types: ConnectorType[] = [];
-  if (systems.has("wire")) {
-    types.push("awning-foot", "wire-grid");
-    return types;
+  const hasAwning = items.some((item) => item.type.startsWith("awning"));
+  const preferred: ConnectorType[] = [];
+  if (hasAwning) preferred.push("awning-foot");
+  if (items.some((item) => item.type === "organizer")) preferred.push("organizer-slot");
+  if (systems.size === 1 && systems.has("wire")) preferred.push("wire-grid");
+  if (systems.size === 1 && systems.has("skadis")) {
+    if (count >= 4) preferred.push("skadis-x");
+    else if (count === 3) preferred.push("skadis-z");
+    else preferred.push("skadis-h", "skadis-v");
   }
+  if (systems.size === 1 && systems.has("dovetail") && angle < 15) preferred.push("dovetail");
   if (count === 2) {
-    if (systems.size === 1 && systems.has("skadis")) types.push("skadis-h", "skadis-v");
-    if (systems.size === 1 && systems.has("dovetail") && angle < 15) types.push("dovetail");
-    if (angle < 15) types.push("edge-2-flat");
-    else if (angle >= 25 && angle <= 35) types.push("edge-2-30");
-    else if (angle >= 40 && angle <= 50) types.push("edge-2-45");
-    else types.push("edge-2-corner");
+    if (angle < 15) preferred.push("edge-2-flat");
+    else if (angle >= 25 && angle <= 35) preferred.push("edge-2-30");
+    else if (angle >= 40 && angle <= 50) preferred.push("edge-2-45");
+    else preferred.push("edge-2-corner");
   } else if (count === 3) {
-    if (systems.size === 1 && systems.has("skadis")) types.push("skadis-z");
-    if (systems.size === 1 && systems.has("dovetail")) types.push("dovetail");
-    types.push("edge-3-flat", "edge-3-L", "edge-3-T", "edge-3-corner");
+    preferred.push("edge-3-flat", "edge-3-L", "edge-3-T", "edge-3-corner");
   } else if (count === 4) {
-    if (systems.size === 1 && systems.has("skadis")) types.push("skadis-x");
-    if (systems.size === 1 && systems.has("dovetail")) types.push("dovetail");
-    types.push("edge-4-flat", "edge-4-L", "edge-4-corner");
+    preferred.push("edge-4-flat", "edge-4-L", "edge-4-corner");
   } else if (count === 5) {
-    types.push("edge-5-corner", "edge-5-L");
-  } else {
-    types.push("edge-7");
+    preferred.push("edge-5-corner", "edge-5-L");
+  } else if (count >= 6) {
+    preferred.push("edge-7");
   }
-  return Array.from(new Set(types)).filter((type) => connectorAllowed(scene, joint, type));
+  const all = (Object.values(CONNECTORS) as Array<{ id: ConnectorType }>).map((connector) => connector.id);
+  return Array.from(new Set([...preferred, ...all])).filter((type) => connectorAllowed(scene, joint, type));
 }
 
 function portKey(ref: PortRef): string {
@@ -276,9 +287,10 @@ export function computeJoints(scene: AlleyScene, previous: AlleyJoint[] = scene.
         match = candidate;
       }
     }
-    const type = match && connectorAllowed(scene, { ...match, ports: refs }, match.type)
-      ? match.type
-      : defaultConnectorType(scene, refs);
+    const keepManual = Boolean(
+      match?.manual && connectorAllowed(scene, { ...match, ports: refs }, match.type),
+    );
+    const type = keepManual ? match!.type : defaultConnectorType(scene, refs);
     const joint: AlleyJoint = {
       id: match?.id || `joint_${refs.map(portKey).join("_").slice(0, 48)}`,
       x: avg.x,
@@ -287,6 +299,7 @@ export function computeJoints(scene: AlleyScene, previous: AlleyJoint[] = scene.
       type,
       ports: refs,
       suppressed: match?.suppressed,
+      manual: keepManual ? true : undefined,
     };
     if (match) used.add(match.id);
     next.push(joint);
@@ -309,9 +322,7 @@ export function connectedPortKeys(scene: AlleyScene): Set<string> {
 
 export function portCompatible(a: WorldPort, b: WorldPort): boolean {
   if (a.itemId === b.itemId) return false;
-  if (a.system === "mount" || b.system === "mount") return false;
-  if (a.system === "wire" || b.system === "wire") return a.system === b.system;
-  return true;
+  return a.system !== "mount" && b.system !== "mount";
 }
 
 export interface SnapCandidate {

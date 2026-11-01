@@ -1,5 +1,15 @@
 import { CATALOG_BY_TYPE, CONNECTORS, GROUPS_BY_ID } from "./catalog";
-import { catalogFor, computeJoints, itemAabb, itemDims, rotateLocal, sceneTables, tableAabb, workspaceAabb } from "./geometry";
+import {
+  catalogFor,
+  computeJoints,
+  defaultConnectorType,
+  itemAabb,
+  itemDims,
+  rotateLocal,
+  sceneTables,
+  tableAabb,
+  workspaceAabb,
+} from "./geometry";
 import type {
   AlleyGroupPreset,
   AlleyItem,
@@ -209,6 +219,32 @@ export function normalizeScene(raw: unknown): AlleyScene {
         .filter((group) => group && typeof group.id === "string")
         .map((group) => ({ id: String(group.id), name: String(group.name || "Grupo") }))
     : [];
+  // Keep manually chosen connector types and suppressed joints across reloads.
+  // Geometry is still recomputed from ports, so stale positions cannot survive.
+  const previousJoints: AlleyJoint[] = Array.isArray(value.joints)
+    ? value.joints
+        .filter(
+          (joint) =>
+            joint &&
+            typeof joint.id === "string" &&
+            typeof joint.type === "string" &&
+            Array.isArray(joint.ports) &&
+            joint.ports.length >= 2,
+        )
+        .map((joint) => ({
+          id: String(joint.id),
+          x: Number(joint.x) || 0,
+          y: Number(joint.y) || 0,
+          z: Number(joint.z) || 0,
+          type: joint.type as ConnectorType,
+          ports: joint.ports
+            .filter((port) => port && typeof port.itemId === "string" && typeof port.portId === "string")
+            .map((port) => ({ itemId: String(port.itemId), portId: String(port.portId) })),
+          suppressed: Boolean(joint.suppressed),
+          manual: Boolean(joint.manual),
+        }))
+        .filter((joint) => joint.ports.length >= 2)
+    : [];
   const scene: AlleyScene = {
     version: 1,
     name: String(value.name || "Mi puesto Artist Alley"),
@@ -219,14 +255,37 @@ export function normalizeScene(raw: unknown): AlleyScene {
     tables,
     grid: clamp(Number(value.grid) || 50, 10, 200),
   };
-  return commitScene(scene, []);
+  return commitScene(scene, previousJoints);
+}
+
+/** Detect the original starter and the intermediate tower so a refresh shows the corrected default. */
+export function isLegacyStarterScene(scene: AlleyScene): boolean {
+  const counts = scene.items.reduce<Record<string, number>>((result, item) => {
+    result[item.type] = (result[item.type] || 0) + 1;
+    return result;
+  }, {});
+  const originalStarter =
+    scene.items.length === 10 &&
+    scene.items.every((item) => item.type === "slatwall30") &&
+    scene.tables.length === 1 &&
+    scene.groups.length === 1;
+  const intermediateTower =
+    scene.items.length === 38 &&
+    counts.wire30 === 28 &&
+    counts.wireshelf30 === 8 &&
+    counts.organizer === 2 &&
+    scene.items.filter((item) => item.type === "organizer").every((item) => Boolean(item.mount)) &&
+    scene.tables.length === 1 &&
+    scene.groups.length === 1;
+  return originalStarter || intermediateTower;
 }
 
 export function loadScene(): AlleyScene {
   try {
     const raw = localStorage.getItem(ALLEY_STORAGE_KEY);
     if (!raw) return starterScene();
-    return normalizeScene(JSON.parse(raw));
+    const scene = normalizeScene(JSON.parse(raw));
+    return isLegacyStarterScene(scene) ? starterScene() : scene;
   } catch {
     return starterScene();
   }
@@ -370,18 +429,30 @@ function findGroupAnchor(scene: AlleyScene, preset: AlleyGroupPreset): { x: numb
       }
     }
   }
+  const fits = (x: number, y: number) => {
+    if (x - width / 2 < workspace.minX || x + width / 2 > workspace.maxX) return false;
+    if (y - depth / 2 < workspace.minY || y + depth / 2 > workspace.maxY) return false;
+    return !overlapsExisting(
+      scene,
+      { minX: x - width / 2, maxX: x + width / 2, minY: y - depth / 2, maxY: y + depth / 2 },
+      35,
+    );
+  };
   for (const candidate of candidates) {
-    if (candidate.x - width / 2 < workspace.minX || candidate.x + width / 2 > workspace.maxX) continue;
-    if (candidate.y - depth / 2 < workspace.minY || candidate.y + depth / 2 > workspace.maxY) continue;
-    const box = {
-      minX: candidate.x - width / 2,
-      maxX: candidate.x + width / 2,
-      minY: candidate.y - depth / 2,
-      maxY: candidate.y + depth / 2,
-    };
-    if (!overlapsExisting(scene, box, 35)) return { x: candidate.x - centerX, y: candidate.y - centerY };
+    if (fits(candidate.x, candidate.y)) return { x: candidate.x - centerX, y: candidate.y - centerY };
   }
-  return { x: -centerX, y: -centerY };
+  // The coarse ring grid can miss narrow free strips in a busy scene. Search a
+  // finer grid before giving up so a second copy never lands on the first one.
+  const step = 100;
+  for (let y = workspace.minY + depth / 2; y <= workspace.maxY - depth / 2; y += step) {
+    for (let x = workspace.minX + width / 2; x <= workspace.maxX - width / 2; x += step) {
+      if (fits(x, y)) return { x: x - centerX, y: y - centerY };
+    }
+  }
+  // If the table is genuinely full, place the group just outside the workspace
+  // instead of stacking it on top of an existing assembly and silently merging.
+  const fallbackX = workspace.maxX + width / 2 + 100;
+  return { x: fallbackX - centerX, y: -centerY };
 }
 
 export interface AddResult {
@@ -393,33 +464,51 @@ export interface AddResult {
 export function addCatalogItem(
   scene: AlleyScene,
   type: string,
-  options: { panelId?: string; x?: number; y?: number; mountU?: number; mountV?: number } = {},
+  options: {
+    panelId?: string;
+    x?: number;
+    y?: number;
+    baseZ?: number;
+    rotation?: number;
+    mountU?: number;
+    mountV?: number;
+  } = {},
 ): AddResult {
   const catalog = CATALOG_BY_TYPE[type];
   if (!catalog) return { scene, itemId: "", created: false };
   const spot = options.x !== undefined && options.y !== undefined ? { x: options.x, y: options.y } : findFreeSpot(scene, type);
+  const requestedPanel = options.panelId ? scene.items.find((candidate) => candidate.id === options.panelId) : undefined;
+  const mountPanel = catalog.mountable
+    ? requestedPanel ||
+      scene.items.find(
+        (candidate) => catalogFor(candidate).ports.length > 0 && catalogFor(candidate).category === "paneles",
+      )
+    : undefined;
+  const awningPanel =
+    type.startsWith("awning") && requestedPanel && catalogFor(requestedPanel).category === "paneles"
+      ? requestedPanel
+      : undefined;
+  const hostPanel = awningPanel || mountPanel;
   const item: AlleyItem = {
     id: uid("item"),
     type,
     name: catalog.name,
-    x: spot.x,
-    y: spot.y,
-    baseZ: primaryTable(scene).height,
-    rotation: 0,
+    x: awningPanel ? awningPanel.x : spot.x,
+    y: awningPanel ? awningPanel.y : spot.y,
+    baseZ: awningPanel
+      ? awningPanel.baseZ + catalogFor(awningPanel).dims.h
+      : options.baseZ ?? primaryTable(scene).height,
+    rotation: awningPanel ? awningPanel.rotation : options.rotation ?? 0,
     color: catalog.color,
+    groupId: hostPanel?.groupId,
   };
-  if (catalog.mountable) {
-    const panel =
-      (options.panelId ? scene.items.find((candidate) => candidate.id === options.panelId) : undefined) ||
-      scene.items.find((candidate) => catalogFor(candidate).ports.length > 0 && catalogFor(candidate).category === "paneles");
-    if (panel) {
-      item.mount = {
-        panelId: panel.id,
-        face: "front",
-        u: clamp(options.mountU ?? 0.5, 0.08, 0.92),
-        v: clamp(options.mountV ?? 0.5, 0.08, 0.92),
-      };
-    }
+  if (catalog.mountable && mountPanel) {
+    item.mount = {
+      panelId: mountPanel.id,
+      face: "front",
+      u: clamp(options.mountU ?? 0.5, 0.08, 0.92),
+      v: clamp(options.mountV ?? 0.5, 0.08, 0.92),
+    };
   }
   const next = commitScene({ ...scene, items: [...scene.items, item] });
   const key = duplicateKey(item);
@@ -507,6 +596,25 @@ export function moveItems(scene: AlleyScene, ids: string[], dx: number, dy: numb
   return commitScene({ ...scene, items });
 }
 
+/**
+ * Recolor a selection. Items that belong to a group are treated as one unit,
+ * so recoloring a tower also recolors its shelves, organizers and panels.
+ */
+export function recolorItems(scene: AlleyScene, ids: string[], color: string, includeGroups = true): AlleyScene {
+  if (!ids.length || !/^#[0-9a-f]{6}$/i.test(color)) return scene;
+  const targets = new Set(ids);
+  if (includeGroups) {
+    const groupIds = new Set(
+      scene.items.filter((item) => targets.has(item.id) && item.groupId).map((item) => item.groupId!),
+    );
+    for (const item of scene.items) {
+      if (item.groupId && groupIds.has(item.groupId)) targets.add(item.id);
+    }
+  }
+  const items = scene.items.map((item) => (targets.has(item.id) ? { ...item, color } : item));
+  return commitScene({ ...scene, items });
+}
+
 export function updateTable(scene: AlleyScene, tableId: string, patch: Partial<AlleyTable>): AlleyScene {
   const tables = sceneTables(scene);
   const target = tables.find((table) => table.id === tableId);
@@ -532,7 +640,7 @@ export function addTable(scene: AlleyScene, layout: "straight" | "l" = "straight
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
   const offset = layout === "l"
-    ? { x: base.width / 2 + base.depth / 2, y: 0 }
+    ? { x: base.width / 2 + base.depth / 2, y: base.width / 2 - base.depth / 2 }
     : { x: base.width / 2 + base.width / 2, y: 0 };
   const rotated = {
     x: offset.x * cos - offset.y * sin,
@@ -733,7 +841,20 @@ export function ungroupSelection(scene: AlleyScene, ids: string[]): AlleyScene {
 }
 
 export function setJointType(scene: AlleyScene, jointId: string, type: ConnectorType): AlleyScene {
-  const joints = scene.joints.map((joint) => (joint.id === jointId ? { ...joint, type, suppressed: false } : joint));
+  const joints = scene.joints.map((joint) =>
+    joint.id === jointId ? { ...joint, type, suppressed: false, manual: true } : joint,
+  );
+  return { ...scene, joints };
+}
+
+/** Return a joint to the connector recommended by its current geometry. */
+export function resetJointType(scene: AlleyScene, jointId: string): AlleyScene {
+  const joint = scene.joints.find((candidate) => candidate.id === jointId);
+  if (!joint) return scene;
+  const type = defaultConnectorType(scene, joint.ports);
+  const joints = scene.joints.map((candidate) =>
+    candidate.id === jointId ? { ...candidate, type, suppressed: false, manual: false } : candidate,
+  );
   return { ...scene, joints };
 }
 
@@ -816,6 +937,7 @@ export function sceneBom(scene: AlleyScene): SceneBom {
     const def = CONNECTORS[joint.type];
     if (!def) continue;
     if (joint.type === "awning-foot") continue; // already included in the awning kit
+    if (joint.type === "organizer-slot") continue; // the slot is part of the organizer frame
     if (def.integrated) {
       add(integrated, {
         name: def.bomName,
@@ -852,7 +974,7 @@ export function bomCsv(bom: SceneBom): string {
 
 export function starterScene(): AlleyScene {
   const base = emptyScene();
-  const result = addGroup(base, "starter", { anchor: { x: 0, y: 0 }, name: "Puesto Artist Alley" });
+  const result = addGroup(base, "twin-towers", { anchor: { x: 0, y: 0 }, name: "Puesto Artist Alley" });
   return { ...result.scene, name: "Mi puesto Artist Alley" };
 }
 

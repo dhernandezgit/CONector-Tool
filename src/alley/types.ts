@@ -23,6 +23,7 @@ export type ConnectorType =
   | "skadis-z"
   | "dovetail"
   | "wire-grid"
+  | "organizer-slot"
   | "awning-foot";
 
 export type Vec3 = [number, number, number];
@@ -59,6 +60,8 @@ export interface AlleyCatalogItem {
   defaultBase: "table" | "floor";
   description: string;
   mountable?: boolean;
+  /** Horizontal shelves use a floor-plane normal for angle-aware joints. */
+  horizontal?: boolean;
   tags: string[];
 }
 
@@ -95,6 +98,8 @@ export interface AlleyJoint {
   type: ConnectorType;
   ports: AlleyJointPort[];
   suppressed?: boolean;
+  /** A manually chosen connector survives geometry changes. */
+  manual?: boolean;
 }
 
 export interface AlleyGroup {
