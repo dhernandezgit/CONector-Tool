@@ -17,8 +17,8 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
 
         <p className="about-lead">
           Un sandbox 3D para montar y editar un puesto de artistas con paneles, expositores, estantes, accesorios y toldo.
-          Puedes probar composiciones, conectar piezas, agruparlas y preparar la lista de materiales antes de montar el
-          puesto real.
+          Puedes probar composiciones, trabajar sobre una o varias mesas en L, copiar y pegar grupos, guardar el proyecto en
+          un archivo local y preparar la lista de materiales antes de montar el puesto real.
         </p>
 
         <div className="about-grid">
@@ -26,8 +26,9 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
             <h3>Qué incluye</h3>
             <p>
               Representaciones originales y simplificadas inspiradas en las piezas del Artist Alley STL Pack: paneles
-              slatwall, Skadis, rejilla y triangulares; expositores de 2,5 a 5 pulgadas; risers, mini estante, organizador,
-              bandejas, ganchos, clips, toldo y mango de abanico.
+              slatwall, Skadis, rejilla y triangulares, también en medidas de 1/4 y 1/2 y en versión lisa coloreada;
+              expositores de 2,5 a 5 pulgadas; risers, mini estante, organizador, bandejas, ganchos, clips, toldo y mango de
+              abanico.
             </p>
           </section>
           <section>
@@ -61,8 +62,9 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
 
         <div className="about-footer">
           <span>
-            Tu puesto se guarda automáticamente en este navegador. Los cambios se pueden deshacer con Ctrl+Z y la lista de
-            materiales se puede copiar o descargar en CSV.
+            Tu puesto se guarda automáticamente en este navegador y también puede descargarse como archivo local. Los cambios
+            se pueden deshacer con Ctrl+Z, las piezas se copian con Ctrl+C / Ctrl+V y la lista de materiales se puede copiar o
+            descargar en CSV.
           </span>
           <a href="https://github.com/dhernandezgit/CONector-Tool" target="_blank" rel="noreferrer">
             <Github size={14} /> Repositorio

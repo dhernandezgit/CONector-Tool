@@ -103,10 +103,26 @@ export interface AlleyGroup {
 }
 
 export interface AlleyTable {
+  id: string;
+  name: string;
   width: number;
   depth: number;
   height: number;
   color: string;
+  x: number;
+  y: number;
+  rotation: number;
+}
+
+export interface AlleyTableSpec {
+  name?: string;
+  width?: number;
+  depth?: number;
+  height?: number;
+  color?: string;
+  x: number;
+  y: number;
+  rotation?: number;
 }
 
 export interface AlleyScene {
@@ -115,7 +131,10 @@ export interface AlleyScene {
   items: AlleyItem[];
   joints: AlleyJoint[];
   groups: AlleyGroup[];
+  /** Primary table kept for older saved scenes and simple layouts. */
   table: AlleyTable;
+  /** One or more work tables. The first table mirrors `table`. */
+  tables: AlleyTable[];
   grid: number;
 }
 
@@ -138,6 +157,8 @@ export interface AlleyGroupPreset {
   description: string;
   icon: string;
   items: AlleyGroupItemSpec[];
+  /** Optional workspace layout. When present, adding the preset also places these tables. */
+  tables?: AlleyTableSpec[];
 }
 
 export interface ConnectorDef {

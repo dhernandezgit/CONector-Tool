@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { HelpCircle, Info, List, Moon, Save, Sparkles, Sun } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { Download, HelpCircle, Info, List, Moon, Save, Sparkles, Sun, Upload } from "lucide-react";
 import Logo from "./components/Logo";
 import HelpDialog from "./components/HelpDialog";
 import AboutDialog from "./components/AboutDialog";
 import AlleySandbox from "./alley/AlleySandbox";
 import BomDialog from "./alley/BomDialog";
-import { loadScene, saveScene } from "./alley/scene";
+import { loadScene, saveScene, sceneFileName, sceneFromJson, sceneToJson } from "./alley/scene";
 import type { AlleyScene } from "./alley/types";
 
 const THEME_KEY = "conector-theme";
@@ -34,6 +34,7 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const notify = useCallback((message: string) => setToast(message), []);
 
@@ -98,6 +99,38 @@ export default function App() {
     notify("Puesto guardado en este navegador.");
   }, [notify, projectName, scene]);
 
+  const exportProject = useCallback(() => {
+    const blob = new Blob([sceneToJson(scene, projectName)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = sceneFileName(projectName);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notify("Archivo del puesto descargado con toda la configuración.");
+  }, [notify, projectName, scene]);
+
+  const importProject = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const next = sceneFromJson(text);
+        changeScene(next);
+        setProjectName(next.name);
+        setBomOpen(false);
+        notify(`Proyecto "${next.name}" importado.`);
+      } catch (error) {
+        notify(error instanceof Error ? error.message : "No se pudo abrir el archivo.");
+      }
+    },
+    [changeScene, notify],
+  );
+
   return (
     <div className="app">
       <header className="topbar">
@@ -122,6 +155,13 @@ export default function App() {
           </span>
         </div>
         <div className="topbar-actions">
+          <button type="button" className="icon-text-button" onClick={exportProject} title="Descargar un archivo local con toda la configuración">
+            <Download size={16} /> <span>Archivo</span>
+          </button>
+          <button type="button" className="icon-text-button" onClick={() => fileInputRef.current?.click()} title="Abrir un archivo local del puesto">
+            <Upload size={16} /> <span>Abrir</span>
+          </button>
+          <input ref={fileInputRef} type="file" accept=".json,application/json" hidden onChange={importProject} />
           <button type="button" className="icon-text-button" onClick={saveNow} title="Guardar en este navegador">
             <Save size={16} /> <span>Guardar</span>
           </button>

@@ -3243,6 +3243,68 @@ kbd {
   z-index: 3;
 }
 
+.alley-selection-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 52px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 28px);
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow);
+  color: var(--ink-soft);
+  z-index: 5;
+}
+
+.alley-selection-dock > strong {
+  color: var(--accent-2);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.alley-dock-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.alley-dock-actions button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.alley-dock-actions button:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--panel-2);
+}
+
+.alley-dock-actions button:disabled {
+  opacity: 0.35;
+}
+
+.alley-dock-actions button.danger:hover {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+}
+
+.alley-dock-hint {
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
 .alley-pending {
   position: absolute;
   left: 50%;
@@ -3562,6 +3624,44 @@ kbd {
   color: var(--ink-soft);
 }
 
+.alley-table-tabs {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+  margin-bottom: 7px;
+}
+
+.alley-table-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink-soft);
+  padding: 5px 7px;
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.alley-table-tabs button.active {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent-2);
+}
+
+.alley-table-tabs small {
+  color: var(--muted);
+  font-size: 8.5px;
+}
+
+.alley-table-tabs button.active small {
+  color: inherit;
+  opacity: 0.7;
+}
+
 .alley-field-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3618,6 +3718,11 @@ kbd {
 .alley-small-button:hover {
   border-color: var(--line-strong);
   background: var(--panel-2);
+}
+
+.alley-rotation-actions .alley-small-button {
+  padding: 8px 6px;
+  font-size: 10.5px;
 }
 
 .alley-group-banner {
@@ -4159,6 +4264,12 @@ kbd {
 @media (max-width: 620px) {
   .project-name {
     display: none;
+  }
+  .alley-dock-hint {
+    display: none;
+  }
+  .alley-selection-dock {
+    bottom: 46px;
   }
   .topbar-actions .primary-button {
     font-size: 0;

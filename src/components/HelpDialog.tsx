@@ -50,15 +50,40 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
           </article>
           <article>
             <span className="help-num">05</span>
-            <h3>Agrupa y reutiliza</h3>
+            <h3>Selecciona, copia y agrupa</h3>
             <p>
-              Con Mayús + clic selecciona varias piezas y pulsa Agrupar. Un grupo se mueve y gira completo. Puedes
-              desagruparlo, duplicarlo o eliminarlo sin romper el resto del puesto. Las piezas duplicadas se reutilizan en
-              lugar de apilarse.
+              Con Mayús + clic añade o quita piezas de la selección. Al arrastrar una pieza seleccionada se mueve todo el
+              conjunto. Usa Ctrl+C / Ctrl+V para copiar y pegar, Ctrl+A para seleccionar todo, G para agrupar y las flechas
+              para ajustar 1 cm (Mayús: 5 cm).
             </p>
           </article>
           <article>
             <span className="help-num">06</span>
+            <h3>Gira en 90°</h3>
+            <p>
+              Pulsa R o E para girar +90° y Q para girar -90°. También tienes los botones de rotación en la barra flotante de
+              selección y en el inspector, además de la rotación fina y los cuatro ángulos rápidos.
+            </p>
+          </article>
+          <article>
+            <span className="help-num">07</span>
+            <h3>Trabaja en L</h3>
+            <p>
+              En «Mesas de trabajo» puedes añadir una mesa recta o una mesa en L girada 90°. Las mesas comparten altura para
+              que las piezas apoyen bien. Los ejemplos «Mesa en L de trabajo» y «Mesa en L + pared» montan la configuración
+              completa.
+            </p>
+          </article>
+          <article>
+            <span className="help-num">08</span>
+            <h3>Guarda o abre un archivo</h3>
+            <p>
+              «Archivo» descarga un JSON local con mesas, piezas, grupos, colores y conexiones. «Abrir» recupera ese archivo
+              en cualquier navegador. El guardado automático sigue funcionando en este navegador.
+            </p>
+          </article>
+          <article>
+            <span className="help-num">09</span>
             <h3>Genera la lista</h3>
             <p>
               La lista de materiales cuenta cada pieza y cada conector colocado. Distingue las uniones integradas, que no
@@ -70,8 +95,9 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="help-callout">
           <strong>Atajos y seguridad</strong>
           <span>
-            R gira 90° · Ctrl+D duplica · G agrupa · Supr elimina · Ctrl+Z deshace · Esc cancela una conexión. Todo se guarda
-            en este navegador. Los modelos STL originales del pack no se cargan, no se sirven y no se publican: el sandbox usa
+            R/E gira +90° · Q gira -90° · Ctrl+C/V copia y pega · Ctrl+D duplica · Ctrl+G agrupa · Supr elimina · F encuadra ·
+            Ctrl+Z deshace · Esc cancela una conexión. Todo se guarda en este navegador y también puede exportarse a un archivo
+            local. Los modelos STL originales del pack no se cargan, no se sirven y no se publican: el sandbox usa
             representaciones originales y simplificadas.
           </span>
         </div>

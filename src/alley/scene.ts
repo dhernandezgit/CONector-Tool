@@ -1,11 +1,13 @@
 import { CATALOG_BY_TYPE, CONNECTORS, GROUPS_BY_ID } from "./catalog";
-import { catalogFor, computeJoints, itemAabb, itemDims, rotateLocal } from "./geometry";
+import { catalogFor, computeJoints, itemAabb, itemDims, rotateLocal, sceneTables, tableAabb, workspaceAabb } from "./geometry";
 import type {
   AlleyGroupPreset,
   AlleyItem,
   AlleyJoint,
   AlleyScene,
   AlleySelection,
+  AlleyTable,
+  AlleyTableSpec,
   BomLine,
   ConnectorType,
   Vec3,
@@ -13,17 +15,45 @@ import type {
 import { clamp, uid } from "../lib/utils";
 
 export const ALLEY_STORAGE_KEY = "conector-alley-scene-v1";
+export const ALLEY_FILE_FORMAT = "conector-artist-alley";
+export const ALLEY_FILE_VERSION = 2;
 
 const DEFAULT_TABLE = { width: 2200, depth: 900, height: 750, color: "#f0d9c8" };
 
+export function makeTable(overrides: Partial<AlleyTable> = {}, fallback?: AlleyTable): AlleyTable {
+  const colorCandidate = String(overrides.color || fallback?.color || DEFAULT_TABLE.color);
+  const heightCandidate = Number(overrides.height ?? fallback?.height ?? DEFAULT_TABLE.height);
+  return {
+    id: overrides.id || uid("table"),
+    name: overrides.name || "Mesa principal",
+    width: clamp(Number(overrides.width ?? fallback?.width ?? DEFAULT_TABLE.width) || DEFAULT_TABLE.width, 600, 5000),
+    depth: clamp(Number(overrides.depth ?? fallback?.depth ?? DEFAULT_TABLE.depth) || DEFAULT_TABLE.depth, 400, 2500),
+    height: clamp(Number.isFinite(heightCandidate) ? heightCandidate : DEFAULT_TABLE.height, 0, 1200),
+    color: /^#[0-9a-f]{6}$/i.test(colorCandidate) ? colorCandidate : DEFAULT_TABLE.color,
+    x: Number(overrides.x ?? fallback?.x ?? 0) || 0,
+    y: Number(overrides.y ?? fallback?.y ?? 0) || 0,
+    rotation: normalizeAngle(overrides.rotation ?? fallback?.rotation ?? 0),
+  };
+}
+
+function defaultTable(): AlleyTable {
+  return makeTable({ id: "table-main", name: "Mesa principal" });
+}
+
+export function primaryTable(scene: AlleyScene): AlleyTable {
+  return sceneTables(scene)[0] || defaultTable();
+}
+
 export function emptyScene(): AlleyScene {
+  const table = defaultTable();
   return {
     version: 1,
     name: "Mi puesto Artist Alley",
     items: [],
     joints: [],
     groups: [],
-    table: { ...DEFAULT_TABLE },
+    table,
+    tables: [table],
     grid: 50,
   };
 }
@@ -31,6 +61,13 @@ export function emptyScene(): AlleyScene {
 export function normalizeAngle(value: number): number {
   const angle = Number(value) || 0;
   return ((angle % 360) + 360) % 360;
+}
+
+function syncTables(scene: AlleyScene): AlleyScene {
+  const tables = scene.tables?.length ? scene.tables : [scene.table || defaultTable()];
+  const table = tables[0];
+  if (scene.tables?.length === tables.length && scene.table === table) return scene;
+  return { ...scene, tables, table };
 }
 
 function duplicateKey(item: AlleyItem): string {
@@ -45,11 +82,12 @@ function duplicateKey(item: AlleyItem): string {
 
 /** Recompute derived positions and structural joints. */
 export function commitScene(scene: AlleyScene, previousJoints: AlleyJoint[] = scene.joints): AlleyScene {
-  let next = syncMountedItems(scene);
+  let next = syncTables(scene);
+  next = syncMountedItems(next);
   next = mergeDuplicateItems(next);
   next = syncMountedItems(next);
   const joints = computeJoints(next, previousJoints);
-  return { ...next, joints };
+  return { ...next, table: next.tables[0], joints };
 }
 
 export function syncMountedItems(scene: AlleyScene): AlleyScene {
@@ -62,7 +100,7 @@ export function syncMountedItems(scene: AlleyScene): AlleyScene {
       return {
         ...item,
         mount: undefined,
-        baseZ: scene.table.height,
+        baseZ: primaryTable(scene).height,
         rotation: 0,
       };
     }
@@ -122,15 +160,26 @@ export function mergeDuplicateItems(scene: AlleyScene): AlleyScene {
   return { ...scene, items: nextItems, groups };
 }
 
-function normalizeScene(raw: unknown): AlleyScene {
+export function normalizeScene(raw: unknown): AlleyScene {
   if (!raw || typeof raw !== "object") return starterScene();
   const value = raw as Partial<AlleyScene>;
-  const table = {
-    width: clamp(Number(value.table?.width) || DEFAULT_TABLE.width, 800, 5000),
-    depth: clamp(Number(value.table?.depth) || DEFAULT_TABLE.depth, 500, 2500),
-    height: clamp(Number(value.table?.height) || DEFAULT_TABLE.height, 0, 1200),
-    color: /^#[0-9a-f]{6}$/i.test(String(value.table?.color)) ? String(value.table?.color) : DEFAULT_TABLE.color,
-  };
+  const legacyTable = makeTable({
+    ...(value.table || {}),
+    id: value.table?.id || "table-main",
+    name: value.table?.name || "Mesa principal",
+  });
+  const rawTables = Array.isArray(value.tables) && value.tables.length ? value.tables : [legacyTable];
+  const tables = rawTables.map((entry, index) =>
+    makeTable(
+      {
+        ...entry,
+        id: entry.id || (index === 0 ? "table-main" : `table-${index + 1}`),
+        name: entry.name || (index === 0 ? "Mesa principal" : `Mesa ${index + 1}`),
+      },
+      legacyTable,
+    ),
+  );
+  const table = tables[0];
   const items: AlleyItem[] = Array.isArray(value.items)
     ? value.items
         .filter((item) => item && typeof item.id === "string" && CATALOG_BY_TYPE[item.type])
@@ -167,6 +216,7 @@ function normalizeScene(raw: unknown): AlleyScene {
     joints: [],
     groups,
     table,
+    tables,
     grid: clamp(Number(value.grid) || 50, 10, 200),
   };
   return commitScene(scene, []);
@@ -190,6 +240,50 @@ export function saveScene(scene: AlleyScene): void {
   }
 }
 
+export function sceneToJson(scene: AlleyScene, projectName?: string): string {
+  return JSON.stringify(
+    {
+      format: ALLEY_FILE_FORMAT,
+      version: ALLEY_FILE_VERSION,
+      app: "CONector Tool",
+      appVersion: "0.1.0",
+      savedAt: new Date().toISOString(),
+      scene: { ...scene, name: projectName?.trim() || scene.name },
+    },
+    null,
+    2,
+  );
+}
+
+export function sceneFromJson(text: string): AlleyScene {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("El archivo no contiene JSON válido.");
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("El archivo no tiene una escena válida.");
+  }
+  const value = parsed as { format?: string; scene?: unknown };
+  if (value.format && value.format !== ALLEY_FILE_FORMAT) {
+    throw new Error("El archivo no es un proyecto de CONector Artist Alley.");
+  }
+  const sceneData = value.scene && typeof value.scene === "object" ? value.scene : parsed;
+  return normalizeScene(sceneData);
+}
+
+export function sceneFileName(name: string): string {
+  const base = (name || "puesto-artist-alley")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return `${base || "puesto-artist-alley"}.artist-alley.json`;
+}
+
 function pointInAabb(x: number, y: number, box: { minX: number; maxX: number; minY: number; maxY: number }, pad = 0) {
   return x >= box.minX - pad && x <= box.maxX + pad && y >= box.minY - pad && y <= box.maxY + pad;
 }
@@ -206,6 +300,8 @@ function findFreeSpot(scene: AlleyScene, type: string, rotation = 0): { x: numbe
   const angle = (rotation * Math.PI) / 180;
   const halfX = (Math.abs(Math.cos(angle)) * dims.w + Math.abs(Math.sin(angle)) * dims.d) / 2;
   const halfY = (Math.abs(Math.sin(angle)) * dims.w + Math.abs(Math.cos(angle)) * dims.d) / 2;
+  const tableBoxes = sceneTables(scene).map(tableAabb);
+  const workspace = workspaceAabb(scene);
   const candidates: Array<{ x: number; y: number }> = [{ x: 0, y: 0 }];
   const stepX = Math.max(120, dims.w + 40);
   const stepY = Math.max(120, dims.d + 40);
@@ -218,8 +314,16 @@ function findFreeSpot(scene: AlleyScene, type: string, rotation = 0): { x: numbe
     }
   }
   for (const candidate of candidates) {
-    if (Math.abs(candidate.x) + halfX > scene.table.width / 2) continue;
-    if (Math.abs(candidate.y) + halfY > scene.table.depth / 2) continue;
+    if (candidate.x - halfX < workspace.minX || candidate.x + halfX > workspace.maxX) continue;
+    if (candidate.y - halfY < workspace.minY || candidate.y + halfY > workspace.maxY) continue;
+    const fitsTable = tableBoxes.some(
+      (box) =>
+        box.minX <= candidate.x - halfX &&
+        box.maxX >= candidate.x + halfX &&
+        box.minY <= candidate.y - halfY &&
+        box.maxY >= candidate.y + halfY,
+    );
+    if (!fitsTable) continue;
     const box = {
       minX: candidate.x - halfX,
       maxX: candidate.x + halfX,
@@ -256,6 +360,7 @@ function findGroupAnchor(scene: AlleyScene, preset: AlleyGroupPreset): { x: numb
   const depth = maxY - minY;
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
+  const workspace = workspaceAabb(scene);
   const candidates: Array<{ x: number; y: number }> = [];
   for (let ring = 0; ring <= 5; ring += 1) {
     for (let ix = -ring; ix <= ring; ix += 1) {
@@ -266,8 +371,8 @@ function findGroupAnchor(scene: AlleyScene, preset: AlleyGroupPreset): { x: numb
     }
   }
   for (const candidate of candidates) {
-    if (Math.abs(candidate.x) + width / 2 > scene.table.width / 2) continue;
-    if (Math.abs(candidate.y) + depth / 2 > scene.table.depth / 2) continue;
+    if (candidate.x - width / 2 < workspace.minX || candidate.x + width / 2 > workspace.maxX) continue;
+    if (candidate.y - depth / 2 < workspace.minY || candidate.y + depth / 2 > workspace.maxY) continue;
     const box = {
       minX: candidate.x - width / 2,
       maxX: candidate.x + width / 2,
@@ -299,7 +404,7 @@ export function addCatalogItem(
     name: catalog.name,
     x: spot.x,
     y: spot.y,
-    baseZ: scene.table.height,
+    baseZ: primaryTable(scene).height,
     rotation: 0,
     color: catalog.color,
   };
@@ -329,7 +434,27 @@ export function addGroup(
 ): { scene: AlleyScene; groupId: string; created: number } {
   const preset = GROUPS_BY_ID[presetId];
   if (!preset) return { scene, groupId: "", created: 0 };
-  const anchor = options.anchor || findGroupAnchor(scene, preset);
+  const hasTables = Boolean(preset.tables?.length);
+  const anchor = options.anchor || (hasTables ? { x: 0, y: 0 } : findGroupAnchor(scene, preset));
+  let baseScene = scene;
+  if (hasTables) {
+    const fallback = primaryTable(scene);
+    const tables = preset.tables!.map((spec, index) =>
+      makeTable(
+        {
+          ...spec,
+          id: uid("table"),
+          name: spec.name || (index === 0 ? "Mesa principal" : `Mesa ${index + 1}`),
+          x: anchor.x + spec.x,
+          y: anchor.y + spec.y,
+          height: spec.height ?? fallback.height,
+          color: spec.color || fallback.color,
+        },
+        fallback,
+      ),
+    );
+    baseScene = { ...scene, tables, table: tables[0] };
+  }
   const groupId = uid("group");
   const groupName = options.name || preset.name;
   const created: AlleyItem[] = [];
@@ -343,7 +468,7 @@ export function addGroup(
       name: catalog.name,
       x: anchor.x + spec.x,
       y: anchor.y + spec.y,
-      baseZ: scene.table.height + spec.baseZ,
+      baseZ: primaryTable(baseScene).height + spec.baseZ,
       rotation: normalizeAngle(spec.rotation || 0),
       color: spec.color || catalog.color,
       groupId,
@@ -364,9 +489,9 @@ export function addGroup(
     spec.item.mount = { panelId: target.id, face: spec.face, u: spec.u, v: spec.v };
   }
   const next = commitScene({
-    ...scene,
-    items: [...scene.items, ...created],
-    groups: [...scene.groups, { id: groupId, name: groupName }],
+    ...baseScene,
+    items: [...baseScene.items, ...created],
+    groups: [...baseScene.groups, { id: groupId, name: groupName }],
   });
   const count = next.items.filter((item) => item.groupId === groupId).length;
   return { scene: next, groupId: count ? groupId : "", created: count };
@@ -380,6 +505,63 @@ export function moveItems(scene: AlleyScene, ids: string[], dx: number, dy: numb
       : item,
   );
   return commitScene({ ...scene, items });
+}
+
+export function updateTable(scene: AlleyScene, tableId: string, patch: Partial<AlleyTable>): AlleyScene {
+  const tables = sceneTables(scene);
+  const target = tables.find((table) => table.id === tableId);
+  if (!target) return scene;
+  const nextHeight = patch.height !== undefined ? clamp(Number(patch.height) || 0, 0, 1200) : target.height;
+  const dz = nextHeight - target.height;
+  const nextTables = tables.map((table) => {
+    if (table.id === tableId) {
+      return makeTable({ ...table, ...patch, height: nextHeight }, table);
+    }
+    return dz ? { ...table, height: nextHeight } : table;
+  });
+  const items = dz
+    ? scene.items.map((item) => ({ ...item, baseZ: Math.max(0, item.baseZ + dz) }))
+    : scene.items;
+  return commitScene({ ...scene, tables: nextTables, table: nextTables[0], items });
+}
+
+export function addTable(scene: AlleyScene, layout: "straight" | "l" = "straight"): { scene: AlleyScene; tableId: string } {
+  const tables = sceneTables(scene);
+  const base = tables[tables.length - 1] || primaryTable(scene);
+  const angle = (base.rotation * Math.PI) / 180;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const offset = layout === "l"
+    ? { x: base.width / 2 + base.depth / 2, y: 0 }
+    : { x: base.width / 2 + base.width / 2, y: 0 };
+  const rotated = {
+    x: offset.x * cos - offset.y * sin,
+    y: offset.x * sin + offset.y * cos,
+  };
+  const nextTable = makeTable(
+    {
+      ...base,
+      id: uid("table"),
+      name: `Mesa ${tables.length + 1}`,
+      x: base.x + rotated.x,
+      y: base.y + rotated.y,
+      rotation: base.rotation + (layout === "l" ? 90 : 0),
+    },
+    base,
+  );
+  const nextTables = [...tables, nextTable];
+  return {
+    scene: commitScene({ ...scene, tables: nextTables, table: nextTables[0] }),
+    tableId: nextTable.id,
+  };
+}
+
+export function removeTable(scene: AlleyScene, tableId: string): AlleyScene {
+  const tables = sceneTables(scene);
+  if (tables.length <= 1) return scene;
+  const nextTables = tables.filter((table) => table.id !== tableId);
+  if (!nextTables.length) return scene;
+  return commitScene({ ...scene, tables: nextTables, table: nextTables[0] });
 }
 
 export function moveMountedItem(scene: AlleyScene, itemId: string, u: number, v: number): AlleyScene {
@@ -445,7 +627,7 @@ export function deleteItems(scene: AlleyScene, ids: string[]): AlleyScene {
         mount: undefined,
         x: panel?.x ?? item.x,
         y: panel?.y ?? item.y,
-        baseZ: scene.table.height,
+        baseZ: primaryTable(scene).height,
         rotation: 0,
       };
     });
@@ -460,53 +642,76 @@ export function deleteGroup(scene: AlleyScene, groupId: string): AlleyScene {
   );
 }
 
-export function duplicateSelection(scene: AlleyScene, ids: string[]): { scene: AlleyScene; ids: string[] } {
-  const selected = scene.items.filter((item) => ids.includes(item.id));
-  if (!selected.length) return { scene, ids: [] };
-  const groupIds = Array.from(new Set(selected.map((item) => item.groupId).filter(Boolean) as string[]));
-  const sourceGroup = new Map<string, AlleyItem[]>();
-  for (const groupId of groupIds) sourceGroup.set(groupId, scene.items.filter((item) => item.groupId === groupId));
-  const clones: AlleyItem[] = [];
-  const remap = new Map<string, string>();
+export interface AlleyClipboard {
+  items: AlleyItem[];
+  groups: { id: string; name: string }[];
+}
+
+export function copySelection(scene: AlleyScene, ids: string[]): AlleyClipboard | null {
+  const expanded = expandSelectionWithGroups(scene, ids);
+  const selected = scene.items.filter((item) => expanded.includes(item.id));
+  if (!selected.length) return null;
+  const groupIds = new Set(selected.map((item) => item.groupId).filter(Boolean) as string[]);
+  return {
+    items: selected.map((item) => ({
+      ...item,
+      mount: item.mount ? { ...item.mount } : undefined,
+    })),
+    groups: scene.groups.filter((group) => groupIds.has(group.id)).map((group) => ({ ...group })),
+  };
+}
+
+export function pasteSelection(
+  scene: AlleyScene,
+  clipboard: AlleyClipboard,
+  offset = 60,
+): { scene: AlleyScene; ids: string[] } {
+  if (!clipboard.items.length) return { scene, ids: [] };
   const newGroupIds = new Map<string, string>();
-  for (const groupId of groupIds) {
-    newGroupIds.set(groupId, uid("group"));
-  }
-  const addClone = (source: AlleyItem, groupId?: string) => {
+  for (const group of clipboard.groups) newGroupIds.set(group.id, uid("group"));
+  const remap = new Map<string, string>();
+  const clones: AlleyItem[] = clipboard.items.map((source) => {
     const clone: AlleyItem = {
       ...source,
       id: uid("item"),
       name: `${source.name} copia`,
-      x: source.x + 60,
-      y: source.y + 60,
-      groupId,
+      x: source.x + offset,
+      y: source.y + offset,
+      groupId: source.groupId ? newGroupIds.get(source.groupId) : undefined,
       mount: source.mount ? { ...source.mount } : undefined,
     };
     remap.set(source.id, clone.id);
-    clones.push(clone);
-  };
-  for (const groupId of groupIds) {
-    for (const item of sourceGroup.get(groupId) || []) addClone(item, newGroupIds.get(groupId));
-  }
-  for (const item of selected) {
-    if (!item.groupId) addClone(item);
-  }
+    return clone;
+  });
   for (const clone of clones) {
-    if (clone.mount) {
-      const mapped = remap.get(clone.mount.panelId);
-      if (mapped) clone.mount = { ...clone.mount, panelId: mapped };
-      else clone.mount = undefined;
+    if (!clone.mount) continue;
+    const mapped = remap.get(clone.mount.panelId);
+    if (mapped) {
+      clone.mount = { ...clone.mount, panelId: mapped };
+    } else {
+      clone.mount = undefined;
+      clone.baseZ = primaryTable(scene).height;
+      clone.rotation = 0;
     }
   }
   const groups = [
     ...scene.groups,
-    ...Array.from(newGroupIds.entries()).map(([oldId, id]) => ({
-      id,
-      name: `${scene.groups.find((group) => group.id === oldId)?.name || "Grupo"} copia`,
+    ...clipboard.groups.map((group) => ({
+      id: newGroupIds.get(group.id)!,
+      name: `${group.name} copia`,
     })),
   ];
   const next = commitScene({ ...scene, items: [...scene.items, ...clones], groups });
-  return { scene: next, ids: clones.map((clone) => clone.id).filter((id) => next.items.some((item) => item.id === id)) };
+  return {
+    scene: next,
+    ids: clones.map((clone) => clone.id).filter((id) => next.items.some((item) => item.id === id)),
+  };
+}
+
+export function duplicateSelection(scene: AlleyScene, ids: string[]): { scene: AlleyScene; ids: string[] } {
+  const clipboard = copySelection(scene, ids);
+  if (!clipboard) return { scene, ids: [] };
+  return pasteSelection(scene, clipboard, 60);
 }
 
 export function groupSelection(scene: AlleyScene, ids: string[]): { scene: AlleyScene; groupId: string } {
@@ -563,7 +768,7 @@ export function unmountItem(scene: AlleyScene, itemId: string): AlleyScene {
   if (!item?.mount) return scene;
   const items = scene.items.map((candidate) =>
     candidate.id === itemId
-      ? { ...candidate, mount: undefined, baseZ: scene.table.height, rotation: 0 }
+      ? { ...candidate, mount: undefined, baseZ: primaryTable(scene).height, rotation: 0 }
       : candidate,
   );
   return commitScene({ ...scene, items });
@@ -652,7 +857,8 @@ export function starterScene(): AlleyScene {
 }
 
 export function clearScene(scene: AlleyScene): AlleyScene {
-  return { ...emptyScene(), name: scene.name, table: { ...scene.table }, grid: scene.grid };
+  const tables = sceneTables(scene).map((table) => ({ ...table }));
+  return { ...emptyScene(), name: scene.name, table: tables[0], tables, grid: scene.grid };
 }
 
 export function groupFor(scene: AlleyScene, groupId: string | undefined) {
@@ -676,7 +882,7 @@ export function selectionLabel(scene: AlleyScene, selection: AlleySelection | nu
 
 export function defaultAnchorForNewItem(scene: AlleyScene): Vec3 {
   const spot = findFreeSpot(scene, "slatwall30");
-  return [spot.x, spot.y, scene.table.height];
+  return [spot.x, spot.y, primaryTable(scene).height];
 }
 
 export function countGroupItems(scene: AlleyScene, groupId: string | undefined): number {

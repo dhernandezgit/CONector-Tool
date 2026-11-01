@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { CONNECTORS, GROUPS_BY_ID } from "./catalog";
+import { CATALOG_BY_TYPE, CONNECTORS, GROUPS_BY_ID } from "./catalog";
 import { allowedConnectorTypes, catalogFor, computeJoints, itemAabb, scenePorts } from "./geometry";
 import {
   addCatalogItem,
   addGroup,
+  addTable,
   bomCsv,
   clearScene,
+  copySelection,
   deleteItems,
   duplicateSelection,
   emptyScene,
@@ -13,13 +15,19 @@ import {
   groupSelection,
   moveItems,
   moveMountedItem,
+  pasteSelection,
+  removeTable,
   rotateItems,
   sceneBom,
+  sceneFileName,
+  sceneFromJson,
+  sceneToJson,
   setJointType,
   starterScene,
   toggleJointSuppressed,
   ungroupSelection,
   unmountItem,
+  updateTable,
 } from "./scene";
 
 function countItems(scene: ReturnType<typeof emptyScene>, type: string) {
@@ -222,5 +230,93 @@ describe("scene helpers", () => {
       expect(box.maxY).toBeGreaterThan(box.minY);
       expect(catalogFor(item).ports.length).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe("panel sizes and flat panels", () => {
+  it("offers quarter and half grid panels for every panel material", () => {
+    for (const type of ["slatwall15", "skadis15", "wire15"]) {
+      expect(CATALOG_BY_TYPE[type]?.dims).toMatchObject({ w: 150, h: 150 });
+    }
+    for (const type of ["slatwall15x30", "skadis15x30", "wire15x30"]) {
+      expect(CATALOG_BY_TYPE[type]?.dims).toMatchObject({ w: 150, h: 300 });
+    }
+    for (const type of ["slatwall30x15", "skadis30x15", "wire30x15"]) {
+      expect(CATALOG_BY_TYPE[type]?.dims).toMatchObject({ w: 300, h: 150 });
+    }
+  });
+
+  it("has a flat coloured equivalent for every wire-grid size", () => {
+    for (const type of ["flat30", "flat35", "flat15", "flat15x30", "flat30x15"]) {
+      const panel = CATALOG_BY_TYPE[type];
+      expect(panel?.category).toBe("paneles");
+      expect(panel?.ports.every((port) => port.system === "wire")).toBe(true);
+      expect(panel?.tags).toContain("liso");
+    }
+  });
+});
+
+describe("towers and L-shaped work tables", () => {
+  it("builds the two four-cube towers with an open back and four-panel bridge", () => {
+    const scene = addGroup(emptyScene(), "twin-towers", { anchor: { x: 0, y: 0 } }).scene;
+    const towers = scene.items.filter((item) => item.type === "wire30");
+    expect(towers).toHaveLength(28);
+    expect(scene.items.some((item) => item.y > 0)).toBe(false);
+    const top = scene.table.height + 900;
+    const bridge = towers.filter((item) => item.baseZ === top && item.x >= -450 && item.x <= 450);
+    expect(bridge).toHaveLength(4);
+    expect(new Set(towers.map((item) => item.baseZ - scene.table.height))).toEqual(new Set([0, 300, 600, 900]));
+    expect(scene.joints.length).toBeGreaterThan(20);
+  });
+
+  it("places an L-shaped workspace with two perpendicular tables", () => {
+    const scene = addGroup(emptyScene(), "workspace-l-work", { anchor: { x: 0, y: 0 } }).scene;
+    expect(scene.tables).toHaveLength(2);
+    expect(scene.tables[1].rotation).toBe(90);
+    expect(scene.tables[0].height).toBe(scene.tables[1].height);
+    expect(scene.items).toHaveLength(7);
+    expect(scene.items.every((item) => item.baseZ === scene.table.height)).toBe(true);
+  });
+
+  it("adds, edits and removes extra tables while keeping a shared height", () => {
+    const base = addGroup(emptyScene(), "workspace-l-work", { anchor: { x: 0, y: 0 } }).scene;
+    const added = addTable(base, "straight");
+    expect(added.scene.tables).toHaveLength(3);
+    const raised = updateTable(added.scene, added.tableId, { height: 820 });
+    expect(raised.tables.every((table) => table.height === 820)).toBe(true);
+    expect(raised.items.every((item) => item.baseZ === 820)).toBe(true);
+    const removed = removeTable(raised, added.tableId);
+    expect(removed.tables).toHaveLength(2);
+  });
+});
+
+describe("clipboard and local project files", () => {
+  it("copies a whole group and pastes it with fresh ids", () => {
+    const scene = addGroup(emptyScene(), "display-set", { anchor: { x: 0, y: 0 } }).scene;
+    const clipboard = copySelection(scene, [scene.items[0].id]);
+    expect(clipboard?.items).toHaveLength(3);
+    expect(clipboard?.groups).toHaveLength(1);
+    if (!clipboard) return;
+    const pasted = pasteSelection(scene, clipboard, 90);
+    expect(pasted.ids).toHaveLength(3);
+    expect(pasted.scene.items).toHaveLength(6);
+    expect(pasted.scene.groups).toHaveLength(2);
+    expect(pasted.ids.every((id) => !scene.items.some((item) => item.id === id))).toBe(true);
+  });
+
+  it("round-trips the complete scene, tables and groups through JSON", () => {
+    const scene = addGroup(emptyScene(), "workspace-l-wall", { anchor: { x: 0, y: 0 } }).scene;
+    const text = sceneToJson(scene, "Puesto Ñandú");
+    const restored = sceneFromJson(text);
+    expect(restored.name).toBe("Puesto Ñandú");
+    expect(restored.items).toHaveLength(scene.items.length);
+    expect(restored.tables).toHaveLength(2);
+    expect(restored.tables[1].rotation).toBe(90);
+    expect(restored.groups).toHaveLength(1);
+    expect(sceneFileName("Puesto Ñandú")).toBe("puesto-nandu.artist-alley.json");
+  });
+
+  it("rejects files from another format", () => {
+    expect(() => sceneFromJson(JSON.stringify({ format: "otro-formato", scene: {} }))).toThrow();
   });
 });

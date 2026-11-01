@@ -2,12 +2,12 @@
 
 **Un montador 3D editable para planificar un puesto de artistas.**
 
-CONector Tool es ahora un sandbox local-first para componer un puesto con paneles, expositores, estantes, accesorios y toldo. Puedes mover y girar piezas, conectarlas por sus puertos, agrupar composiciones, deshacer cambios y generar una lista de materiales antes de montar el puesto real.
+CONector Tool es ahora un sandbox local-first para componer un puesto con paneles, expositores, estantes, accesorios y toldo. Puedes mover y girar piezas, conectarlas por sus puertos, agrupar composiciones, trabajar sobre una o varias mesas en L, deshacer cambios y generar una lista de materiales antes de montar el puesto real.
 
 - Web: `https://dhernandezgit.github.io/CONector-Tool/`
 - Repo: `https://github.com/dhernandezgit/CONector-Tool`
 - Sin servidor, sin cuenta y sin subir archivos.
-- Guardado automático en el navegador.
+- Guardado automático en el navegador y archivos de proyecto locales.
 - Lista de materiales con copia al portapapeles y exportación CSV.
 
 ## Qué incluye
@@ -15,10 +15,12 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 ### Catálogo editable
 
 - **Paneles:** slatwall de 30 y 35 cm, Skadis de 30 y 35 cm, rejilla de 30 y 35 cm y panel triangular.
+- **Medidas pequeñas:** paneles de 1/4 (15 × 15 cm) y 1/2 (15 × 30 cm y 30 × 15 cm) para slatwall, Skadis y rejilla.
+- **Paneles lisos:** equivalentes planos y coloreados de todas las rejillas (30, 35, 1/4 y 1/2) para fondos, puertas y separadores.
 - **Expositores:** 2,5", 3", 4" y 5" con varios niveles.
 - **Estantes:** riser de 1 y 3 niveles, mini estante y organizador de panel de 4 niveles.
 - **Accesorios:** gancho de estante, clips de panel, bandejas Skadis, toldo de 30 y 35 cm y mango de abanico con bloqueo.
-- **Grupos rápidos:** puesto completo, pared slatwall, pared Skadis, esquina, toldo con rejilla, set de expositores y panel organizado.
+- **Grupos rápidos:** puesto completo, pared slatwall, pared Skadis, esquina, toldo con rejilla, set de expositores, panel organizado, doble torre de 4 cubos, stand en U, pared escalonada y dos configuraciones de mesa en L.
 
 ### Colocación y conexiones
 
@@ -32,14 +34,24 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 
 ### Edición segura
 
-- Rotación en pasos de 90° y ajuste fino.
-- Selección múltiple con Mayús + clic.
+- Rotación en pasos de 90° con **R** o **E** (y **Q** en sentido contrario), además de ajuste fino.
+- Selección múltiple con Mayús + clic; al arrastrar una pieza seleccionada se mueve todo el conjunto.
+- **Ctrl+C / Ctrl+V** para copiar y pegar piezas o grupos completos; **Ctrl+A** selecciona todo.
+- Flechas para mover 1 cm (Mayús: 5 cm); **Ctrl + ↑/↓** para subir o bajar.
 - Grupos de usuario que se mueven y giran juntos.
 - Duplicado sin apilar piezas: si una copia cae exactamente sobre otra, se reutiliza la existente.
 - Eliminar un panel no rompe el resto: las conexiones se recalculan y los accesorios montados se liberan.
 - Deshacer y rehacer con historial.
 - Los accesorios se pueden montar en la cara frontal o dorsal de un panel y recolocar arrastrándolos.
-- Atajos: **R** gira, **Ctrl+D** duplica, **G** agrupa, **Supr** elimina, **Ctrl+Z** deshace, **Esc** cancela una conexión.
+- Atajos: **R/E** giran +90°, **Q** gira -90°, **Ctrl+C/V** copia y pega, **Ctrl+D** duplica, **G/Ctrl+G** agrupa, **Supr** elimina, **F** encuadra, **Ctrl+Z** deshace, **Esc** cancela una conexión.
+
+### Mesas en L y archivos locales
+
+- El inspector permite añadir una **mesa recta** o una **mesa en L** girada 90°.
+- Las mesas comparten altura; al cambiarla, las piezas se desplazan para seguir apoyadas.
+- Los ejemplos **Mesa en L de trabajo** y **Mesa en L + pared** montan la configuración completa.
+- **Archivo** descarga un `.artist-alley.json` con mesas, piezas, grupos, colores y conexiones.
+- **Abrir** recupera ese archivo en cualquier navegador. El guardado automático local sigue activo.
 
 ### Lista de materiales
 
@@ -62,12 +74,13 @@ El **Artist Alley STL Pack** es una creación de **Jessie Shi** (**Sandoik / @sa
 ## Cómo se usa
 
 1. Abre la app: el puesto de ejemplo se carga automáticamente.
-2. Elige piezas o grupos en el catálogo de la izquierda.
+2. Elige piezas o grupos en el catálogo de la izquierda. Prueba **Doble torre 4 cubos** o **Mesa en L de trabajo** para ver composiciones grandes.
 3. Usa el cubo de vistas para colocar en isométrico y revisar en perspectiva.
 4. Toca una esfera y luego otra compatible para conectar.
 5. Selecciona una unión para cambiar el conector; selecciona una pieza para moverla, girarla, colorearla o montarla en un panel.
-6. Agrupa composiciones para moverlas juntas y duplícalas sin crear piezas apiladas.
-7. Abre **Lista de materiales** para copiar o descargar el CSV.
+6. Con Mayús + clic selecciona varias piezas, arrastra para moverlas juntas, copia con Ctrl+C y pega con Ctrl+V.
+7. En **Mesas de trabajo** añade o edita mesas; usa **Archivo** y **Abrir** para guardar o recuperar un proyecto local.
+8. Abre **Lista de materiales** para copiar o descargar el CSV.
 
 ## Desarrollo
 
@@ -102,18 +115,18 @@ La app queda en `https://dhernandezgit.github.io/CONector-Tool/`.
 src/
   App.tsx              # shell, tema, historial y guardado
   alley/
-    types.ts           # piezas, puertos, uniones, escena
-    catalog.ts         # catálogo, grupos y conectores
-    geometry.ts        # transformaciones, puertos, snapping y uniones
-    scene.ts           # operaciones, deduplicación, grupos y BOM
-    AlleyViewport.tsx  # Three.js, cámara iso/perspectiva y edición
-    AlleySandbox.tsx   # catálogo, inspector, atajos y controles
+    types.ts           # piezas, puertos, uniones, mesas y escena
+    catalog.ts         # catálogo, grupos, presets en L y conectores
+    geometry.ts        # transformaciones, puertos, snapping, mesas y uniones
+    scene.ts           # operaciones, mesas, portapapeles, archivos, grupos y BOM
+    AlleyViewport.tsx  # Three.js, cámaras, mesas múltiples y edición
+    AlleySandbox.tsx   # catálogo, inspector, mesas, atajos y controles
     ViewCube.tsx       # cubo de vistas y selector de proyección
     BomDialog.tsx      # lista de materiales y CSV
   components/          # logo, UI, ayuda y acerca de
 ```
 
-La escena usa coordenadas Z-up. La mesa está en `z = table.height`; los paneles se apoyan en la mesa y sus puertos se calculan a partir de la posición y la rotación. Las uniones son datos derivados: se reconstruyen al mover, girar o eliminar piezas.
+La escena usa coordenadas Z-up. Las mesas se describen en `scene.tables` y comparten altura; los paneles se apoyan en `z = table.height` y sus puertos se calculan a partir de la posición y la rotación. Las uniones son datos derivados: se reconstruyen al mover, girar o eliminar piezas. El portapapeles y los archivos `.artist-alley.json` viven en `scene.ts`.
 
 ## Licencias
 

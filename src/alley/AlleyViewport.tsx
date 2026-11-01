@@ -15,6 +15,7 @@ import {
   rotateLocal,
   sceneBounds,
   scenePorts,
+  sceneTables,
 } from "./geometry";
 import type {
   AlleyItem,
@@ -126,6 +127,28 @@ function addOutline(parent: THREE.Object3D, dims: { w: number; d: number; h: num
   parent.add(outline);
 }
 
+function addTableGrid(parent: THREE.Object3D, width: number, depth: number, step: number, z = 3) {
+  const points: number[] = [];
+  const cols = Math.max(1, Math.round(width / Math.max(10, step)));
+  const rows = Math.max(1, Math.round(depth / Math.max(10, step)));
+  for (let i = 0; i <= cols; i += 1) {
+    const x = -width / 2 + (i / cols) * width;
+    points.push(x, -depth / 2, 0, x, depth / 2, 0);
+  }
+  for (let j = 0; j <= rows; j += 1) {
+    const y = -depth / 2 + (j / rows) * depth;
+    points.push(-width / 2, y, 0, width / 2, y, 0);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+  const grid = new THREE.LineSegments(
+    geometry,
+    new THREE.LineBasicMaterial({ color: 0xbfa8a5, transparent: true, opacity: 0.42 }),
+  );
+  grid.position.z = z;
+  parent.add(grid);
+}
+
 function slatTexture(color: string) {
   return canvasTexture((ctx, width, height) => {
     ctx.fillStyle = color;
@@ -162,6 +185,26 @@ function skadisTexture(color: string) {
     ctx.strokeStyle = "rgba(255,255,255,0.55)";
     ctx.lineWidth = 5;
     ctx.strokeRect(5, 5, width - 10, height - 10);
+  });
+}
+
+function solidTexture(color: string) {
+  return canvasTexture((ctx, width, height) => {
+    const base = new THREE.Color(color);
+    const light = `#${base.clone().lerp(new THREE.Color("#ffffff"), 0.18).getHexString()}`;
+    const dark = `#${base.clone().multiplyScalar(0.82).getHexString()}`;
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, light);
+    gradient.addColorStop(0.55, color);
+    gradient.addColorStop(1, dark);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.lineWidth = 6;
+    ctx.strokeRect(7, 7, width - 14, height - 14);
+    ctx.strokeStyle = "rgba(60,45,50,0.14)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(18, 18, width - 36, height - 36);
   });
 }
 
@@ -480,15 +523,31 @@ function buildItem(item: AlleyItem, selected: boolean): THREE.Group {
   switch (item.type) {
     case "slatwall30":
     case "slatwall35":
+    case "slatwall15":
+    case "slatwall15x30":
+    case "slatwall30x15":
       group = buildFlatPanel(item, slatTexture(itemColor(item)), selected);
       break;
     case "skadis30":
     case "skadis35":
+    case "skadis15":
+    case "skadis15x30":
+    case "skadis30x15":
       group = buildFlatPanel(item, skadisTexture(itemColor(item)), selected);
       break;
     case "wire30":
     case "wire35":
+    case "wire15":
+    case "wire15x30":
+    case "wire30x15":
       group = buildWirePanel(item, selected);
+      break;
+    case "flat30":
+    case "flat35":
+    case "flat15":
+    case "flat15x30":
+    case "flat30x15":
+      group = buildFlatPanel(item, solidTexture(itemColor(item)), selected);
       break;
     case "triangle":
       group = buildTrianglePanel(item, selected);
@@ -827,11 +886,20 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
       const item = data.items.find((candidate) => candidate.id === hit.id);
       if (!item) return;
       const current = selectionRef.current;
+      const previous = current && current.type !== "joint" ? current.ids : [];
       let selectedIds: string[];
       if (event.shiftKey) {
-        const previous = current && current.type !== "joint" ? current.ids : [];
-        selectedIds = Array.from(new Set([...previous, item.id]));
-        callbacks.current.onSelect({ type: "items", ids: selectedIds });
+        selectedIds = previous.includes(item.id)
+          ? previous.filter((id) => id !== item.id)
+          : Array.from(new Set([...previous, item.id]));
+        if (!selectedIds.length) {
+          callbacks.current.onSelect(null);
+          return;
+        }
+        callbacks.current.onSelect({ type: selectedIds.length > 1 ? "items" : "item", ids: selectedIds });
+      } else if (previous.includes(item.id)) {
+        // Keep an existing multi-selection so dragging moves every selected item.
+        selectedIds = previous;
       } else {
         selectedIds = [item.id];
         callbacks.current.onSelect({ type: "item", ids: [item.id] });
@@ -1102,47 +1170,48 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     hoverPortRef.current = null;
     const pickables: THREE.Object3D[] = [];
 
+    const bounds = sceneBounds(scene);
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(5200, 4200),
+      new THREE.PlaneGeometry(Math.max(5200, bounds.width + 1800), Math.max(4200, bounds.depth + 1800)),
       new THREE.MeshStandardMaterial({ color: "#e9e0d4", roughness: 0.96 }),
     );
     floor.rotation.x = -Math.PI / 2;
-    floor.position.z = -1;
+    floor.position.set((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2, -1);
     floor.receiveShadow = true;
     root.add(floor);
 
-    const tableTop = new THREE.Mesh(
-      new THREE.BoxGeometry(scene.table.width, scene.table.depth, 26),
-      mat(scene.table.color, { roughness: 0.62 }),
-    );
-    tableTop.position.z = scene.table.height - 13;
-    tableTop.castShadow = true;
-    tableTop.receiveShadow = true;
-    root.add(tableTop);
-    const legMat = mat(new THREE.Color(scene.table.color).multiplyScalar(0.72).getStyle(), { roughness: 0.7 });
-    for (const x of [-scene.table.width / 2 + 70, scene.table.width / 2 - 70]) {
-      for (const y of [-scene.table.depth / 2 + 60, scene.table.depth / 2 - 60]) {
-        addBox(root, [42, 42, scene.table.height - 26], [x, y, (scene.table.height - 26) / 2], legMat);
-      }
-    }
-    const runner = new THREE.Mesh(
-      new THREE.BoxGeometry(scene.table.width * 0.72, 3, scene.table.depth * 0.32),
-      new THREE.MeshStandardMaterial({ color: "#f3b7c7", roughness: 0.8, transparent: true, opacity: 0.45 }),
-    );
-    runner.position.set(0, 0, scene.table.height + 1.5);
-    runner.receiveShadow = true;
-    root.add(runner);
+    for (const table of sceneTables(scene)) {
+      const tableRoot = new THREE.Group();
+      tableRoot.position.set(table.x, table.y, 0);
+      tableRoot.rotation.z = table.rotation * DEG;
+      root.add(tableRoot);
 
-    if (showGrid) {
-      const size = Math.max(scene.table.width, scene.table.depth);
-      const divisions = Math.max(8, Math.round(size / (scene.grid || 50)));
-      const grid = new THREE.GridHelper(size, divisions, 0xbfa8a5, 0xd9c9c5);
-      grid.rotation.x = Math.PI / 2;
-      grid.position.z = scene.table.height + 3;
-      const material = grid.material as THREE.Material;
-      material.transparent = true;
-      material.opacity = 0.42;
-      root.add(grid);
+      const tableTop = new THREE.Mesh(
+        new THREE.BoxGeometry(table.width, table.depth, 26),
+        mat(table.color, { roughness: 0.62 }),
+      );
+      tableTop.position.z = table.height - 13;
+      tableTop.castShadow = true;
+      tableTop.receiveShadow = true;
+      tableRoot.add(tableTop);
+
+      const legHeight = Math.max(4, table.height - 26);
+      const legMat = mat(new THREE.Color(table.color).multiplyScalar(0.72).getStyle(), { roughness: 0.7 });
+      for (const x of [-table.width / 2 + 70, table.width / 2 - 70]) {
+        for (const y of [-table.depth / 2 + 60, table.depth / 2 - 60]) {
+          addBox(tableRoot, [42, 42, legHeight], [x, y, legHeight / 2], legMat);
+        }
+      }
+
+      const runner = new THREE.Mesh(
+        new THREE.BoxGeometry(table.width * 0.72, 3, table.depth * 0.32),
+        new THREE.MeshStandardMaterial({ color: "#f3b7c7", roughness: 0.8, transparent: true, opacity: 0.45 }),
+      );
+      runner.position.set(0, 0, table.height + 1.5);
+      runner.receiveShadow = true;
+      tableRoot.add(runner);
+
+      if (showGrid) addTableGrid(tableRoot, table.width, table.depth, scene.grid || 50, table.height + 3);
     }
 
     for (const item of scene.items) {
@@ -1201,7 +1270,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
         const span = Math.max(bounds.width, bounds.depth, bounds.height, 900);
         const cx = (bounds.minX + bounds.maxX) / 2;
         const cy = (bounds.minY + bounds.maxY) / 2;
-        const cz = Math.max(scene.table.height * 0.55, (bounds.minZ + bounds.maxZ) / 2);
+        const cz = Math.max((sceneTables(scene)[0]?.height || 750) * 0.55, (bounds.minZ + bounds.maxZ) / 2);
         if (camera === ortho && ortho && perspective) {
           orthoHeightRef.current = span * 1.35;
           const { width, height } = viewportSizeRef.current;
@@ -1277,7 +1346,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
         const span = Math.max(bounds.width, bounds.depth, bounds.height, 900);
         const cx = (bounds.minX + bounds.maxX) / 2;
         const cy = (bounds.minY + bounds.maxY) / 2;
-        const cz = Math.max(sceneDataRef.current.table.height * 0.55, (bounds.minZ + bounds.maxZ) / 2);
+        const cz = Math.max((sceneTables(sceneDataRef.current)[0]?.height || 750) * 0.55, (bounds.minZ + bounds.maxZ) / 2);
         if (camera === ortho && ortho && perspective) {
           orthoHeightRef.current = span * 1.35;
           const { width, height } = viewportSizeRef.current;

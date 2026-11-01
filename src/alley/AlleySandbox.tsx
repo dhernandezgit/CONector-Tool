@@ -3,6 +3,8 @@ import {
   Box,
   Check,
   ChevronRight,
+  Clipboard,
+  ClipboardPaste,
   Copy,
   Eye,
   EyeOff,
@@ -20,6 +22,7 @@ import {
   RotateCw,
   Search,
   Sparkles,
+  Table2,
   Trash2,
   Ungroup,
   Unlink,
@@ -33,12 +36,15 @@ import {
   jointItems,
   portCompatible,
   portWorld,
+  sceneTables,
 } from "./geometry";
 import {
   addCatalogItem,
   addGroup,
+  addTable,
   clearScene,
   commitScene,
+  copySelection,
   countGroupItems,
   deleteGroup,
   deleteItems,
@@ -50,6 +56,8 @@ import {
   moveItems,
   moveMountedItem,
   mountItem,
+  pasteSelection,
+  removeTable,
   rotateItems,
   sceneBom,
   selectedPanelForMount,
@@ -58,6 +66,8 @@ import {
   toggleJointSuppressed,
   ungroupSelection,
   unmountItem,
+  updateTable as updateTableInScene,
+  type AlleyClipboard,
 } from "./scene";
 import type {
   AlleyCategory,
@@ -108,6 +118,9 @@ export default function AlleySandbox({
   onToast,
 }: Props) {
   const viewportRef = useRef<AlleyViewportHandle | null>(null);
+  const clipboardRef = useRef<AlleyClipboard | null>(null);
+  const pasteCountRef = useRef(0);
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [selection, setSelection] = useState<AlleySelection | null>(null);
   const [pendingPort, setPendingPort] = useState<PortRef | null>(null);
   const [category, setCategory] = useState<CategoryFilter>("todos");
@@ -133,6 +146,8 @@ export default function AlleySandbox({
   const bom = useMemo(() => sceneBom(scene), [scene]);
   const activeJoints = scene.joints.filter((joint) => !joint.suppressed).length;
   const panels = scene.items.filter((item) => catalogFor(item).category === "paneles");
+  const tables = sceneTables(scene);
+  const selectedTable = tables.find((table) => table.id === selectedTableId) || tables[0];
   const pendingItem = pendingPort ? scene.items.find((item) => item.id === pendingPort.itemId) : undefined;
 
   const filteredCatalog = useMemo(() => {
@@ -190,6 +205,10 @@ export default function AlleySandbox({
     }
   }, [scene, selection]);
 
+  useEffect(() => {
+    if (!tables.some((table) => table.id === selectedTableId)) setSelectedTableId(tables[0]?.id || null);
+  }, [selectedTableId, tables]);
+
   const updateItem = useCallback(
     (id: string, patch: Partial<AlleyItem>) => {
       const items = scene.items.map((item) => (item.id === id ? { ...item, ...patch } : item));
@@ -198,15 +217,36 @@ export default function AlleySandbox({
     [mutate, scene],
   );
 
-  const updateTable = useCallback(
-    (patch: Partial<AlleyScene["table"]>) => {
-      const oldHeight = scene.table.height;
-      const nextHeight = patch.height ?? oldHeight;
-      const dz = nextHeight - oldHeight;
-      const items = dz ? scene.items.map((item) => ({ ...item, baseZ: Math.max(0, item.baseZ + dz) })) : scene.items;
-      mutate(commitScene({ ...scene, table: { ...scene.table, ...patch }, items }));
+  const patchTable = useCallback(
+    (tableId: string, patch: Partial<AlleyScene["table"]>) => {
+      mutate(updateTableInScene(scene, tableId, patch));
     },
     [mutate, scene],
+  );
+
+  const addTableToScene = useCallback(
+    (layout: "straight" | "l") => {
+      const result = addTable(scene, layout);
+      mutate(result.scene);
+      setSelectedTableId(result.tableId);
+      onToast(layout === "l" ? "Mesa en L añadida. Las dos mesas comparten altura." : "Mesa añadida en línea.");
+      window.setTimeout(() => viewportRef.current?.fit(), 60);
+    },
+    [mutate, onToast, scene],
+  );
+
+  const removeTableFromScene = useCallback(
+    (tableId: string) => {
+      if (tables.length <= 1) {
+        onToast("Necesitas al menos una mesa de trabajo.");
+        return;
+      }
+      const next = removeTable(scene, tableId);
+      mutate(next);
+      setSelectedTableId(sceneTables(next)[0]?.id || null);
+      onToast("Mesa quitada. Las piezas se mantienen en la escena.");
+    },
+    [mutate, onToast, scene, tables.length],
   );
 
   const addItem = useCallback(
@@ -236,6 +276,7 @@ export default function AlleySandbox({
 
   const addPreset = useCallback(
     (presetId: string) => {
+      const preset = GROUPS.find((group) => group.id === presetId);
       const result = addGroup(scene, presetId);
       if (!result.created) {
         onToast("Ese grupo ya está completo en la escena; no se ha duplicado.");
@@ -243,9 +284,15 @@ export default function AlleySandbox({
       }
       mutate(result.scene);
       const first = result.scene.items.find((item) => item.groupId === result.groupId);
-      if (first) setSelection({ type: "item", ids: [first.id] });
+      if (preset?.tables?.length) {
+        setSelection(null);
+        setSelectedTableId(result.scene.tables?.[0]?.id || null);
+      } else if (first) {
+        setSelection({ type: "item", ids: [first.id] });
+      }
       setPendingPort(null);
-      onToast(`Grupo añadido: ${result.created} pieza${result.created === 1 ? "" : "s"}.`);
+      const tableNote = preset?.tables?.length ? ` y ${preset.tables.length} mesas en L` : "";
+      onToast(`Grupo añadido: ${result.created} pieza${result.created === 1 ? "" : "s"}${tableNote}.`);
       window.setTimeout(() => viewportRef.current?.fit(), 60);
     },
     [mutate, onToast, scene],
@@ -276,6 +323,60 @@ export default function AlleySandbox({
     setSelection({ type: result.ids.length > 1 ? "items" : "item", ids: result.ids });
     onToast(`Copia creada (${result.ids.length} pieza${result.ids.length === 1 ? "" : "s"}).`);
   }, [mutate, onToast, scene, selection]);
+
+  const copy = useCallback(() => {
+    if (!selection || selection.type === "joint") {
+      onToast("Selecciona una o varias piezas para copiarlas.");
+      return;
+    }
+    const clipboard = copySelection(scene, selection.ids);
+    if (!clipboard) {
+      onToast("No hay piezas que copiar.");
+      return;
+    }
+    clipboardRef.current = clipboard;
+    pasteCountRef.current = 0;
+    onToast(`${clipboard.items.length} pieza${clipboard.items.length === 1 ? "" : "s"} copiada${clipboard.items.length === 1 ? "" : "s"}. Pega con Ctrl+V.`);
+  }, [onToast, scene, selection]);
+
+  const paste = useCallback(() => {
+    const clipboard = clipboardRef.current;
+    if (!clipboard) {
+      onToast("El portapapeles está vacío. Copia una pieza con Ctrl+C.");
+      return;
+    }
+    pasteCountRef.current += 1;
+    const result = pasteSelection(scene, clipboard, 60 * pasteCountRef.current);
+    if (!result.ids.length) {
+      onToast("La copia caía sobre una pieza existente; no se ha pegado.");
+      return;
+    }
+    mutate(result.scene);
+    setSelection({ type: result.ids.length > 1 ? "items" : "item", ids: result.ids });
+    onToast(`${result.ids.length} pieza${result.ids.length === 1 ? "" : "s"} pegada${result.ids.length === 1 ? "" : "s"}.`);
+  }, [mutate, onToast, scene]);
+
+  const selectAll = useCallback(() => {
+    if (!scene.items.length) {
+      onToast("La mesa está vacía.");
+      return;
+    }
+    setSelection({ type: "items", ids: scene.items.map((item) => item.id) });
+    onToast(`${scene.items.length} piezas seleccionadas. Arrastra una para moverlas juntas.`);
+  }, [onToast, scene.items]);
+
+  const nudge = useCallback(
+    (dx: number, dy: number, dz = 0) => {
+      if (!selection || selection.type === "joint") return;
+      const ids = expandSelectionWithGroups(scene, selection.ids);
+      mutate(moveItems(scene, ids, dx, dy, dz));
+    },
+    [mutate, scene, selection],
+  );
+
+  const fitView = useCallback(() => {
+    viewportRef.current?.fit();
+  }, []);
 
   const removeSelection = useCallback(() => {
     if (!selection) return;
@@ -425,20 +526,43 @@ export default function AlleySandbox({
         return;
       }
       const mod = event.ctrlKey || event.metaKey;
-      if (mod && event.key.toLowerCase() === "z") {
+      const key = event.key.toLowerCase();
+      if (mod && key === "c") {
+        if (window.getSelection()?.toString().trim()) return;
+        event.preventDefault();
+        copy();
+        return;
+      }
+      if (mod && key === "v") {
+        event.preventDefault();
+        paste();
+        return;
+      }
+      if (mod && key === "a") {
+        event.preventDefault();
+        selectAll();
+        return;
+      }
+      if (mod && key === "z") {
         event.preventDefault();
         if (event.shiftKey) onRedo();
         else onUndo();
         return;
       }
-      if (mod && event.key.toLowerCase() === "y") {
+      if (mod && key === "y") {
         event.preventDefault();
         onRedo();
         return;
       }
-      if (mod && event.key.toLowerCase() === "d") {
+      if (mod && key === "d") {
         event.preventDefault();
         duplicate();
+        return;
+      }
+      if (mod && key === "g") {
+        event.preventDefault();
+        if (event.shiftKey) ungroupSelected();
+        else groupSelected();
         return;
       }
       if (event.key === "Delete" || event.key === "Backspace") {
@@ -446,14 +570,43 @@ export default function AlleySandbox({
         removeSelection();
         return;
       }
-      if (event.key.toLowerCase() === "r") {
+      if (key === "r") {
         event.preventDefault();
         rotate(event.shiftKey ? -90 : 90);
         return;
       }
-      if (event.key.toLowerCase() === "g" && !mod) {
+      if (key === "q") {
+        event.preventDefault();
+        rotate(-90);
+        return;
+      }
+      if (key === "e") {
+        event.preventDefault();
+        rotate(90);
+        return;
+      }
+      if (key === "g" && !mod) {
         event.preventDefault();
         groupSelected();
+        return;
+      }
+      if (key === "f") {
+        event.preventDefault();
+        fitView();
+        return;
+      }
+      if (event.key.startsWith("Arrow")) {
+        event.preventDefault();
+        const step = event.shiftKey ? 50 : 10;
+        if (event.ctrlKey || event.metaKey) {
+          if (event.key === "ArrowUp") nudge(0, 0, step);
+          else if (event.key === "ArrowDown") nudge(0, 0, -step);
+          return;
+        }
+        if (event.key === "ArrowLeft") nudge(-step, 0);
+        else if (event.key === "ArrowRight") nudge(step, 0);
+        else if (event.key === "ArrowUp") nudge(0, step);
+        else if (event.key === "ArrowDown") nudge(0, -step);
         return;
       }
       if (event.key === "Escape") {
@@ -463,7 +616,20 @@ export default function AlleySandbox({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [duplicate, groupSelected, onRedo, onUndo, removeSelection, rotate]);
+  }, [
+    copy,
+    duplicate,
+    fitView,
+    groupSelected,
+    nudge,
+    onRedo,
+    onUndo,
+    paste,
+    removeSelection,
+    rotate,
+    selectAll,
+    ungroupSelected,
+  ]);
 
   const jointTypes = selectedJoint ? allowedConnectorTypes(scene, selectedJoint) : [];
   if (selectedJoint && !jointTypes.includes(selectedJoint.type)) jointTypes.unshift(selectedJoint.type);
@@ -604,21 +770,27 @@ export default function AlleySandbox({
             </button>
           </div>
           <div className="alley-tool-group">
-            <button type="button" className="alley-tool" onClick={() => rotate(-90)} title="Girar -90°">
+            <button type="button" className="alley-tool" onClick={() => rotate(-90)} title="Girar -90° (Q o Mayús+R)">
               <RotateCcw size={16} />
               <span className="alley-tool-mini">-90</span>
             </button>
-            <button type="button" className="alley-tool" onClick={() => rotate(90)} title="Girar +90° (R)">
+            <button type="button" className="alley-tool" onClick={() => rotate(90)} title="Girar +90° (E o R)">
               <RotateCw size={16} />
               <span className="alley-tool-mini">+90</span>
+            </button>
+            <button type="button" className="alley-tool" onClick={copy} title="Copiar (Ctrl+C)">
+              <Clipboard size={16} />
+            </button>
+            <button type="button" className="alley-tool" onClick={paste} title="Pegar (Ctrl+V)">
+              <ClipboardPaste size={16} />
             </button>
             <button type="button" className="alley-tool" onClick={duplicate} title="Duplicar (Ctrl+D)">
               <Copy size={16} />
             </button>
-            <button type="button" className="alley-tool" onClick={groupSelected} title="Agrupar (G)">
+            <button type="button" className="alley-tool" onClick={groupSelected} title="Agrupar (G o Ctrl+G)">
               <Group size={16} />
             </button>
-            <button type="button" className="alley-tool" onClick={ungroupSelected} title="Desagrupar">
+            <button type="button" className="alley-tool" onClick={ungroupSelected} title="Desagrupar (Ctrl+Mayús+G)">
               <Ungroup size={16} />
             </button>
             <button type="button" className="alley-tool danger" onClick={removeSelection} title="Eliminar (Supr)">
@@ -638,7 +810,7 @@ export default function AlleySandbox({
             <button type="button" className={`alley-tool${activeView === "right" ? " active" : ""}`} onClick={() => changeView("right")} title="Vista lateral">
               <Layers size={16} />
             </button>
-            <button type="button" className="alley-tool" onClick={() => viewportRef.current?.fit()} title="Encuadrar">
+            <button type="button" className="alley-tool" onClick={fitView} title="Encuadrar todo (F)">
               <Maximize2 size={16} />
             </button>
           </div>
@@ -714,6 +886,37 @@ export default function AlleySandbox({
             onProjection={changeProjection}
             onOrbit={(dx, dy) => viewportRef.current?.orbit(dx, dy)}
           />
+          {selectedItems.length > 0 && (
+            <div className="alley-selection-dock">
+              <strong>
+                {selectedItems.length} pieza{selectedItems.length === 1 ? "" : "s"}
+              </strong>
+              <div className="alley-dock-actions">
+                <button type="button" onClick={() => rotate(-90)} title="Girar -90° (Q)">
+                  <RotateCcw size={15} />
+                </button>
+                <button type="button" onClick={() => rotate(90)} title="Girar +90° (E)">
+                  <RotateCw size={15} />
+                </button>
+                <button type="button" onClick={copy} title="Copiar (Ctrl+C)">
+                  <Clipboard size={15} />
+                </button>
+                <button type="button" onClick={paste} title="Pegar (Ctrl+V)">
+                  <ClipboardPaste size={15} />
+                </button>
+                <button type="button" onClick={duplicate} title="Duplicar (Ctrl+D)">
+                  <Copy size={15} />
+                </button>
+                <button type="button" onClick={groupSelected} disabled={selectedItems.length < 2} title="Agrupar (Ctrl+G)">
+                  <Group size={15} />
+                </button>
+                <button type="button" className="danger" onClick={removeSelection} title="Eliminar (Supr)">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+              <span className="alley-dock-hint">Arrastra para mover todo · flechas para ajustar</span>
+            </div>
+          )}
           {pendingPort && (
             <div className="alley-pending">
               <Link2 size={15} />
@@ -742,7 +945,7 @@ export default function AlleySandbox({
           </span>
           <span className="alley-status-spacer" />
           <span className="muted">
-            {scene.table.width / 10} × {scene.table.depth / 10} cm · {projectName}
+            {tables.length} mesa{tables.length === 1 ? "" : "s"} · {selectedTable.width / 10} × {selectedTable.depth / 10} cm · {projectName}
           </span>
         </div>
       </main>
@@ -777,14 +980,49 @@ export default function AlleySandbox({
               </div>
 
               <section className="alley-panel">
-                <h3>Mesa de trabajo</h3>
+                <h3>Mesas de trabajo <span className="alley-count small">{tables.length}</span></h3>
+                <div className="alley-table-tabs">
+                  {tables.map((table, index) => (
+                    <button
+                      type="button"
+                      key={table.id}
+                      className={selectedTable.id === table.id ? "active" : ""}
+                      onClick={() => setSelectedTableId(table.id)}
+                    >
+                      <Table2 size={13} />
+                      <span>{table.name || `Mesa ${index + 1}`}</span>
+                      <small>{table.width / 10} × {table.depth / 10}</small>
+                    </button>
+                  ))}
+                </div>
+                <div className="alley-inline-actions">
+                  <button type="button" className="alley-small-button" onClick={() => addTableToScene("straight")}>
+                    <Plus size={14} /> Mesa recta
+                  </button>
+                  <button type="button" className="alley-small-button" onClick={() => addTableToScene("l")}>
+                    <Table2 size={14} /> Mesa en L
+                  </button>
+                  {tables.length > 1 && (
+                    <button
+                      type="button"
+                      className="alley-small-button danger-text"
+                      onClick={() => removeTableFromScene(selectedTable.id)}
+                    >
+                      <Trash2 size={14} /> Quitar
+                    </button>
+                  )}
+                </div>
                 <div className="alley-field-grid">
-                  <NumberField label="Ancho" value={scene.table.width} min={800} max={5000} step={50} suffix="mm" onChange={(value) => updateTable({ width: value })} />
-                  <NumberField label="Fondo" value={scene.table.depth} min={500} max={2500} step={50} suffix="mm" onChange={(value) => updateTable({ depth: value })} />
-                  <NumberField label="Alto" value={scene.table.height} min={0} max={1200} step={25} suffix="mm" onChange={(value) => updateTable({ height: value })} />
+                  <NumberField label="Ancho" value={selectedTable.width} min={600} max={5000} step={50} suffix="mm" onChange={(value) => patchTable(selectedTable.id, { width: value })} />
+                  <NumberField label="Fondo" value={selectedTable.depth} min={400} max={2500} step={50} suffix="mm" onChange={(value) => patchTable(selectedTable.id, { depth: value })} />
+                  <NumberField label="Alto común" value={selectedTable.height} min={0} max={1200} step={25} suffix="mm" onChange={(value) => patchTable(selectedTable.id, { height: value })} />
                   <NumberField label="Rejilla" value={scene.grid} min={10} max={200} step={10} suffix="mm" onChange={(value) => mutate({ ...scene, grid: value })} />
                 </div>
-                <ColorField label="Color de la mesa" value={scene.table.color} onChange={(value) => updateTable({ color: value })} />
+                <ColorField label="Color de la mesa" value={selectedTable.color} onChange={(value) => patchTable(selectedTable.id, { color: value })} />
+                <p className="alley-note">
+                  Añade una segunda mesa girada 90° para trabajar en L. Las mesas comparten altura para que las piezas
+                  apoyen bien. Prueba «Mesa en L de trabajo» en Grupos rápidos.
+                </p>
               </section>
 
               {scene.groups.length > 0 && (
@@ -845,9 +1083,16 @@ export default function AlleySandbox({
               <section className="alley-panel">
                 <h3>Atajos</h3>
                 <div className="alley-shortcuts">
-                  <span><kbd>R</kbd> girar 90°</span>
+                  <span><kbd>R</kbd>/<kbd>E</kbd> girar +90°</span>
+                  <span><kbd>Q</kbd> girar -90°</span>
+                  <span><kbd>Mayús</kbd>+<kbd>clic</kbd> multiselección</span>
+                  <span><kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd> copiar y pegar</span>
+                  <span><kbd>Ctrl</kbd>+<kbd>A</kbd> seleccionar todo</span>
                   <span><kbd>Ctrl</kbd>+<kbd>D</kbd> duplicar</span>
-                  <span><kbd>G</kbd> agrupar</span>
+                  <span><kbd>G</kbd>/<kbd>Ctrl</kbd>+<kbd>G</kbd> agrupar</span>
+                  <span><kbd>↑↓←→</kbd> mover 1 cm</span>
+                  <span><kbd>Ctrl</kbd>+<kbd>↑↓</kbd> subir/bajar</span>
+                  <span><kbd>F</kbd> encuadrar</span>
                   <span><kbd>Supr</kbd> eliminar</span>
                   <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> deshacer</span>
                   <span><kbd>Esc</kbd> cancelar</span>
@@ -911,10 +1156,11 @@ export default function AlleySandbox({
                   />
                 </div>
                 <NumberField label="Ángulo fino" value={Math.round(selectedItem.rotation)} min={0} max={359} step={5} suffix="°" onChange={(value) => updateItem(selectedItem.id, { rotation: value })} />
-                <div className="alley-inline-actions">
-                  <button type="button" className="alley-small-button" onClick={() => rotate(-90)}><RotateCcw size={14} /> -90°</button>
-                  <button type="button" className="alley-small-button" onClick={() => rotate(90)}><RotateCw size={14} /> +90°</button>
+                <div className="alley-inline-actions alley-rotation-actions">
+                  <button type="button" className="alley-small-button" onClick={() => rotate(-90)}><RotateCcw size={14} /> Girar -90°</button>
+                  <button type="button" className="alley-small-button" onClick={() => rotate(90)}><RotateCw size={14} /> Girar +90°</button>
                 </div>
+                <p className="alley-note">Atajos: R o E para girar +90°, Q para -90°.</p>
               </section>
 
               <section className="alley-panel">
@@ -995,6 +1241,8 @@ export default function AlleySandbox({
               )}
 
               <div className="alley-inspector-actions">
+                <button type="button" className="secondary-button wide" onClick={copy}><Clipboard size={15} /> Copiar</button>
+                <button type="button" className="secondary-button wide" onClick={paste}><ClipboardPaste size={15} /> Pegar</button>
                 <button type="button" className="secondary-button wide" onClick={duplicate}><Copy size={15} /> Duplicar</button>
                 {selectedGroup && (
                   <>
@@ -1102,10 +1350,17 @@ export default function AlleySandbox({
               <section className="alley-panel">
                 <h3>Transformar selección</h3>
                 <div className="alley-inline-actions">
-                  <button type="button" className="alley-small-button" onClick={() => rotate(-90)}><RotateCcw size={14} /> -90°</button>
-                  <button type="button" className="alley-small-button" onClick={() => rotate(90)}><RotateCw size={14} /> +90°</button>
+                  <button type="button" className="alley-small-button" onClick={() => rotate(-90)}><RotateCcw size={14} /> Girar -90°</button>
+                  <button type="button" className="alley-small-button" onClick={() => rotate(90)}><RotateCw size={14} /> Girar +90°</button>
                 </div>
-                <p className="alley-note">Si las piezas pertenecen a un grupo, se moverá el grupo completo. Usa «Agrupar» para unirlas.</p>
+                <div className="alley-inline-actions">
+                  <button type="button" className="alley-small-button" onClick={copy}><Clipboard size={14} /> Copiar</button>
+                  <button type="button" className="alley-small-button" onClick={paste}><ClipboardPaste size={14} /> Pegar</button>
+                </div>
+                <p className="alley-note">
+                  Arrastra cualquier pieza seleccionada para mover todo el conjunto. Las flechas ajustan 1 cm; con
+                  Mayús, 5 cm. Si las piezas pertenecen a un grupo, se moverá el grupo completo.
+                </p>
               </section>
               <div className="alley-inspector-actions">
                 <button type="button" className="secondary-button wide" onClick={groupSelected}><Group size={15} /> Agrupar</button>

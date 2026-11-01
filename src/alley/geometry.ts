@@ -6,6 +6,7 @@ import type {
   AlleyScene,
   AlleySelection,
   AlleySystem,
+  AlleyTable,
   ConnectorType,
   PortRef,
   Vec3,
@@ -387,16 +388,58 @@ export function itemAabb(item: AlleyItem) {
   };
 }
 
-export function sceneBounds(scene: AlleyScene) {
-  if (!scene.items.length) {
-    return { minX: -600, maxX: 600, minY: -400, maxY: 400, minZ: 0, maxZ: 900, width: 1200, depth: 800, height: 900 };
+export function tableAabb(table: AlleyTable) {
+  const angle = table.rotation * DEG;
+  const cos = Math.abs(Math.cos(angle));
+  const sin = Math.abs(Math.sin(angle));
+  const halfX = (cos * table.width + sin * table.depth) / 2;
+  const halfY = (sin * table.width + cos * table.depth) / 2;
+  return {
+    minX: table.x - halfX,
+    maxX: table.x + halfX,
+    minY: table.y - halfY,
+    maxY: table.y + halfY,
+    minZ: 0,
+    maxZ: table.height,
+  };
+}
+
+export function sceneTables(scene: AlleyScene): AlleyTable[] {
+  return scene.tables?.length ? scene.tables : [scene.table];
+}
+
+export function workspaceAabb(scene: AlleyScene) {
+  const tables = sceneTables(scene);
+  if (!tables.length) {
+    return { minX: -600, maxX: 600, minY: -400, maxY: 400, minZ: 0, maxZ: 900 };
   }
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  let minZ = 0;
-  let maxZ = 0;
+  const boxes = tables.map(tableAabb);
+  return {
+    minX: Math.min(...boxes.map((box) => box.minX)),
+    maxX: Math.max(...boxes.map((box) => box.maxX)),
+    minY: Math.min(...boxes.map((box) => box.minY)),
+    maxY: Math.max(...boxes.map((box) => box.maxY)),
+    minZ: Math.min(...boxes.map((box) => box.minZ)),
+    maxZ: Math.max(...boxes.map((box) => box.maxZ)),
+  };
+}
+
+export function sceneBounds(scene: AlleyScene) {
+  const workspace = workspaceAabb(scene);
+  if (!scene.items.length) {
+    return {
+      ...workspace,
+      width: workspace.maxX - workspace.minX,
+      depth: workspace.maxY - workspace.minY,
+      height: workspace.maxZ - workspace.minZ,
+    };
+  }
+  let minX = workspace.minX;
+  let maxX = workspace.maxX;
+  let minY = workspace.minY;
+  let maxY = workspace.maxY;
+  let minZ = workspace.minZ;
+  let maxZ = workspace.maxZ;
   for (const item of scene.items) {
     const box = itemAabb(item);
     minX = Math.min(minX, box.minX);

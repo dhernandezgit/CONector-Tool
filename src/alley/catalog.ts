@@ -1,8 +1,10 @@
 import type {
   AlleyCatalogItem,
+  AlleyGroupItemSpec,
   AlleyGroupPreset,
   AlleyPortDef,
   AlleySystem,
+  AlleyTableSpec,
   BomLine,
   ConnectorDef,
   ConnectorType,
@@ -194,6 +196,45 @@ export const CATALOG: AlleyCatalogItem[] = [
     "Versión grande del panel de lamas. Ideal para una pared de fondo.",
   ),
   panel(
+    "slatwall15",
+    "Slatwall 1/4",
+    "150 × 150 mm",
+    150,
+    150,
+    18,
+    "dovetail",
+    "#f3c7d4",
+    "▤",
+    "Panel slatwall 15 cm",
+    "Cuarto de panel slatwall para completar huecos, escalones y remates.",
+  ),
+  panel(
+    "slatwall15x30",
+    "Slatwall 1/2 vertical",
+    "150 × 300 mm",
+    150,
+    300,
+    18,
+    "dovetail",
+    "#f3c7d4",
+    "▯",
+    "Panel slatwall 15 × 30 cm",
+    "Medio panel slatwall vertical para columnas estrechas y laterales.",
+  ),
+  panel(
+    "slatwall30x15",
+    "Slatwall 1/2 horizontal",
+    "300 × 150 mm",
+    300,
+    150,
+    18,
+    "dovetail",
+    "#f3c7d4",
+    "▭",
+    "Panel slatwall 30 × 15 cm",
+    "Medio panel slatwall horizontal para remates y baldas visuales.",
+  ),
+  panel(
     "skadis30",
     "Panel Skadis 30",
     "300 × 300 mm",
@@ -218,6 +259,45 @@ export const CATALOG: AlleyCatalogItem[] = [
     "▦",
     "Panel Skadis 35 cm",
     "Panel perforado grande para una pared de accesorios.",
+  ),
+  panel(
+    "skadis15",
+    "Skadis 1/4",
+    "150 × 150 mm",
+    150,
+    150,
+    10,
+    "skadis",
+    "#f7d9e4",
+    "▦",
+    "Panel Skadis 15 cm",
+    "Cuarto de panel Skadis para completar una pared o crear remates.",
+  ),
+  panel(
+    "skadis15x30",
+    "Skadis 1/2 vertical",
+    "150 × 300 mm",
+    150,
+    300,
+    10,
+    "skadis",
+    "#f7d9e4",
+    "▯",
+    "Panel Skadis 15 × 30 cm",
+    "Medio panel Skadis vertical para columnas y laterales.",
+  ),
+  panel(
+    "skadis30x15",
+    "Skadis 1/2 horizontal",
+    "300 × 150 mm",
+    300,
+    150,
+    10,
+    "skadis",
+    "#f7d9e4",
+    "▭",
+    "Panel Skadis 30 × 15 cm",
+    "Medio panel Skadis horizontal para remates y filas bajas.",
   ),
   {
     type: "triangle",
@@ -265,6 +345,125 @@ export const CATALOG: AlleyCatalogItem[] = [
     "Rejilla metálica grande para el toldo de 35 cm.",
     true,
   ),
+  panel(
+    "wire15",
+    "Rejilla 1/4",
+    "150 × 150 mm",
+    150,
+    150,
+    10,
+    "wire",
+    "#d9dee3",
+    "▥",
+    "Panel de rejilla 15 cm",
+    "Cuarto de rejilla para completar cubos, escalones y remates.",
+  ),
+  panel(
+    "wire15x30",
+    "Rejilla 1/2 vertical",
+    "150 × 300 mm",
+    150,
+    300,
+    10,
+    "wire",
+    "#d9dee3",
+    "▯",
+    "Panel de rejilla 15 × 30 cm",
+    "Media rejilla vertical para torres estrechas y laterales.",
+  ),
+  panel(
+    "wire30x15",
+    "Rejilla 1/2 horizontal",
+    "300 × 150 mm",
+    300,
+    150,
+    10,
+    "wire",
+    "#d9dee3",
+    "▭",
+    "Panel de rejilla 30 × 15 cm",
+    "Media rejilla horizontal para filas bajas y remates.",
+  ),
+  {
+    ...panel(
+      "flat30",
+      "Panel liso 30",
+      "300 × 300 mm · color",
+      300,
+      300,
+      12,
+      "wire",
+      "#cfe8e2",
+      "▧",
+      "Panel liso 30 cm",
+      "Versión plana y coloreada de la rejilla de 30 cm. Sirve de fondo, separador o puerta.",
+    ),
+    tags: ["panel", "liso", "flat", "wire", "300"],
+  },
+  {
+    ...panel(
+      "flat35",
+      "Panel liso 35",
+      "350 × 350 mm · color",
+      350,
+      350,
+      12,
+      "wire",
+      "#cfe8e2",
+      "▧",
+      "Panel liso 35 cm",
+      "Versión plana y coloreada de la rejilla de 35 cm.",
+    ),
+    tags: ["panel", "liso", "flat", "wire", "350"],
+  },
+  {
+    ...panel(
+      "flat15",
+      "Panel liso 1/4",
+      "150 × 150 mm · color",
+      150,
+      150,
+      12,
+      "wire",
+      "#cfe8e2",
+      "▧",
+      "Panel liso 15 cm",
+      "Cuarto de panel liso para remates y huecos.",
+    ),
+    tags: ["panel", "liso", "flat", "wire", "150"],
+  },
+  {
+    ...panel(
+      "flat15x30",
+      "Panel liso 1/2 vertical",
+      "150 × 300 mm · color",
+      150,
+      300,
+      12,
+      "wire",
+      "#cfe8e2",
+      "▯",
+      "Panel liso 15 × 30 cm",
+      "Medio panel liso vertical para columnas y laterales.",
+    ),
+    tags: ["panel", "liso", "flat", "wire", "150", "300"],
+  },
+  {
+    ...panel(
+      "flat30x15",
+      "Panel liso 1/2 horizontal",
+      "300 × 150 mm · color",
+      300,
+      150,
+      12,
+      "wire",
+      "#cfe8e2",
+      "▭",
+      "Panel liso 30 × 15 cm",
+      "Medio panel liso horizontal para filas bajas y remates.",
+    ),
+    tags: ["panel", "liso", "flat", "wire", "300", "150"],
+  },
   display("display25", "Expositor 2.5\"", "2.5\" · 6 niveles", 180, 6, "#f6c9d7", "Expositor compacto de seis niveles para stickers pequeños."),
   display("display3", "Expositor 3\"", "3\" · 5 niveles", 220, 5, "#f3c7d4", "Expositor de cinco niveles para stickers de 3 pulgadas."),
   display("display4", "Expositor 4\"", "4\" · 4 niveles", 289, 4, "#f0b8c8", "El expositor clásico de cuatro niveles para stickers y postales de 4 pulgadas."),
@@ -411,6 +610,53 @@ export const CATALOG_BY_TYPE = Object.fromEntries(CATALOG.map((item) => [item.ty
   AlleyCatalogItem
 >;
 
+const GRID = 300;
+
+/** Three-sided 30 cm cube: front + two sides, deliberately open at the back. */
+function towerSpecs(centerX: number, levels = 4): AlleyGroupItemSpec[] {
+  const specs: AlleyGroupItemSpec[] = [];
+  for (let level = 0; level < levels; level += 1) {
+    const baseZ = level * GRID;
+    specs.push({ type: "wire30", x: centerX, y: -GRID / 2, baseZ });
+    specs.push({ type: "wire30", x: centerX - GRID / 2, y: 0, baseZ, rotation: 90 });
+    specs.push({ type: "wire30", x: centerX + GRID / 2, y: 0, baseZ, rotation: 90 });
+  }
+  return specs;
+}
+
+const TWIN_TOWER_ITEMS: AlleyGroupItemSpec[] = [
+  ...towerSpecs(-750),
+  ...towerSpecs(750),
+  ...[-450, -150, 150, 450].map((x) => ({ type: "wire30", x, y: -GRID / 2, baseZ: 900 })),
+];
+
+const L_TABLES: AlleyTableSpec[] = [
+  { name: "Mesa principal", width: 1800, depth: 600, x: -450, y: 0, rotation: 0 },
+  { name: "Mesa lateral", width: 1800, depth: 600, x: 750, y: 0, rotation: 90 },
+];
+
+const L_WORK_ITEMS: AlleyGroupItemSpec[] = [
+  { type: "display4", x: -1050, y: -100, baseZ: 0 },
+  { type: "riser3", x: -700, y: -80, baseZ: 0 },
+  { type: "minishelf", x: -350, y: -100, baseZ: 0 },
+  { type: "display3", x: 0, y: -100, baseZ: 0 },
+  { type: "riser3", x: 750, y: -450, baseZ: 0, rotation: 90 },
+  { type: "riser1", x: 750, y: 150, baseZ: 0, rotation: 90 },
+  { type: "display4", x: 750, y: 600, baseZ: 0, rotation: 90 },
+];
+
+const L_WALL_ITEMS: AlleyGroupItemSpec[] = [
+  ...[-1200, -900, -600, -300, 0, 300].flatMap((x) => [
+    { type: "slatwall30", x, y: 200, baseZ: 0 },
+    { type: "slatwall30", x, y: 200, baseZ: 300 },
+  ]),
+  ...[-750, -450, -150, 150, 450, 750].flatMap((y) => [
+    { type: "slatwall30", x: 900, y, baseZ: 0, rotation: 90 },
+    { type: "slatwall30", x: 900, y, baseZ: 300, rotation: 90 },
+  ]),
+  ...L_WORK_ITEMS,
+];
+
 export const GROUPS: AlleyGroupPreset[] = [
   {
     id: "starter",
@@ -496,6 +742,62 @@ export const GROUPS: AlleyGroupPreset[] = [
       { type: "bins", x: 0, y: 0, baseZ: 0, mountOnIndex: 0, mountU: 0.5, mountV: 0.27 },
       { type: "shelfhook", x: 0, y: 0, baseZ: 0, mountOnIndex: 0, mountU: 0.16, mountV: 0.5 },
     ],
+  },
+  {
+    id: "twin-towers",
+    name: "Doble torre 4 cubos",
+    description:
+      "Dos torres de rejilla de 30 cm y 4 cubos, abiertas por detrás, separadas por 4 cubos y unidas arriba por 4 rejillas.",
+    icon: "🏗️",
+    items: TWIN_TOWER_ITEMS,
+  },
+  {
+    id: "u-booth",
+    name: "Stand en U 5×2",
+    description: "Pared de fondo de 5 × 2 paneles y dos laterales de 2 niveles. Una base sólida para una mesa de 180 cm.",
+    icon: "🧱",
+    items: [
+      ...[-600, -300, 0, 300, 600].flatMap((x) => [
+        { type: "slatwall30", x, y: 200, baseZ: 0 },
+        { type: "slatwall30", x, y: 200, baseZ: 300 },
+      ]),
+      ...[-750, 750].flatMap((x) => [
+        { type: "slatwall30", x, y: 50, baseZ: 0, rotation: 90 },
+        { type: "slatwall30", x, y: 50, baseZ: 300, rotation: 90 },
+      ]),
+      { type: "display4", x: -450, y: -120, baseZ: 0 },
+      { type: "riser3", x: 0, y: -100, baseZ: 0 },
+      { type: "display3", x: 420, y: -120, baseZ: 0 },
+    ],
+  },
+  {
+    id: "stepped-wall",
+    name: "Pared escalonada 3-2-1",
+    description: "Tres columnas de paneles que suben en escalera para dar altura sin tapar la mesa.",
+    icon: "🪜",
+    items: [
+      ...[-300, 0, 300].flatMap((x, index) =>
+        [0, 1, 2].slice(0, 3 - index).map((level) => ({ type: "slatwall30", x, y: 100, baseZ: level * 300 })),
+      ),
+      { type: "display4", x: -250, y: -100, baseZ: 0 },
+      { type: "riser3", x: 150, y: -100, baseZ: 0 },
+    ],
+  },
+  {
+    id: "workspace-l-work",
+    name: "Mesa en L de trabajo",
+    description: "Dos mesas de 180 × 60 cm en esquina, con expositores y risers en las dos alas.",
+    icon: "📐",
+    tables: L_TABLES,
+    items: L_WORK_ITEMS,
+  },
+  {
+    id: "workspace-l-wall",
+    name: "Mesa en L + pared",
+    description: "La configuración de trabajo en L con dos paredes slatwall de dos niveles y producto listo para exponer.",
+    icon: "🛠️",
+    tables: L_TABLES,
+    items: L_WALL_ITEMS,
   },
 ];
 
