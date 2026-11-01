@@ -154,7 +154,7 @@ export default function ViewCube({ view, projection, azimuth, polar, onView, onP
         </button>
       </div>
       <div className="view-cube-foot">
-        <small className="view-cube-hint">Arrastra para orbitar</small>
+        <small className="view-cube-hint">Orbitar</small>
         <button type="button" className="view-cube-back" onClick={() => onView("back")}>
           Detrás
         </button>

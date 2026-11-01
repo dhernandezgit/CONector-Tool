@@ -3468,15 +3468,17 @@ kbd {
 .view-cube-back {
   border: 0;
   background: transparent;
-  color: var(--muted);
+  color: var(--accent-2);
   padding: 0;
   font-size: 8px;
   font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
   white-space: nowrap;
 }
 
 .view-cube-back:hover {
-  color: var(--accent-2);
+  color: var(--accent);
 }
 
 /* -------------------------------------------------------- inspector */

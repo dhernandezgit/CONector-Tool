@@ -83,7 +83,7 @@ function mat(color: string, options: { roughness?: number; metalness?: number; t
     color,
     roughness: options.roughness ?? 0.68,
     metalness: options.metalness ?? 0.03,
-    transparent: options.transparent,
+    transparent: options.transparent ?? false,
     opacity: options.opacity ?? 1,
     side: options.side ?? THREE.FrontSide,
   });
