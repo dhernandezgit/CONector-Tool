@@ -6,3 +6,5 @@ __pycache__/
 public/connectors.zip
 .vite/
 .DS_Store
+# Private reference pack. Never commit or publish these files.
+ArtistAlleyPack/

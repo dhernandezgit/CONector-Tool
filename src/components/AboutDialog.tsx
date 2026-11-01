@@ -8,7 +8,7 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
         <div className="modal-head">
           <div>
             <span className="eyebrow">Acerca de</span>
-            <h2>CONector Tool</h2>
+            <h2>CONector Tool · Artist Alley</h2>
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar">
             <X size={18} />
@@ -16,18 +16,26 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
         </div>
 
         <p className="about-lead">
-          Un estudio paramétrico para diseñar conectores de rejas de exposición y montar el puesto completo antes de imprimir.
-          Todo se calcula en tu navegador con Python y no se sube ningún archivo.
+          Un sandbox 3D para montar y editar un puesto de artistas con paneles, expositores, estantes, accesorios y toldo.
+          Puedes probar composiciones, conectar piezas, agruparlas y preparar la lista de materiales antes de montar el
+          puesto real.
         </p>
 
         <div className="about-grid">
           <section>
-            <h3>Motor</h3>
-            <p>Python 3.12 sobre Pyodide, NumPy, Shapely y un núcleo de mallas propio. React y Three.js para la vista 3D.</p>
+            <h3>Qué incluye</h3>
+            <p>
+              Representaciones originales y simplificadas inspiradas en las piezas del Artist Alley STL Pack: paneles
+              slatwall, Skadis, rejilla y triangulares; expositores de 2,5 a 5 pulgadas; risers, mini estante, organizador,
+              bandejas, ganchos, clips, toldo y mango de abanico.
+            </p>
           </section>
           <section>
-            <h3>Impresión</h3>
-            <p>Exporta STL por pieza y 3MF con objetos separados. Incluye cupón de calibración, comprobaciones y split.</p>
+            <h3>Qué no incluye</h3>
+            <p>
+              Los archivos STL comprados no se incluyen, no se cargan, no se sirven y no se publican. Tampoco se ofrece el
+              estudio de impresión ni la exportación de modelos en esta versión: el foco es el montaje y la planificación.
+            </p>
           </section>
         </div>
 
@@ -36,26 +44,26 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
             <Heart size={18} />
           </div>
           <div>
-            <strong>Inspiración y referencia de formas</strong>
+            <strong>Diseño del pack: Jessie Shi (Sandoik / @sandoikstitches)</strong>
             <p>
-              La gramática de conectores de rejilla (planos horizontal/vertical, brazos, cinturón y canales festoneados) está
-              inspirada en <strong>Wire Grid Connector Set</strong> de <strong>CloudedCat</strong>, publicado en Printables con
-              licencia <strong>CC BY-NC 4.0</strong>.
+              El <strong>Artist Alley STL Pack</strong> es una creación de Jessie Shi. Este sandbox es una herramienta de
+              planificación independiente con geometría original y simplificada; no reproduce ni redistribuye sus mallas.
             </p>
             <p>
-              Las <strong>7 bases exactas</strong> incluidas en la app son tus modelos de referencia, derivados de ese set y
-              distribuidos bajo <strong>CC BY-NC 4.0</strong> con atribución a CloudedCat: no son MIT ni deben usarse
-              comercialmente. Las patas y decoraciones se generan paramétricamente en el navegador. No se incluyen archivos de
-              pago de Etsy.
+              El pack es de uso personal. Si quieres imprimir las piezas reales, consigue el pack original y respeta su
+              licencia. La atribución se mantiene visible en el catálogo y en esta ventana.
             </p>
-            <a href="https://www.printables.com/model/1721006-wire-grid-connector-set" target="_blank" rel="noreferrer">
-              Wire Grid Connector Set · CloudedCat <ExternalLink size={13} />
+            <a href="https://www.instagram.com/sandoikstitches/" target="_blank" rel="noreferrer">
+              @sandoikstitches <ExternalLink size={13} />
             </a>
           </div>
         </div>
 
         <div className="about-footer">
-          <span>Para cambiar una base, añade patas en sus lados libres, elige una decoración, gírala o escálala. Guarda la variante como preset.</span>
+          <span>
+            Tu puesto se guarda automáticamente en este navegador. Los cambios se pueden deshacer con Ctrl+Z y la lista de
+            materiales se puede copiar o descargar en CSV.
+          </span>
           <a href="https://github.com/dhernandezgit/CONector-Tool" target="_blank" rel="noreferrer">
             <Github size={14} /> Repositorio
           </a>

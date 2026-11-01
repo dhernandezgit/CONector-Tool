@@ -1,69 +1,80 @@
-# CONector Tool
+# CONector Tool · Artist Alley Sandbox
 
-**Conectores paramétricos para rejas de exposición, listos para imprimir en 3D.**
+**Un montador 3D editable para planificar un puesto de artistas.**
 
-CONector Tool es una aplicación local-first: el motor de geometría está escrito en **Python** y se ejecuta en el navegador con **Pyodide/WebAssembly**. La interfaz React + Three.js permite diseñar conectores, importar siluetas para decorarlos y montar el puesto completo en un editor 3D con medidas, colores y lista de materiales.
+CONector Tool es ahora un sandbox local-first para componer un puesto con paneles, expositores, estantes, accesorios y toldo. Puedes mover y girar piezas, conectarlas por sus puertos, agrupar composiciones, deshacer cambios y generar una lista de materiales antes de montar el puesto real.
 
 - Web: `https://dhernandezgit.github.io/CONector-Tool/`
 - Repo: `https://github.com/dhernandezgit/CONector-Tool`
 - Sin servidor, sin cuenta y sin subir archivos.
-- Exporta **STL** por pieza y **3MF** con el kit completo.
-- Proyecto `.conector` portátil.
+- Guardado automático en el navegador.
+- Lista de materiales con copia al portapapeles y exportación CSV.
 
 ## Qué incluye
 
-### Conectores paramétricos
+### Catálogo editable
 
-- **Reja de alambre de 4 mm, marco metálico, foam y medidas personalizadas.** Control de holgura, boca del clip, pared, diámetro y número de cables.
-- **Cupón de calibración** con cinco canales para escoger la holgura real de tu impresora.
-- **Solo 7 bases:** la biblioteca muestra únicamente las **7 uniones de referencia** que aportaste (cubo completo, cubo alternativo, tres lados, doble 90, esquina 90, vertical doble y estándar). Los presets generativos antiguos quedan ocultos para no llenar la galería de formas que no usas.
-- **Bases exactas:** cada base se carga tal cual, con tests que comprueban dimensiones, volumen y estanqueidad contra el manifiesto original.
-- **Patas paramétricas:** añade una extensión completa en uno o varios **lados libres** (sin canal de reja). La pata tiene brazo, poste y pie; con altura 0 se convierte en una extensión plana. La app marca los lados libres y avisa si tapas un canal.
-- **Decoraciones paramétricas:** 22 siluetas originales montadas en la cara que elijas, con tamaño, grosor, altura, desplazamiento y color. Se imprimen aparte, planas, y se encolan en la base.
-- **Orientación segura:** 0/90/180/270° y giro fino alrededor de Z. La pieza siempre descansa en la cama y las patas siguen verticales; nunca aparece inclinada en un ángulo raro.
-- **Escala y espejo:** ajustes avanzados para adaptar la base sin perder su geometría de canales.
-- **Presets propios:** guarda cualquier combinación de base + patas + decoración como preset de usuario.
-- **Impresión:** material, boquilla, altura de capa, cama, comprobaciones de estanqueidad, voladizos, tamaño y estimación de material.
+- **Paneles:** slatwall de 30 y 35 cm, Skadis de 30 y 35 cm, rejilla de 30 y 35 cm y panel triangular.
+- **Expositores:** 2,5", 3", 4" y 5" con varios niveles.
+- **Estantes:** riser de 1 y 3 niveles, mini estante y organizador de panel de 4 niveles.
+- **Accesorios:** gancho de estante, clips de panel, bandejas Skadis, toldo de 30 y 35 cm y mango de abanico con bloqueo.
+- **Grupos rápidos:** puesto completo, pared slatwall, pared Skadis, esquina, toldo con rejilla, set de expositores y panel organizado.
 
-### Puesto 3D
+### Colocación y conexiones
 
-- Editor libre con cuadrícula.
-- Añade, selecciona y **arrastra paneles y uniones**. Las uniones solo pueden colocarse en los puntos de los paneles: nunca quedan sueltas.
-- Giro rápido de paneles con botones de ±15°/±90° o con la tecla **R** (Shift+R hacia el otro lado).
-- Escena inicial en forma de **cubo** de cuatro paneles, más plantilla de **dos torres de cuatro alturas** separadas por dos paneles y unidas por arriba.
-- Color independiente para cada panel y cada unión.
-- Tipos de reja: **alambre**, **reja sólida**, **Skadis** y **foam/liso**.
-- Paneles cuadrados de 20×20, 25×25, 30×30, 35×35, 40×40, 45×45, 50×50 y 60×60 cm, además de 30×60 y 25×40 cm y medidas personalizadas.
-- Plantillas: cubo, dos torres, pared 3×2, esquina, torre y fondo Skadis.
-- Medidas de ancho, fondo, alto y altura de mesa.
-- Lista de materiales y **exportación de kit 3MF** con todos los conectores repetidos por cantidad.
-- Exportación de captura PNG y JSON de la escena.
+- Cámara **isométrica** para colocar sin distorsión y cámara en **perspectiva** para ver el resultado realista.
+- **Cubo de vistas** arriba a la derecha: toca una zona del cubo para cambiar de vista o arrástralo para orbitar.
+- Arrastra piezas sobre la mesa con rejilla y snapping.
+- **Esferas grandes** en los puertos de esquina y borde: teal para libre, verde para conectado, rosa para el origen elegido y amarillo para un destino compatible.
+- Toca dos esferas compatibles y las piezas se acercan para formar la unión.
+- Cambia el tipo de conector desde el inspector: recto, esquina, 30°, 45°, 3/4/5 lados, Skadis H/V/X/Z, cola de milano integrada, rejilla y anclaje de toldo.
+- Solo se ofrecen conectores válidos para el número de paneles y su ángulo.
+
+### Edición segura
+
+- Rotación en pasos de 90° y ajuste fino.
+- Selección múltiple con Mayús + clic.
+- Grupos de usuario que se mueven y giran juntos.
+- Duplicado sin apilar piezas: si una copia cae exactamente sobre otra, se reutiliza la existente.
+- Eliminar un panel no rompe el resto: las conexiones se recalculan y los accesorios montados se liberan.
+- Deshacer y rehacer con historial.
+- Los accesorios se pueden montar en la cara frontal o dorsal de un panel y recolocar arrastrándolos.
+- Atajos: **R** gira, **Ctrl+D** duplica, **G** agrupa, **Supr** elimina, **Ctrl+Z** deshace, **Esc** cancela una conexión.
+
+### Lista de materiales
+
+- Cuenta cada pieza y cada conector colocado.
+- Separa las **uniones integradas** (cola de milano) que no necesitan una pieza extra.
+- Agrupa cantidades y muestra notas de montaje.
+- Copia la lista o descarga un CSV.
+
+## Qué no incluye
+
+- **No se incluyen los STL del Artist Alley STL Pack.** El pack original se compra aparte y es de uso personal.
+- No se cargan, sirven, publican ni redistribuyen los archivos comprados.
+- El estudio de impresión 3D, la exportación STL/3MF, la calibración y la galería de conectores quedan **ocultos** en esta versión.
+- Las geometrías del sandbox son **representaciones originales y simplificadas**, no copias de las mallas del pack.
+
+## Crédito
+
+El **Artist Alley STL Pack** es una creación de **Jessie Shi** (**Sandoik / @sandoikstitches**). Este proyecto es una herramienta de planificación independiente y no está afiliado al pack. Si quieres imprimir las piezas reales, consigue el pack original y respeta su licencia de uso personal.
 
 ## Cómo se usa
 
-1. Abre la app y espera a que el motor Python termine de cargar.
-2. Elige una de las **7 bases** de la biblioteca.
-3. Añade **patas** en los lados libres y/o una **decoración** con la forma que quieras.
-4. Gira la pieza con los botones 0/90/180/270° o el giro fino; siempre queda apoyada en la cama.
-5. Revisa la vista 3D, las comprobaciones y exporta STL/3MF. Guarda tu variante como preset si la vas a repetir.
-6. Pasa a **Puesto 3D** para componer el puesto, medir y generar el kit completo.
-
-## Impresión recomendada
-
-- **PETG o ASA** para conectores que vayan a soportar peso; PLA para prototipos.
-- 4 paredes, 0,2 mm de capa y 30–40 % de relleno.
-- Con patas, la base queda elevada: revisa el aviso de voladizos y activa soportes bajo la base solo si tu laminador lo necesita.
-- El agarre depende de la impresora, el filamento y la calibración. Usa el cupón y ajusta la holgura.
-- Las piezas decorativas se imprimen planas y sin soportes.
+1. Abre la app: el puesto de ejemplo se carga automáticamente.
+2. Elige piezas o grupos en el catálogo de la izquierda.
+3. Usa el cubo de vistas para colocar en isométrico y revisar en perspectiva.
+4. Toca una esfera y luego otra compatible para conectar.
+5. Selecciona una unión para cambiar el conector; selecciona una pieza para moverla, girarla, colorearla o montarla en un panel.
+6. Agrupa composiciones para moverlas juntas y duplícalas sin crear piezas apiladas.
+7. Abre **Lista de materiales** para copiar o descargar el CSV.
 
 ## Desarrollo
 
-Requisitos: Node 22+, Python 3.12+ y Chrome/Edge actualizado.
+Requisitos: Node 22+ y Chrome/Edge actualizado.
 
 ```bash
-python -m pip install -r requirements-dev.txt
 npm install
-python scripts/build_python_zip.py
 npm run dev
 ```
 
@@ -72,50 +83,43 @@ Abre `http://127.0.0.1:5173/`.
 ### Tests
 
 ```bash
-python -m pytest -q
 npm run test:ui
 npm run typecheck
 npm run build
 ```
 
-Los tests cubren mallas estancas, perfiles de agarre, cupón de calibración, split, familias de conector, ángulos, patas, ganchos, placas, importación SVG/raster, exportación 3MF, kits y utilidades del simulador.
+La app React + Three.js se sirve como sitio estático. El módulo `src/alley/` contiene el catálogo, la geometría, las operaciones de escena, el visor y la lista de materiales.
 
 ## Despliegue
 
-GitHub Actions ejecuta los tests, compila la web en `dist/` y la publica con **GitHub Pages → Source: GitHub Actions**.
+GitHub Actions compila la web en `dist/` y la publica con **GitHub Pages → Source: GitHub Actions**.
 
 La app queda en `https://dhernandezgit.github.io/CONector-Tool/`.
 
 ## Arquitectura
 
 ```
-conectors/
-  engine.py      # conectores, placas, patas, split, comprobaciones
-  template.py    # las 7 bases exactas de referencia
-  templates/     # manifiesto + STL de referencia (CC BY-NC 4.0)
-  spool.py       # generador paramétrico tipo carrete
-  mesh.py        # mallas, extrusiones, corte planar, STL/3MF
-  shapes.py      # siluetas decorativas originales
-  shape.py       # importación SVG/raster
-  webapi.py      # puente JSON para Pyodide
 src/
-  App.tsx
-  components/    # estudio, presets, ajustes, exportación
-  simulator/     # editor libre, paneles, uniones, medidas
-  data/          # presets y materiales
-  workers/       # Pyodide
-tests/           # tests Python
+  App.tsx              # shell, tema, historial y guardado
+  alley/
+    types.ts           # piezas, puertos, uniones, escena
+    catalog.ts         # catálogo, grupos y conectores
+    geometry.ts        # transformaciones, puertos, snapping y uniones
+    scene.ts           # operaciones, deduplicación, grupos y BOM
+    AlleyViewport.tsx  # Three.js, cámara iso/perspectiva y edición
+    AlleySandbox.tsx   # catálogo, inspector, atajos y controles
+    ViewCube.tsx       # cubo de vistas y selector de proyección
+    BomDialog.tsx      # lista de materiales y CSV
+  components/          # logo, UI, ayuda y acerca de
 ```
 
-La geometría se construye con perfiles 2.5D, extrusiones y transformaciones. Las carcasas pueden solaparse y el laminador las une; así se evita depender de un motor CSG nativo en el navegador. El corte de las mitades utiliza un capador planar propio y se valida con tests de estanqueidad.
+La escena usa coordenadas Z-up. La mesa está en `z = table.height`; los paneles se apoyan en la mesa y sus puertos se calculan a partir de la posición y la rotación. Las uniones son datos derivados: se reconstruyen al mover, girar o eliminar piezas.
 
-## Créditos y licencias
+## Licencias
 
 - Código propio: MIT.
-- Inspiración de formas y gramática de producto: **CloudedCat**, *Wire Grid Connector Set*, publicado en Printables con licencia **CC BY-NC 4.0** (`https://www.printables.com/model/1721006-wire-grid-connector-set`).
-- Las **7 bases exactas** de `conectors/templates/` son tus modelos de referencia, derivados de ese set y distribuidos bajo **CC BY-NC 4.0** con atribución a CloudedCat. No son MIT y no deben usarse comercialmente. El resto de la app y los generadores paramétricos son código original bajo MIT.
-- Reutiliza patrones y utilidades MIT del proyecto [CalicoCutters](https://github.com/dhernandezgit/CalicoCutters-Tool), en particular `earcut` y el lector `svg.path`.
-- No se incluyen ni redistribuyen los STL de pago de Etsy u otras tiendas; las siluetas y geometrías de esta app son originales.
-- Pyodide, NumPy, Shapely, Pillow, OpenCV y React/Three.js conservan sus licencias.
+- Geometrías del sandbox: originales y simplificadas, creadas para este proyecto.
+- Artist Alley STL Pack: diseño de Jessie Shi (Sandoik). No incluido; consulta su licencia de uso personal.
+- React, Three.js, Vite y Lucide conservan sus licencias.
 
-Hecho para que un puesto de mercado se monte en un rato y se vea como tú quieras.
+Hecho para que un puesto de artistas se planifique en un rato y se vea como tú quieras.
