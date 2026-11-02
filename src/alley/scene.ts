@@ -44,6 +44,7 @@ export function makeTable(overrides: Partial<AlleyTable> = {}, fallback?: AlleyT
     x: Number(overrides.x ?? fallback?.x ?? 0) || 0,
     y: Number(overrides.y ?? fallback?.y ?? 0) || 0,
     rotation: normalizeAngle(overrides.rotation ?? fallback?.rotation ?? 0),
+    locked: Boolean(overrides.locked ?? fallback?.locked ?? false),
   };
 }
 
@@ -513,7 +514,7 @@ export function addCatalogItem(
     x: awningPanel ? awningPanel.x : spot.x,
     y: awningPanel ? awningPanel.y : spot.y,
     baseZ: awningPanel
-      ? awningPanel.baseZ + catalogFor(awningPanel).dims.h
+      ? awningPanel.baseZ + catalogFor(awningPanel).dims.h - catalog.dims.h
       : options.baseZ ?? primaryTable(scene).height,
     rotation: awningPanel ? awningPanel.rotation : options.rotation ?? 0,
     color: catalog.color,
@@ -640,6 +641,33 @@ export function recolorItems(scene: AlleyScene, ids: string[], color: string, in
   return commitScene({ ...scene, items });
 }
 
+/** Move a table and the pieces standing on it. Locked tables stay fixed. */
+export function moveTable(scene: AlleyScene, tableId: string, dx: number, dy: number): AlleyScene {
+  if (!dx && !dy) return scene;
+  const tables = sceneTables(scene);
+  const table = tables.find((candidate) => candidate.id === tableId);
+  if (!table || table.locked) return scene;
+  const box = tableAabb(table);
+  const onTable = new Set(
+    scene.items
+      .filter(
+        (item) =>
+          item.x >= box.minX - 20 &&
+          item.x <= box.maxX + 20 &&
+          item.y >= box.minY - 20 &&
+          item.y <= box.maxY + 20,
+      )
+      .map((item) => item.id),
+  );
+  const items = scene.items.map((item) =>
+    onTable.has(item.id) && !item.mount ? { ...item, x: item.x + dx, y: item.y + dy } : item,
+  );
+  const nextTables = tables.map((candidate) =>
+    candidate.id === tableId ? { ...candidate, x: candidate.x + dx, y: candidate.y + dy } : candidate,
+  );
+  return commitScene({ ...scene, tables: nextTables, table: nextTables[0], items });
+}
+
 export function updateTable(scene: AlleyScene, tableId: string, patch: Partial<AlleyTable>): AlleyScene {
   const tables = sceneTables(scene);
   const target = tables.find((table) => table.id === tableId);
@@ -679,6 +707,7 @@ export function addTable(scene: AlleyScene, layout: "straight" | "l" = "straight
       x: base.x + rotated.x,
       y: base.y + rotated.y,
       rotation: base.rotation + (layout === "l" ? 90 : 0),
+      locked: false,
     },
     base,
   );

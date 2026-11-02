@@ -123,6 +123,8 @@ export interface AlleyTable {
   x: number;
   y: number;
   rotation: number;
+  /** Locked tables keep their floor position while items can still be edited. */
+  locked?: boolean;
 }
 
 export interface AlleyTableSpec {

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   Box,
   BoxSelect,
   Check,
@@ -15,6 +17,7 @@ import {
   Layers,
   Link2,
   List,
+  Lock,
   Maximize2,
   MousePointer2,
   Package,
@@ -60,6 +63,7 @@ import {
   itemsInGroup,
   moveItems,
   moveMountedItem,
+  moveTable,
   mountItem,
   pasteSelection,
   recolorItems,
@@ -595,6 +599,29 @@ export default function AlleySandbox({
     [mutate, scene],
   );
 
+  const handleTableSelect = useCallback(
+    (tableId: string) => {
+      setSelectedTableId(tableId);
+      setSelectedGroupId(null);
+      setSelection(null);
+      setPendingPort(null);
+      const table = sceneTables(scene).find((candidate) => candidate.id === tableId);
+      onToast(
+        table?.locked
+          ? `Mesa "${table.name}" seleccionada. Está bloqueada.`
+          : `Mesa "${table?.name || "principal"}" seleccionada. Arrastra desde el tablero para moverla.`,
+      );
+    },
+    [onToast, scene],
+  );
+
+  const handleMoveTable = useCallback(
+    (tableId: string, dx: number, dy: number) => {
+      mutate(moveTable(scene, tableId, dx, dy));
+    },
+    [mutate, scene],
+  );
+
   const loadExample = useCallback(() => {
     mutate(starterScene());
     setSelectedGroupId(null);
@@ -691,6 +718,12 @@ export default function AlleySandbox({
       if (key === "f") {
         event.preventDefault();
         fitView();
+        return;
+      }
+      if (event.key === "PageUp" || event.key === "PageDown") {
+        event.preventDefault();
+        const step = event.shiftKey ? 100 : 50;
+        nudge(0, 0, event.key === "PageUp" ? step : -step);
         return;
       }
       if (event.key.startsWith("Arrow")) {
@@ -1050,6 +1083,8 @@ export default function AlleySandbox({
             onPortClick={handlePortClick}
             onMoveItems={handleMoveItems}
             onMoveMount={handleMoveMount}
+            onTableSelect={handleTableSelect}
+            onMoveTable={handleMoveTable}
             onDragPreview={setDragPreview}
             onCameraChange={(azimuth, polar) => setCameraAngles({ azimuth, polar })}
           />
@@ -1073,6 +1108,12 @@ export default function AlleySandbox({
                 </button>
                 <button type="button" onClick={() => rotate(90)} title="Girar +90° (E)">
                   <RotateCw size={15} />
+                </button>
+                <button type="button" onClick={() => nudge(0, 0, 50)} title="Subir 5 cm (PageUp)">
+                  <ArrowUp size={15} />
+                </button>
+                <button type="button" onClick={() => nudge(0, 0, -50)} title="Bajar 5 cm (PageDown)">
+                  <ArrowDown size={15} />
                 </button>
                 <button type="button" onClick={copy} title="Copiar (Ctrl+C)">
                   <Clipboard size={15} />
@@ -1174,8 +1215,10 @@ export default function AlleySandbox({
                       key={table.id}
                       className={selectedTable.id === table.id ? "active" : ""}
                       onClick={() => setSelectedTableId(table.id)}
+                      title={table.locked ? "Mesa bloqueada" : "Mesa desbloqueada; arrástrala en el visor"}
                     >
                       <Table2 size={13} />
+                      {table.locked && <Lock size={12} />}
                       <span>{table.name || `Mesa ${index + 1}`}</span>
                       <small>{table.width / 10} × {table.depth / 10}</small>
                     </button>
@@ -1205,9 +1248,19 @@ export default function AlleySandbox({
                   <NumberField label="Rejilla" value={scene.grid} min={10} max={200} step={10} suffix="mm" onChange={(value) => mutate({ ...scene, grid: value })} />
                 </div>
                 <ColorField label="Color de la mesa" value={selectedTable.color} onChange={(value) => patchTable(selectedTable.id, { color: value })} />
+                <Toggle
+                  label="Bloquear mesa"
+                  detail={
+                    selectedTable.locked
+                      ? "La mesa y su posición quedan fijas; las piezas se pueden seguir editando."
+                      : "Puedes arrastrar la mesa con el cursor para colocarla donde quieras."
+                  }
+                  checked={Boolean(selectedTable.locked)}
+                  onChange={(value) => patchTable(selectedTable.id, { locked: value })}
+                />
                 <p className="alley-note">
-                  Añade una segunda mesa girada 90° para trabajar en L. Las mesas comparten altura para que las piezas
-                  apoyen bien. Prueba «Mesa en L de trabajo» en Grupos rápidos.
+                  Arrastra la mesa desde una zona libre del tablero para moverla con todo lo que tiene encima. Usa el
+                  bloqueo cuando ya esté en su sitio. Las mesas comparten altura para que las piezas apoyen bien.
                 </p>
               </section>
 
@@ -1238,7 +1291,9 @@ export default function AlleySandbox({
                   <span><kbd>Ctrl</kbd>+<kbd>D</kbd> duplicar</span>
                   <span><kbd>G</kbd>/<kbd>Ctrl</kbd>+<kbd>G</kbd> agrupar</span>
                   <span><kbd>↑↓←→</kbd> mover 1 cm</span>
-                  <span><kbd>Ctrl</kbd>+<kbd>↑↓</kbd> subir/bajar</span>
+                  <span><kbd>Ctrl</kbd>+<kbd>↑↓</kbd> subir/bajar 1 cm</span>
+                  <span><kbd>PgUp</kbd>/<kbd>PgDn</kbd> subir/bajar 5 cm</span>
+                  <span>Arrastra la mesa para moverla</span>
                   <span><kbd>F</kbd> encuadrar</span>
                   <span><kbd>Supr</kbd> eliminar</span>
                   <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> deshacer</span>
@@ -1321,8 +1376,8 @@ export default function AlleySandbox({
                   <button type="button" className="alley-small-button" onClick={() => rotate(90)}><RotateCw size={14} /> Girar +90°</button>
                 </div>
                 <p className="alley-note">
-                  Atajos: R o E para girar +90°, Q para -90°. Si la pieza pertenece a un grupo, estos campos mueven o giran
-                  el grupo completo.
+                  Atajos: R o E para girar +90°, Q para -90°, PageUp/PageDown para subir o bajar 5 cm. Si la pieza
+                  pertenece a un grupo, estos campos mueven o giran el grupo completo.
                 </p>
               </section>
 
@@ -1559,6 +1614,10 @@ export default function AlleySandbox({
                 <div className="alley-inline-actions">
                   <button type="button" className="alley-small-button" onClick={() => rotate(-90)}><RotateCcw size={14} /> Girar -90°</button>
                   <button type="button" className="alley-small-button" onClick={() => rotate(90)}><RotateCw size={14} /> Girar +90°</button>
+                </div>
+                <div className="alley-inline-actions">
+                  <button type="button" className="alley-small-button" onClick={() => nudge(0, 0, 50)}><ArrowUp size={14} /> Subir 5 cm</button>
+                  <button type="button" className="alley-small-button" onClick={() => nudge(0, 0, -50)}><ArrowDown size={14} /> Bajar 5 cm</button>
                 </div>
                 <div className="alley-inline-actions">
                   <button type="button" className="alley-small-button" onClick={copy}><Clipboard size={14} /> Copiar</button>

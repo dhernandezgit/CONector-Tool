@@ -26,6 +26,7 @@ import {
   sceneBounds,
   scenePorts,
   sceneTables,
+  tableAabb,
   type SnapCandidate,
 } from "./geometry";
 import type {
@@ -70,6 +71,8 @@ interface Props {
   onPortClick: (port: PortRef) => void;
   onMoveItems: (ids: string[], dx: number, dy: number, dz: number) => void;
   onMoveMount: (itemId: string, u: number, v: number) => void;
+  onTableSelect?: (tableId: string) => void;
+  onMoveTable?: (tableId: string, dx: number, dy: number) => void;
   onDragPreview?: (preview: AlleyDragPreview | null) => void;
   onCameraChange?: (azimuth: number, polar: number) => void;
 }
@@ -455,9 +458,8 @@ function buildBaseBox(item: AlleyItem, selected: boolean) {
   });
   const wallHeight = dims.h - 18;
   addBox(group, [dims.w, dims.d, 18], [0, 0, dims.h - 9], topMat);
-  for (const y of [-dims.d / 2 + 9, dims.d / 2 - 9]) {
-    addBox(group, [dims.w, 18, wallHeight], [0, y, wallHeight / 2], panelMat);
-  }
+  // Only the front and the two sides are covered; the back stays open.
+  addBox(group, [dims.w, 18, wallHeight], [0, -dims.d / 2 + 9, wallHeight / 2], panelMat);
   for (const x of [-dims.w / 2 + 9, dims.w / 2 - 9]) {
     addBox(group, [18, dims.d, wallHeight], [x, 0, wallHeight / 2], panelMat);
   }
@@ -470,10 +472,9 @@ function buildBaseBox(item: AlleyItem, selected: boolean) {
   const lowerConnector = mat("#b04f6e", { roughness: 0.5, metalness: 0.08 });
   const upperConnector = mat("#d9789b", { roughness: 0.5, metalness: 0.08 });
   for (const x of [-dims.w / 2 + 7, dims.w / 2 - 7]) {
-    for (const y of [-dims.d / 2 + 7, dims.d / 2 - 7]) {
-      addBox(group, [17, 17, 13], [x, y, 6.5], lowerConnector);
-      addBox(group, [17, 17, 13], [x, y, dims.h - 6.5], upperConnector);
-    }
+    addBox(group, [17, 17, 13], [x, -dims.d / 2 + 7, 6.5], lowerConnector);
+    addBox(group, [17, 17, 13], [x, -dims.d / 2 + 7, dims.h - 6.5], upperConnector);
+    addBox(group, [17, 17, 13], [x, dims.d / 2 - 7, dims.h - 6.5], upperConnector);
   }
   if (selected) addOutline(group, dims);
   return group;
@@ -589,30 +590,30 @@ function buildAwning(item: AlleyItem, selected: boolean) {
   const frameMat = mat("#d98fa5", { roughness: 0.55 });
   const footMat = mat("#f8e6ea", { roughness: 0.55 });
   const legX = dims.w / 2 - 7;
-  const legHeight = dims.h;
+  const topZ = dims.h;
   const canopyDepth = dims.d;
+  const drop = dims.w > 320 ? 115 : 100;
+  const canopyFrontZ = topZ - drop;
   const armReach = Math.min(canopyDepth * 0.6, 185);
+  const armFrontZ = topZ - drop * (armReach / canopyDepth);
   const flapHeight = 108;
+  const slope = Math.atan2(drop, canopyDepth);
 
-  // Two rear supports plug into the top anchors of the panel. They are short
-  // legs, not floor legs; the awning cantilevers forward from the panel top.
+  // The top/back corner sits on the grid corner. Short brackets hang from the
+  // standard corner connectors, then the arms carry the canopy forward/down.
   for (const x of [-legX, legX]) {
-    addBox(group, [14, 14, legHeight], [x, 0, legHeight / 2], frameMat);
-    addBox(group, [26, 24, 11], [x, 0, 5.5], footMat);
-  }
-  addBox(group, [dims.w * 0.94, 10, 9], [0, 0, legHeight - 7], frameMat);
-
-  // Horizontal arms support the middle of the canopy, exactly like the pack.
-  for (const x of [-legX, legX]) {
+    addBox(group, [14, 14, 70], [x, -14, topZ - 35], frameMat);
+    addBox(group, [26, 24, 11], [x, 0, topZ - 5.5], footMat);
     cylinderBetween(
       group,
-      new THREE.Vector3(x, 0, legHeight - 10),
-      new THREE.Vector3(x, -armReach, legHeight - 10),
-      4,
+      new THREE.Vector3(x, -14, topZ - 8),
+      new THREE.Vector3(x, -armReach, armFrontZ - 8),
+      4.5,
       frameMat,
     );
   }
-  addBox(group, [dims.w * 0.9, 8, 8], [0, -armReach, legHeight - 10], frameMat);
+  addBox(group, [dims.w * 0.94, 10, 9], [0, 0, topZ - 5], frameMat);
+  addBox(group, [dims.w * 0.9, 8, 8], [0, -armReach, armFrontZ - 8], frameMat);
 
   const canopyTexture = stripeTexture(color);
   const canopy = new THREE.Mesh(
@@ -623,17 +624,23 @@ function buildAwning(item: AlleyItem, selected: boolean) {
       side: THREE.DoubleSide,
     }),
   );
-  // PlaneGeometry already lies in the horizontal XY plane in this Z-up scene.
-  canopy.position.set(0, -canopyDepth / 2, legHeight - 7);
+  canopy.rotation.x = slope;
+  canopy.position.set(0, -canopyDepth / 2, topZ - drop / 2);
   canopy.castShadow = true;
   canopy.receiveShadow = true;
   group.add(canopy);
 
-  // Thin frame rails around the canopy.
-  addBox(group, [dims.w, 9, 7], [0, 0, legHeight - 7], frameMat);
-  addBox(group, [dims.w, 9, 7], [0, -canopyDepth, legHeight - 7], frameMat);
+  // Frame rails follow the same slope and make the support structure visible.
+  addBox(group, [dims.w, 9, 7], [0, 0, topZ - 4], frameMat);
+  addBox(group, [dims.w, 9, 7], [0, -canopyDepth, canopyFrontZ - 4], frameMat);
   for (const x of [-dims.w / 2, dims.w / 2]) {
-    addBox(group, [7, canopyDepth, 7], [x, -canopyDepth / 2, legHeight - 7], frameMat);
+    cylinderBetween(
+      group,
+      new THREE.Vector3(x, 0, topZ - 4),
+      new THREE.Vector3(x, -canopyDepth, canopyFrontZ - 4),
+      4.2,
+      frameMat,
+    );
   }
 
   // Front valance: four curved lobes, leaning 30° forward from vertical.
@@ -670,7 +677,7 @@ function buildAwning(item: AlleyItem, selected: boolean) {
   );
   // 60° around X = vertical plane leaning 30° toward the viewer.
   flap.rotation.x = Math.PI / 3;
-  flap.position.set(0, -canopyDepth, legHeight - 7);
+  flap.position.set(0, -canopyDepth, canopyFrontZ);
   flap.castShadow = true;
   flap.receiveShadow = true;
   group.add(flap);
@@ -877,6 +884,8 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     onPortClick,
     onMoveItems,
     onMoveMount,
+    onTableSelect,
+    onMoveTable,
     onDragPreview,
     onCameraChange,
   },
@@ -895,15 +904,17 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
   const controlsRef = useRef<OrbitControls | null>(null);
   const contentRef = useRef<THREE.Group | null>(null);
   const itemGroups = useRef(new Map<string, THREE.Group>());
+  const tableGroups = useRef(new Map<string, THREE.Group>());
   const jointGroups = useRef(new Map<string, THREE.Group>());
   const pickablesRef = useRef<THREE.Object3D[]>([]);
   const portMeshesRef = useRef<THREE.Mesh[]>([]);
   const hoverPortRef = useRef<THREE.Mesh | null>(null);
   const snapMarkerRef = useRef<THREE.Mesh | null>(null);
   const dragRef = useRef<{
-    kind: "items" | "mount";
+    kind: "items" | "mount" | "table";
     ids: string[];
     itemId: string;
+    tableId?: string;
     startX: number;
     startY: number;
     startZ: number;
@@ -921,8 +932,26 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
   sceneDataRef.current = scene;
   const selectionRef = useRef(selection);
   selectionRef.current = selection;
-  const callbacks = useRef({ onSelect, onPortClick, onMoveItems, onMoveMount, onDragPreview, onCameraChange });
-  callbacks.current = { onSelect, onPortClick, onMoveItems, onMoveMount, onDragPreview, onCameraChange };
+  const callbacks = useRef({
+    onSelect,
+    onPortClick,
+    onMoveItems,
+    onMoveMount,
+    onTableSelect,
+    onMoveTable,
+    onDragPreview,
+    onCameraChange,
+  });
+  callbacks.current = {
+    onSelect,
+    onPortClick,
+    onMoveItems,
+    onMoveMount,
+    onTableSelect,
+    onMoveTable,
+    onDragPreview,
+    onCameraChange,
+  };
   const gridRef = useRef(scene.grid);
   gridRef.current = scene.grid;
   const lastCameraReport = useRef({ azimuth: 0, polar: 0, at: 0 });
@@ -1085,13 +1114,13 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
       return data?.itemId && data?.portId ? { itemId: data.itemId, portId: data.portId } : null;
     };
 
-    const objectAt = (event: PointerEvent): { type: "item" | "joint"; id: string } | null => {
+    const objectAt = (event: PointerEvent): { type: "item" | "joint" | "table"; id: string } | null => {
       setPointer(event);
       const activeCamera = cameraRef.current;
       if (!activeCamera) return null;
       ray.setFromCamera(pointer, activeCamera);
       const hits = ray.intersectObjects(pickablesRef.current, true);
-      const found: Array<{ type: "item" | "joint"; id: string }> = [];
+      const found: Array<{ type: "item" | "joint" | "table"; id: string }> = [];
       for (const hit of hits) {
         let node: THREE.Object3D | null = hit.object;
         while (node) {
@@ -1178,6 +1207,47 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
       const data = sceneDataRef.current;
       if (hit.type === "joint") {
         callbacks.current.onSelect({ type: "joint", ids: [hit.id] });
+        return;
+      }
+      if (hit.type === "table") {
+        callbacks.current.onTableSelect?.(hit.id);
+        const table = sceneTables(data).find((candidate) => candidate.id === hit.id);
+        if (!table || table.locked) return;
+        const point = planePoint(event, 0);
+        if (!point) return;
+        const box = tableAabb(table);
+        const tableItemIds = data.items
+          .filter(
+            (candidate) =>
+              candidate.x >= box.minX - 20 &&
+              candidate.x <= box.maxX + 20 &&
+              candidate.y >= box.minY - 20 &&
+              candidate.y <= box.maxY + 20,
+          )
+          .map((candidate) => candidate.id);
+        const startPositions = new Map<string, { x: number; y: number; z: number }>();
+        for (const id of tableItemIds) {
+          const candidate = data.items.find((entry) => entry.id === id);
+          if (candidate) startPositions.set(id, { x: candidate.x, y: candidate.y, z: candidate.baseZ });
+        }
+        dragRef.current = {
+          kind: "table",
+          ids: tableItemIds,
+          itemId: "",
+          tableId: table.id,
+          startX: table.x,
+          startY: table.y,
+          startZ: 0,
+          startPointer: point,
+          startPositions,
+          delta: [0, 0, 0],
+          moved: false,
+          mountU: 0.5,
+          mountV: 0.5,
+        };
+        controls.enabled = false;
+        renderer.domElement.setPointerCapture(event.pointerId);
+        event.stopImmediatePropagation();
         return;
       }
       const item = data.items.find((candidate) => candidate.id === hit.id);
@@ -1281,6 +1351,22 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
         drag.moved = true;
       }
       if (!drag.moved) return;
+      if (drag.kind === "table") {
+        const point = planePoint(event, 0);
+        if (!point || !drag.tableId) return;
+        const step = 10;
+        const dx = Math.round((point.x - drag.startPointer.x) / step) * step;
+        const dy = Math.round((point.y - drag.startPointer.y) / step) * step;
+        drag.delta = [dx, dy, 0];
+        const tableGroup = tableGroups.current.get(drag.tableId);
+        if (tableGroup) tableGroup.position.set(drag.startX + dx, drag.startY + dy, 0);
+        for (const id of drag.ids) {
+          const group = itemGroups.current.get(id);
+          const start = drag.startPositions.get(id);
+          if (group && start) group.position.set(start.x + dx, start.y + dy, start.z);
+        }
+        return;
+      }
       if (drag.kind === "mount") {
         const data = sceneDataRef.current;
         const item = data.items.find((candidate) => candidate.id === drag.itemId);
@@ -1330,6 +1416,17 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
         drag.delta = final.delta;
         setItemPreview(drag.ids, final.delta);
       }
+      if (drag.moved && drag.kind === "table" && drag.tableId) {
+        const point = planePoint(event, 0);
+        if (point) {
+          const step = 10;
+          drag.delta = [
+            Math.round((point.x - drag.startPointer.x) / step) * step,
+            Math.round((point.y - drag.startPointer.y) / step) * step,
+            0,
+          ];
+        }
+      }
       clearSnapPreview();
       dragRef.current = null;
       controls.enabled = true;
@@ -1339,7 +1436,9 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
         /* no capture */
       }
       if (!drag.moved) return;
-      if (drag.kind === "mount") {
+      if (drag.kind === "table") {
+        if (drag.tableId) callbacks.current.onMoveTable?.(drag.tableId, drag.delta[0], drag.delta[1]);
+      } else if (drag.kind === "mount") {
         callbacks.current.onMoveMount(drag.itemId, drag.mountU, drag.mountV);
       } else {
         callbacks.current.onMoveItems(drag.ids, drag.delta[0], drag.delta[1], drag.delta[2]);
@@ -1458,18 +1557,24 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     const root = new THREE.Group();
     contentRef.current = root;
     itemGroups.current.clear();
+    tableGroups.current.clear();
     jointGroups.current.clear();
     portMeshesRef.current = [];
     hoverPortRef.current = null;
     const pickables: THREE.Object3D[] = [];
 
-    const bounds = sceneBounds(scene);
+    const tableBoxes = sceneTables(scene).map(tableAabb);
+    const floorMinX = tableBoxes.length ? Math.min(...tableBoxes.map((box) => box.minX)) - 700 : -1400;
+    const floorMaxX = tableBoxes.length ? Math.max(...tableBoxes.map((box) => box.maxX)) + 700 : 1400;
+    const floorMinY = tableBoxes.length ? Math.min(...tableBoxes.map((box) => box.minY)) - 700 : -1100;
+    const floorMaxY = tableBoxes.length ? Math.max(...tableBoxes.map((box) => box.maxY)) + 700 : 1100;
+    // Z-up scene: a PlaneGeometry in XY is already horizontal. Keep the floor
+    // shadow-only so it never reads as a giant white wall behind the booth.
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(Math.max(5200, bounds.width + 1800), Math.max(4200, bounds.depth + 1800)),
-      new THREE.MeshStandardMaterial({ color: "#e9e0d4", roughness: 0.96 }),
+      new THREE.PlaneGeometry(floorMaxX - floorMinX, floorMaxY - floorMinY),
+      new THREE.ShadowMaterial({ color: 0x2b1c22, opacity: 0.2, transparent: true }),
     );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2, -1);
+    floor.position.set((floorMinX + floorMaxX) / 2, (floorMinY + floorMaxY) / 2, -1);
     floor.receiveShadow = true;
     root.add(floor);
 
@@ -1478,6 +1583,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
       tableRoot.position.set(table.x, table.y, 0);
       tableRoot.rotation.z = table.rotation * DEG;
       root.add(tableRoot);
+      tableGroups.current.set(table.id, tableRoot);
 
       const tableTop = new THREE.Mesh(
         new THREE.BoxGeometry(table.width, table.depth, 26),
@@ -1486,7 +1592,9 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
       tableTop.position.z = table.height - 13;
       tableTop.castShadow = true;
       tableTop.receiveShadow = true;
+      tableTop.userData = { type: "table", id: table.id };
       tableRoot.add(tableTop);
+      pickables.push(tableTop);
 
       const legHeight = Math.max(4, table.height - 26);
       const legMat = mat(new THREE.Color(table.color).multiplyScalar(0.72).getStyle(), { roughness: 0.7 });

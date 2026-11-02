@@ -50,8 +50,9 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
             <p>
               Selecciona una unión para ver sus piezas y cambiar el tipo de conector. Solo aparecen los conectores reales
               que encajan: Edge2/3/4/5/7, Angled30/45, placas Skadis, dovetail, rejilla, ranura de organizador, montaje de
-              toldo integrado y 360 Connector para la base. Las patas cortas del toldo se insertan en los conectores de
-              esquina existentes del panel (no incluidos); su faldón tiene lóbulos curvos a unos 30° y no llega al suelo.
+              toldo integrado y 360 Connector para la base. La esquina superior del toldo coincide con la esquina del panel;
+              sus patas cortas se insertan en los conectores de esquina existentes (no incluidos), la lona baja hacia
+              delante y su faldón de lóbulos curvos queda a unos 30° sin llegar al suelo.
             </p>
           </article>
           <article>
@@ -77,9 +78,9 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
             <span className="help-num">07</span>
             <h3>Trabaja en L</h3>
             <p>
-              En «Mesas de trabajo» puedes añadir una mesa recta o una mesa en L girada 90°. Las mesas comparten altura para
-              que las piezas apoyen bien. Los ejemplos «Mesa en L de trabajo» y «Mesa en L + pared» montan la configuración
-              completa.
+              En «Mesas de trabajo» puedes añadir una mesa recta o una mesa en L girada 90°. Arrastra una mesa desde una
+              zona libre del tablero para moverla con todo lo que tiene encima y usa «Bloquear mesa» para fijarla. Las mesas
+              comparten altura; los ejemplos «Mesa en L de trabajo» y «Mesa en L + pared» montan la configuración completa.
             </p>
           </article>
           <article>
@@ -103,8 +104,9 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="help-callout">
           <strong>Atajos y seguridad</strong>
           <span>
-            1/2/3/4 cambian de herramienta · R/E gira +90° · Q gira -90° · Ctrl+C/V copia y pega · Ctrl+D duplica ·
-            Ctrl+G agrupa · Supr elimina · F encuadra · Ctrl+Z deshace · Esc cancela una conexión. Todo se guarda en este
+            1/2/3/4 cambian de herramienta · PgUp/PgDn sube o baja 5 cm · R/E gira +90° · Q gira -90° · Ctrl+C/V copia
+            y pega · Ctrl+D duplica · Ctrl+G agrupa · Supr elimina · F encuadra · Ctrl+Z deshace · Esc cancela una
+            conexión. Todo se guarda en este
             navegador y también puede exportarse a un archivo local. Los modelos STL originales del pack no se cargan, no se
             sirven y no se publican: el sandbox usa representaciones originales y simplificadas.
           </span>

@@ -510,7 +510,7 @@ export const CATALOG: AlleyCatalogItem[] = [
   {
     type: "basebox40",
     name: "Caja base 40 × 30 × 20",
-    subtitle: "Abierta por abajo",
+    subtitle: "Abierta por abajo y detrás",
     category: "expositores",
     dims: { w: 300, d: 400, h: 200 },
     color: "#f3c7d4",
@@ -526,14 +526,13 @@ export const CATALOG: AlleyCatalogItem[] = [
     bom: [
       bom("Panel base rosa 40 × 30 cm", 1, "Paneles", "Tapa superior"),
       bom("Panel frontal rosa 40 × 20 cm", 1, "Paneles"),
-      bom("Panel trasero rosa 40 × 20 cm", 1, "Paneles"),
       bom("Panel lateral rosa 30 × 20 cm", 2, "Paneles"),
-      bom("Edge2_Corner", 4, "Conectores de borde", "Esquinas verticales de la caja"),
-      bom("Edge3_Corner", 4, "Conectores de borde", "Esquinas superiores de la caja"),
+      bom("Edge2_Corner", 4, "Conectores de borde", "Esquinas inferiores frontales y superiores traseras"),
+      bom("Edge3_Corner", 2, "Conectores de borde", "Esquinas superiores frontales"),
     ],
     defaultBase: "table",
     description:
-      "Caja rosa de 40 cm de largo, 30 cm de ancho y 20 cm de alto, sin fondo. Seis cajas forman la base de la torre, enrasadas por detrás y con 10 cm de vuelo delantero.",
+      "Caja rosa de 40 cm de largo, 30 cm de ancho y 20 cm de alto, sin fondo y sin trasera. Seis cajas forman la base de la torre, enrasadas por detrás y con 10 cm de vuelo delantero.",
     tags: ["base", "caja", "40", "rosa", "abierta"],
   },
   {
@@ -604,12 +603,12 @@ export const CATALOG: AlleyCatalogItem[] = [
     name: "Toldo 30 cm",
     subtitle: "Tela A–D · patas a conectores",
     category: "accesorios",
-    dims: { w: 300, d: 306, h: 125 },
+    dims: { w: 300, d: 306, h: 210 },
     color: "#f4a7bb",
     icon: "⛱️",
     ports: [
-      { id: "foot-left", label: "Pata izquierda", system: "edge", pos: [-143, 0, 0], normal: [0, 0, -1] },
-      { id: "foot-right", label: "Pata derecha", system: "edge", pos: [143, 0, 0], normal: [0, 0, -1] },
+      { id: "foot-left", label: "Pata izquierda", system: "edge", pos: [-143, 0, 210], normal: [0, 0, -1] },
+      { id: "foot-right", label: "Pata derecha", system: "edge", pos: [143, 0, 210], normal: [0, 0, -1] },
     ],
     bom: [
       bom("Tela de toldo A", 1, "Toldo"),
@@ -630,12 +629,12 @@ export const CATALOG: AlleyCatalogItem[] = [
     name: "Toldo 35 cm",
     subtitle: "Tela A–D · patas a conectores",
     category: "accesorios",
-    dims: { w: 350, d: 356, h: 125 },
+    dims: { w: 350, d: 356, h: 225 },
     color: "#f4a7bb",
     icon: "⛱️",
     ports: [
-      { id: "foot-left", label: "Pata izquierda", system: "edge", pos: [-168, 0, 0], normal: [0, 0, -1] },
-      { id: "foot-right", label: "Pata derecha", system: "edge", pos: [168, 0, 0], normal: [0, 0, -1] },
+      { id: "foot-left", label: "Pata izquierda", system: "edge", pos: [-168, 0, 225], normal: [0, 0, -1] },
+      { id: "foot-right", label: "Pata derecha", system: "edge", pos: [168, 0, 225], normal: [0, 0, -1] },
     ],
     bom: [
       bom("Tela de toldo A", 1, "Toldo"),
@@ -750,7 +749,7 @@ const TOWER_AWNING_ITEMS: AlleyGroupItemSpec[] = [-750, -450, -150, 150, 450, 75
   type: "awning30",
   x,
   y: -GRID / 2,
-  baseZ: 1200 + TOWER_BASE,
+  baseZ: 1200 + TOWER_BASE - 210,
 }));
 
 const TWIN_TOWER_ITEMS: AlleyGroupItemSpec[] = [

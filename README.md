@@ -19,7 +19,7 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 - **Paneles lisos:** equivalentes planos y coloreados de todas las rejillas (30, 35, 1/4 y 1/2) para fondos, puertas y separadores.
 - **Expositores:** 2,5", 3", 4" y 5" con varios niveles.
 - **Estantes:** riser de 1 y 3 niveles, mini estante, balda horizontal de rejilla de 30 × 30 cm y organizador lateral con cuatro ranuras.
-- **Base de torre:** seis cajas rosas abiertas por abajo, de 40 × 30 × 20 cm, enrasadas por detrás y con 10 cm de vuelo delantero. Cada caja lleva 4 `Edge2_Corner` y 4 `Edge3_Corner`; las cajas y la torre se enlazan con `360 Connector`.
+- **Base de torre:** seis cajas rosas abiertas por abajo y por detrás, de 40 × 30 × 20 cm, enrasadas por detrás y con 10 cm de vuelo delantero. Cada caja lleva 4 `Edge2_Corner` y 2 `Edge3_Corner`; las cajas y la torre se enlazan con `360 Connector`.
 - **Accesorios:** gancho de estante, clips de panel, bandejas Skadis, toldo de 30 y 35 cm con faldón curvo a 30° y sin patas al suelo, y mango de abanico con bloqueo.
 - **Grupos rápidos:** bahía slatwall 3+2, pared slatwall 2×4, estantería de organizadores, base rosa 6 cajas, pared Skadis 2×4, esquina, rejilla angular, mini pared 1/4 y 1/2, fondo liso + rejilla, remate triangular, doble torre de 4 cubos, torre individual, stand en U angular, pared escalonada y dos configuraciones de mesa en L. Los ejemplos combinan paneles con baldas y organizadores; los conectores se generan como uniones al colocar las piezas.
 
@@ -37,10 +37,10 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 
 ### Toldo y organizadores
 
-- El **toldo** tiene una lona de 30 × 30 cm y un faldón frontal de cuatro lóbulos curvos inclinado unos 30°. Sus dos patas cortas se insertan en los **conectores de esquina estándar** del panel (no incluidos con el toldo) y dos brazos sostienen la lona; no hay patas que lleguen al suelo. Selecciona primero el panel y añade el toldo desde el catálogo: se coloca a la altura correcta y crea la unión automáticamente.
+- El **toldo** tiene una lona de 30 × 30 cm y un faldón frontal de cuatro lóbulos curvos inclinado unos 30°. Su esquina superior trasera coincide con la **esquina superior del panel** y la lona baja hacia delante; las patas cortas se insertan en los **conectores de esquina estándar** (no incluidos con el toldo) y dos brazos visibles sostienen la lona. No hay patas que lleguen al suelo. Selecciona primero el panel y añade el toldo desde el catálogo: se coloca a la altura correcta y crea la unión automáticamente.
 - Si añades el toldo sin seleccionar un panel, queda suelto sobre la mesa; selecciona un panel y vuelve a añadirlo para anclarlo en sus conectores.
 - El **organizador de panel** es un lateral con cuatro ranuras. Coloca **dos, uno a cada lado**, y desliza baldas o paneles en las ranuras para formar una estantería. No se cuelga de un panel: se apoya en la mesa y queda estabilizado por las baldas y los paneles que lo rodean.
-- La **base rosa** son seis cajas sin fondo de 40 × 30 × 20 cm. La torre se eleva 20 cm y queda enrasada por detrás. Cada caja se atornilla con 4 `Edge2_Corner` y 4 `Edge3_Corner`; las cajas entre sí y con los paneles de la torre usan **360 Connector**.
+- La **base rosa** son seis cajas sin fondo y sin trasera de 40 × 30 × 20 cm. La torre se eleva 20 cm y queda enrasada por detrás. Cada caja lleva 4 `Edge2_Corner` y 2 `Edge3_Corner`; las cajas entre sí y con los paneles de la torre usan **360 Connector**.
 - La **doble torre** incluye la base rosa, la estantería de organizadores detrás y **seis toldos**, uno en cada panel frontal superior; la **torre individual** mantiene sus cuatro baldas de rejilla.
 - El grupo **Estantería de organizadores** coloca las dos estructuras laterales y cuatro baldas listas para usar.
 
@@ -50,7 +50,8 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 - **Herramientas:** `1` seleccionar/mover, `2` selección por rectángulo arrastrable, `3` medir distancias y `4` orbitar sin seleccionar.
 - Selección múltiple con Mayús + clic o con un **rectángulo de selección**; al arrastrar una pieza seleccionada se mueve todo el conjunto.
 - **Ctrl+C / Ctrl+V** para copiar y pegar piezas o grupos completos; **Ctrl+A** selecciona todo.
-- Flechas para mover 1 cm (Mayús: 5 cm); **Ctrl + ↑/↓** para subir o bajar.
+- Flechas para mover 1 cm (Mayús: 5 cm); **Ctrl + ↑/↓** para subir o bajar 1 cm, **PageUp/PageDown** para 5 cm, y botones ↑/↓ en la barra flotante de selección.
+- Arrastra una **mesa** desde una zona libre del tablero para moverla junto con todo lo que tiene encima. Después puedes **bloquearla** desde el inspector de mesas para que no se mueva por accidente.
 - **Grupos anidados:** un grupo puede contener subgrupos. Al desagrupar se separa solo ese nivel y los subgrupos se mantienen. Mayús + clic en la lista de grupos selecciona varios grupos para crear un grupo padre.
 - Duplicado sin apilar piezas: si una copia cae exactamente sobre otra, se reutiliza la existente.
 - Eliminar un panel no rompe el resto: las conexiones se recalculan y los accesorios montados se liberan.
@@ -92,7 +93,7 @@ El **Artist Alley STL Pack** es una creación de **Jessie Shi** (**Sandoik / @sa
 4. Arrastra una pieza cerca de un puerto: verás el destino y el conector real previsto. Suelta para dejarla unida. También puedes seleccionar una pieza y tocar dos esferas rosas, o usar la herramienta de rectángulo (`2`) para seleccionar varias.
 5. Selecciona una unión para cambiar el conector o volver al automático; selecciona una pieza para moverla, girarla, colorearla o montarla en un panel. El color y los campos de transformación se aplican a todo el grupo. Para el toldo, selecciona antes el panel.
 6. Con Mayús + clic o con el rectángulo selecciona varias piezas, arrastra para moverlas juntas, copia con Ctrl+C y pega con Ctrl+V. La sección **Color de la selección** recolorea todas las piezas y sus grupos. La lista **Tus grupos** permite seleccionar grupos completos y crear grupos anidados.
-7. En **Mesas de trabajo** añade o edita mesas; usa **Archivo** y **Abrir** para guardar o recuperar un proyecto local.
+7. En **Mesas de trabajo** añade o edita mesas. Arrastra una mesa desde una zona libre del tablero para moverla con todo lo que tiene encima y actívala como **Bloqueada** cuando esté en su sitio. Usa **Archivo** y **Abrir** para guardar o recuperar un proyecto local.
 8. Abre **Lista de materiales** para copiar o descargar el CSV.
 
 ## Desarrollo

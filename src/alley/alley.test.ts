@@ -27,6 +27,7 @@ import {
   isLegacyStarterScene,
   itemsInGroup,
   moveItems,
+  moveTable,
   pasteSelection,
   recolorItems,
   removeTable,
@@ -192,6 +193,9 @@ describe("panels, joints and connectors", () => {
     expect(box.mountable).toBeFalsy();
     expect(box.ports).toHaveLength(6);
     expect(box.ports.filter((port) => port.id.startsWith("side-"))).toHaveLength(2);
+    expect(box.bom.some((line) => line.name.includes("trasero"))).toBe(false);
+    expect(box.bom.find((line) => line.name === "Edge2_Corner")?.qty).toBe(4);
+    expect(box.bom.find((line) => line.name === "Edge3_Corner")?.qty).toBe(2);
     expect(CONNECTORS["connector-360"].bomName).toBe("360 Connector");
   });
 
@@ -220,7 +224,7 @@ describe("panels, joints and connectors", () => {
     if (!panel) return;
     const result = addCatalogItem(base, "awning30", { panelId: panel.id });
     const awning = result.scene.items.find((item) => item.id === result.itemId);
-    expect(awning?.baseZ).toBe(panel.baseZ + 300);
+    expect(awning?.baseZ).toBe(panel.baseZ + 300 - CATALOG_BY_TYPE.awning30.dims.h);
     expect(awning?.groupId).toBe(panel.groupId);
     const joint = result.scene.joints.find(
       (candidate) => candidate.type === "awning-foot" && candidate.ports.some((port) => port.itemId === awning?.id),
@@ -610,6 +614,28 @@ describe("towers and L-shaped work tables", () => {
     expect(scene.items.filter((item) => item.type === "basebox40")).toHaveLength(6);
     expect(scene.items.filter((item) => item.type === "awning30")).toHaveLength(6);
     expect(scene.joints.length).toBeGreaterThan(20);
+  });
+
+  it("moves a table with its pieces and respects the table lock", () => {
+    const scene = addGroup(emptyScene(), "workspace-l-work", { anchor: { x: 0, y: 0 } }).scene;
+    const table = scene.tables[0];
+    const onTable = scene.items.find(
+      (item) =>
+        item.x >= table.x - table.width / 2 &&
+        item.x <= table.x + table.width / 2 &&
+        item.y >= table.y - table.depth / 2 &&
+        item.y <= table.y + table.depth / 2,
+    );
+    expect(onTable).toBeTruthy();
+    if (!onTable) return;
+    const moved = moveTable(scene, table.id, 120, 45);
+    expect(moved.tables[0].x).toBe(table.x + 120);
+    expect(moved.tables[0].y).toBe(table.y + 45);
+    expect(moved.items.find((item) => item.id === onTable.id)?.x).toBe(onTable.x + 120);
+    const locked = updateTable(moved, table.id, { locked: true });
+    const blocked = moveTable(locked, table.id, 300, 300);
+    expect(blocked.tables[0].x).toBe(locked.tables[0].x);
+    expect(blocked.tables[0].y).toBe(locked.tables[0].y);
   });
 
   it("places a symmetric L-shaped workspace with two perpendicular tables", () => {
