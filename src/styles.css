@@ -3235,6 +3235,39 @@ kbd {
     linear-gradient(180deg, color-mix(in srgb, var(--panel) 35%, var(--bg)), var(--bg-2));
 }
 
+.alley-marquee-layer,
+.alley-measure-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.alley-marquee-box {
+  position: absolute;
+  border: 1px dashed color-mix(in srgb, var(--accent) 80%, #fff);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28) inset;
+  pointer-events: none;
+}
+
+.alley-measure-label {
+  position: absolute;
+  transform: translate(10px, -50%);
+  z-index: 8;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: var(--shadow-soft);
+  color: var(--accent-2);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .alley-viewport {
   position: absolute;
   inset: 0;

@@ -1,4 +1,11 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CATALOG_BY_TYPE, CONNECTORS } from "./catalog";
@@ -7,6 +14,7 @@ import {
   connectedPortKeys,
   defaultConnectorType,
   findSnapForMove,
+  itemAabb,
   itemColor,
   itemDims,
   panelOf,
@@ -57,6 +65,7 @@ interface Props {
   showPorts: boolean;
   showGrid: boolean;
   projection: AlleyProjection;
+  tool?: "select" | "marquee" | "measure" | "orbit";
   onSelect: (selection: AlleySelection | null) => void;
   onPortClick: (port: PortRef) => void;
   onMoveItems: (ids: string[], dx: number, dy: number, dz: number) => void;
@@ -436,6 +445,40 @@ function buildRiser(item: AlleyItem, selected: boolean) {
   return group;
 }
 
+function buildBaseBox(item: AlleyItem, selected: boolean) {
+  const group = new THREE.Group();
+  const dims = itemDims(item);
+  const color = itemColor(item);
+  const panelMat = mat(color, { roughness: 0.72, metalness: 0.04 });
+  const topMat = mat(`#${new THREE.Color(color).clone().multiplyScalar(0.92).getHexString()}`, {
+    roughness: 0.7,
+  });
+  const wallHeight = dims.h - 18;
+  addBox(group, [dims.w, dims.d, 18], [0, 0, dims.h - 9], topMat);
+  for (const y of [-dims.d / 2 + 9, dims.d / 2 - 9]) {
+    addBox(group, [dims.w, 18, wallHeight], [0, y, wallHeight / 2], panelMat);
+  }
+  for (const x of [-dims.w / 2 + 9, dims.w / 2 - 9]) {
+    addBox(group, [18, dims.d, wallHeight], [x, 0, wallHeight / 2], panelMat);
+  }
+  const seams = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(dims.w, dims.d, dims.h)),
+    new THREE.LineBasicMaterial({ color: 0x8f5f70, transparent: true, opacity: 0.34 }),
+  );
+  seams.position.z = dims.h / 2;
+  group.add(seams);
+  const lowerConnector = mat("#b04f6e", { roughness: 0.5, metalness: 0.08 });
+  const upperConnector = mat("#d9789b", { roughness: 0.5, metalness: 0.08 });
+  for (const x of [-dims.w / 2 + 7, dims.w / 2 - 7]) {
+    for (const y of [-dims.d / 2 + 7, dims.d / 2 - 7]) {
+      addBox(group, [17, 17, 13], [x, y, 6.5], lowerConnector);
+      addBox(group, [17, 17, 13], [x, y, dims.h - 6.5], upperConnector);
+    }
+  }
+  if (selected) addOutline(group, dims);
+  return group;
+}
+
 function buildOrganizer(item: AlleyItem, selected: boolean) {
   const group = new THREE.Group();
   const dims = itemDims(item);
@@ -545,7 +588,7 @@ function buildAwning(item: AlleyItem, selected: boolean) {
   const color = itemColor(item);
   const frameMat = mat("#d98fa5", { roughness: 0.55 });
   const footMat = mat("#f8e6ea", { roughness: 0.55 });
-  const legX = dims.w * 0.45;
+  const legX = dims.w / 2 - 7;
   const legHeight = dims.h;
   const canopyDepth = dims.d;
   const armReach = Math.min(canopyDepth * 0.6, 185);
@@ -593,31 +636,44 @@ function buildAwning(item: AlleyItem, selected: boolean) {
     addBox(group, [7, canopyDepth, 7], [x, -canopyDepth / 2, legHeight - 7], frameMat);
   }
 
-  // The front valance is the large hanging flap of the real awning.
+  // Front valance: four curved lobes, leaning 30° forward from vertical.
+  const flapShape = new THREE.Shape();
+  const halfWidth = dims.w / 2;
+  const lobes = 4;
+  const lobeWidth = dims.w / lobes;
+  flapShape.moveTo(-halfWidth, 0);
+  flapShape.lineTo(halfWidth, 0);
+  flapShape.lineTo(halfWidth, -flapHeight);
+  for (let index = lobes - 1; index >= 0; index -= 1) {
+    const left = -halfWidth + index * lobeWidth;
+    flapShape.quadraticCurveTo(left + lobeWidth / 2, -flapHeight - 13, left, -flapHeight);
+  }
+  flapShape.closePath();
+  const flapGeometry = new THREE.ShapeGeometry(flapShape, 18);
+  const flapPositions = flapGeometry.getAttribute("position");
+  const flapUvs = flapGeometry.getAttribute("uv");
+  for (let index = 0; index < flapPositions.count; index += 1) {
+    flapUvs.setXY(
+      index,
+      (flapPositions.getX(index) + halfWidth) / dims.w,
+      (flapPositions.getY(index) + flapHeight + 13) / (flapHeight + 13),
+    );
+  }
+  flapUvs.needsUpdate = true;
   const flap = new THREE.Mesh(
-    new THREE.PlaneGeometry(dims.w, flapHeight),
+    flapGeometry,
     new THREE.MeshStandardMaterial({
       map: stripeTexture(color),
       roughness: 0.78,
       side: THREE.DoubleSide,
-      transparent: true,
-      alphaTest: 0.05,
     }),
   );
-  flap.rotation.x = Math.PI / 2;
-  flap.position.set(0, -canopyDepth, legHeight - flapHeight / 2);
+  // 60° around X = vertical plane leaning 30° toward the viewer.
+  flap.rotation.x = Math.PI / 3;
+  flap.position.set(0, -canopyDepth, legHeight - 7);
   flap.castShadow = true;
   flap.receiveShadow = true;
   group.add(flap);
-
-  // Rounded bottom edge: a soft fabric roll instead of hard scallops.
-  const roll = new THREE.Mesh(
-    new THREE.CylinderGeometry(4, 4, dims.w, 16, 1, false, 0, Math.PI),
-    mat(color, { roughness: 0.8 }),
-  );
-  roll.rotation.z = Math.PI / 2;
-  roll.position.set(0, -canopyDepth, legHeight - flapHeight + 4);
-  group.add(roll);
 
   if (selected) addOutline(group, dims);
   return group;
@@ -671,6 +727,9 @@ function buildItem(item: AlleyItem, selected: boolean): THREE.Group {
       break;
     case "wireshelf30":
       group = buildWireShelf(item, selected);
+      break;
+    case "basebox40":
+      group = buildBaseBox(item, selected);
       break;
     case "organizer":
       group = buildOrganizer(item, selected);
@@ -813,6 +872,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     showPorts,
     showGrid,
     projection,
+    tool = "select",
     onSelect,
     onPortClick,
     onMoveItems,
@@ -866,6 +926,21 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
   const gridRef = useRef(scene.grid);
   gridRef.current = scene.grid;
   const lastCameraReport = useRef({ azimuth: 0, polar: 0, at: 0 });
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
+  const [marquee, setMarquee] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [measureLabel, setMeasureLabel] = useState<{ text: string; x: number; y: number } | null>(null);
+  const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const measureStartRef = useRef<THREE.Vector3 | null>(null);
+  const measureLineRef = useRef<THREE.Line | null>(null);
+
+  useEffect(() => {
+    setMarquee(null);
+    marqueeStartRef.current = null;
+    measureStartRef.current = null;
+    setMeasureLabel(null);
+    if (measureLineRef.current) measureLineRef.current.visible = false;
+  }, [tool]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -931,6 +1006,15 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     snapMarker.renderOrder = 30;
     scene3.add(snapMarker);
     snapMarkerRef.current = snapMarker;
+
+    const measureLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+      new THREE.LineBasicMaterial({ color: 0x7c5aa6, transparent: true, opacity: 0.95, depthTest: false }),
+    );
+    measureLine.visible = false;
+    measureLine.renderOrder = 31;
+    scene3.add(measureLine);
+    measureLineRef.current = measureLine;
 
     const snapLine = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
@@ -1074,7 +1158,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     };
 
     const onPointerDown = (event: PointerEvent) => {
-      if (event.button !== 0) return;
+      if (event.button !== 0 || toolRef.current !== "select") return;
       clearSnapPreview();
       pointerStart.current = { x: event.clientX, y: event.clientY };
       const port = portAt(event);
@@ -1570,15 +1654,197 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     [],
   );
 
+  const projectToHost = (x: number, y: number, z: number) => {
+    const camera = cameraRef.current;
+    const host = hostRef.current;
+    if (!camera || !host) return null;
+    const rect = host.getBoundingClientRect();
+    const point = new THREE.Vector3(x, y, z).project(camera);
+    return {
+      x: (point.x * 0.5 + 0.5) * rect.width,
+      y: (-point.y * 0.5 + 0.5) * rect.height,
+      z: point.z,
+    };
+  };
+
+  const marqueeSelect = (rect: { left: number; top: number; right: number; bottom: number }) => {
+    const currentScene = sceneDataRef.current;
+    const projected = new Map<string, { left: number; top: number; right: number; bottom: number }>();
+    for (const item of currentScene.items) {
+      const box = itemAabb(item);
+      const corners: Array<[number, number, number]> = [];
+      for (const x of [box.minX, box.maxX]) {
+        for (const y of [box.minY, box.maxY]) {
+          for (const z of [box.minZ, box.maxZ]) corners.push([x, y, z]);
+        }
+      }
+      const points = corners.map(([x, y, z]) => projectToHost(x, y, z)).filter(Boolean) as Array<{ x: number; y: number; z: number }>;
+      if (!points.length || !points.some((point) => point.z >= -1 && point.z <= 1)) continue;
+      const left = Math.min(...points.map((point) => point.x));
+      const right = Math.max(...points.map((point) => point.x));
+      const top = Math.min(...points.map((point) => point.y));
+      const bottom = Math.max(...points.map((point) => point.y));
+      projected.set(item.id, { left, top, right, bottom });
+    }
+    const ids = currentScene.items
+      .filter((item) => {
+        const box = projected.get(item.id);
+        if (!box) return false;
+        return !(box.right < rect.left || box.left > rect.right || box.bottom < rect.top || box.top > rect.bottom);
+      })
+      .map((item) => item.id);
+    if (!ids.length) callbacks.current.onSelect(null);
+    else callbacks.current.onSelect({ type: ids.length > 1 ? "items" : "item", ids });
+  };
+
+  const marqueeDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const rect = event.currentTarget.getBoundingClientRect();
+    const start = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    marqueeStartRef.current = start;
+    setMarquee({ x: start.x, y: start.y, width: 0, height: 0 });
+  };
+
+  const marqueeMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const start = marqueeStartRef.current;
+    if (!start) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    setMarquee({
+      x: Math.min(start.x, x),
+      y: Math.min(start.y, y),
+      width: Math.abs(x - start.x),
+      height: Math.abs(y - start.y),
+    });
+  };
+
+  const marqueeUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const start = marqueeStartRef.current;
+    if (!start) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const selectionRect = {
+      left: Math.min(start.x, x),
+      top: Math.min(start.y, y),
+      right: Math.max(start.x, x),
+      bottom: Math.max(start.y, y),
+    };
+    if (selectionRect.right - selectionRect.left > 3 && selectionRect.bottom - selectionRect.top > 3) {
+      marqueeSelect(selectionRect);
+    }
+    marqueeStartRef.current = null;
+    setMarquee(null);
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* no capture */
+    }
+  };
+
+  const measurePoint = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const camera = cameraRef.current;
+    const host = hostRef.current;
+    if (!camera || !host) return null;
+    const rect = host.getBoundingClientRect();
+    const pointer = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(pointer, camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -(sceneTables(sceneDataRef.current)[0]?.height || 750));
+    const point = new THREE.Vector3();
+    return ray.ray.intersectPlane(plane, point) ? point : null;
+  };
+
+  const measureDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const point = measurePoint(event);
+    if (!point) return;
+    const line = measureLineRef.current;
+    if (!measureStartRef.current) {
+      measureStartRef.current = point;
+      const hostRect = hostRef.current?.getBoundingClientRect();
+      setMeasureLabel({
+        text: "Primer punto. Haz clic en el segundo.",
+        x: event.clientX - (hostRect?.left || 0),
+        y: event.clientY - (hostRect?.top || 0),
+      });
+      if (line) {
+        line.visible = true;
+        const positions = line.geometry.getAttribute("position") as THREE.BufferAttribute;
+        positions.setXYZ(0, point.x, point.y, point.z + 2);
+        positions.setXYZ(1, point.x, point.y, point.z + 2);
+        positions.needsUpdate = true;
+      }
+      return;
+    }
+    const start = measureStartRef.current;
+    const distance = start.distanceTo(point);
+    if (line) {
+      line.visible = true;
+      const positions = line.geometry.getAttribute("position") as THREE.BufferAttribute;
+      positions.setXYZ(0, start.x, start.y, start.z + 2);
+      positions.setXYZ(1, point.x, point.y, point.z + 2);
+      positions.needsUpdate = true;
+    }
+    const a = projectToHost(start.x, start.y, start.z);
+    const b = projectToHost(point.x, point.y, point.z);
+    setMeasureLabel({
+      text: distance >= 100 ? `${(distance / 10).toFixed(1)} cm` : `${Math.round(distance)} mm`,
+      x: a && b ? (a.x + b.x) / 2 : event.clientX,
+      y: a && b ? (a.y + b.y) / 2 : event.clientY,
+    });
+    measureStartRef.current = null;
+  };
+
   return (
     <div className="alley-viewport">
       <div className="alley-canvas" ref={hostRef} />
+      {tool === "marquee" && (
+        <div
+          className="alley-marquee-layer"
+          onPointerDown={marqueeDown}
+          onPointerMove={marqueeMove}
+          onPointerUp={marqueeUp}
+          onPointerCancel={marqueeUp}
+        >
+          {marquee && (
+            <div
+              className="alley-marquee-box"
+              style={{
+                left: marquee.x,
+                top: marquee.y,
+                width: marquee.width,
+                height: marquee.height,
+              }}
+            />
+          )}
+        </div>
+      )}
+      {tool === "measure" && <div className="alley-measure-layer" onPointerDown={measureDown} />}
+      {measureLabel && tool === "measure" && (
+        <div className="alley-measure-label" style={{ left: measureLabel.x, top: measureLabel.y }}>
+          {measureLabel.text}
+        </div>
+      )}
       <div className="alley-viewport-badge">
         <span className="dot pink" />
         <span>Sandbox Artist Alley</span>
         <span className="muted">· selecciona una pieza para ver los puertos</span>
       </div>
-      <div className="alley-viewport-hint">Arrastra el fondo para orbitar · rueda para acercar · R gira 90°</div>
+      <div className="alley-viewport-hint">
+        {tool === "marquee"
+          ? "Arrastra un rectángulo para seleccionar varias piezas"
+          : tool === "measure"
+            ? "Haz clic en dos puntos de la mesa para medir"
+            : tool === "orbit"
+              ? "Arrastra para orbitar; cambia a Seleccionar para editar"
+              : "Arrastra el fondo para orbitar · rueda para acercar · R gira 90°"}
+      </div>
     </div>
   );
 });

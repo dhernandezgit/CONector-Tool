@@ -20,10 +20,10 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
             <span className="help-num">01</span>
             <h3>Elige una pieza o un grupo</h3>
             <p>
-              El catálogo incluye paneles, expositores, estantes, baldas, organizadores laterales, accesorios y el toldo.
-              La escena inicial es la doble torre con una estantería central hecha con dos organizadores y dos toldos
-              sobre el puente; los grupos rápidos colocan una composición completa y se pueden mover o girar como una sola
-              pieza.
+              El catálogo incluye paneles, expositores, estantes, baldas, organizadores laterales, cajas base, accesorios
+              y el toldo. La escena inicial es la doble torre sobre seis cajas rosas, con estantería detrás y seis toldos.
+              Las cajas llevan sus propios Edge2_Corner y Edge3_Corner, y se enlazan con 360 Connector. Los grupos rápidos
+              colocan composiciones completas y se pueden mover o girar como una sola pieza.
             </p>
           </article>
           <article>
@@ -48,20 +48,21 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
             <span className="help-num">04</span>
             <h3>Cambia el conector</h3>
             <p>
-              Selecciona una unión para ver sus piezas y cambiar el tipo de conector. Se ofrecen todos los conectores
-              compatibles con el número de paneles, no solo los de un sistema: puedes mezclar slatwall, Skadis y rejilla, y
-              el editor elige automáticamente un tipo válido. El toldo se ancla con dos soportes y dos brazos; incluye
-              faldón frontal y no tiene patas al suelo.
+              Selecciona una unión para ver sus piezas y cambiar el tipo de conector. Solo aparecen los conectores reales
+              que encajan: Edge2/3/4/5/7, Angled30/45, placas Skadis, dovetail, rejilla, ranura de organizador, montaje de
+              toldo integrado y 360 Connector para la base. Las patas cortas del toldo se insertan en los conectores de
+              esquina existentes del panel (no incluidos); su faldón tiene lóbulos curvos a unos 30° y no llega al suelo.
             </p>
           </article>
           <article>
             <span className="help-num">05</span>
             <h3>Selecciona, copia y agrupa</h3>
             <p>
-              Con Mayús + clic añade o quita piezas de la selección. Al arrastrar una pieza seleccionada se mueve todo el
-              conjunto. Usa Ctrl+C / Ctrl+V para copiar y pegar, Ctrl+A para seleccionar todo, G para agrupar y las flechas
-              para ajustar 1 cm (Mayús: 5 cm). Si una pieza pertenece a un grupo, el color y los campos X/Y/altura/rotación
-              se aplican a todo el grupo.
+              Con Mayús + clic añade o quita piezas; la herramienta de rectángulo (`2`) selecciona todo lo que cae dentro.
+              Al arrastrar una pieza seleccionada se mueve todo el conjunto. Usa Ctrl+C / Ctrl+V para copiar y pegar, Ctrl+A
+              para seleccionar todo, G para agrupar y las flechas para ajustar 1 cm (Mayús: 5 cm). La lista **Tus grupos**
+              permite seleccionar grupos completos; Mayús + clic en varios grupos crea un grupo padre. Al desagrupar solo
+              se separa un nivel y los subgrupos se mantienen. El color y los campos de transformación se aplican al grupo.
             </p>
           </article>
           <article>
@@ -102,10 +103,10 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="help-callout">
           <strong>Atajos y seguridad</strong>
           <span>
-            R/E gira +90° · Q gira -90° · Ctrl+C/V copia y pega · Ctrl+D duplica · Ctrl+G agrupa · Supr elimina · F encuadra ·
-            Ctrl+Z deshace · Esc cancela una conexión. Todo se guarda en este navegador y también puede exportarse a un archivo
-            local. Los modelos STL originales del pack no se cargan, no se sirven y no se publican: el sandbox usa
-            representaciones originales y simplificadas.
+            1/2/3/4 cambian de herramienta · R/E gira +90° · Q gira -90° · Ctrl+C/V copia y pega · Ctrl+D duplica ·
+            Ctrl+G agrupa · Supr elimina · F encuadra · Ctrl+Z deshace · Esc cancela una conexión. Todo se guarda en este
+            navegador y también puede exportarse a un archivo local. Los modelos STL originales del pack no se cargan, no se
+            sirven y no se publican: el sandbox usa representaciones originales y simplificadas.
           </span>
         </div>
       </div>

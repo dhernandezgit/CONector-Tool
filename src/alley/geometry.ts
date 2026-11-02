@@ -126,118 +126,106 @@ function itemsForPorts(scene: AlleyScene, ports: Array<PortRef>): AlleyItem[] {
   return result;
 }
 
-export function defaultConnectorType(scene: AlleyScene, refs: Array<PortRef>): ConnectorType {
-  const items = itemsForPorts(scene, refs);
-  if (items.length < 2) return "edge-2-flat";
-  const ports = refs
+function normalKey(item: AlleyItem): string {
+  const normal = planeNormal(item);
+  return normal.map((value) => Math.round(value)).join(",");
+}
+
+function samePlaneItems(items: AlleyItem[]): AlleyItem[][] {
+  const groups = new Map<string, AlleyItem[]>();
+  for (const item of items) {
+    const key = normalKey(item);
+    groups.set(key, [...(groups.get(key) || []), item]);
+  }
+  return Array.from(groups.values()).filter((group) => group.length > 1);
+}
+
+/**
+ * Real connector candidates for a joint. We only expose parts that exist in
+ * the pack and can physically serve the current edge count/orientation.
+ */
+export function connectorCandidates(scene: AlleyScene, joint: AlleyJoint): ConnectorType[] {
+  const items = itemsForPorts(scene, joint.ports);
+  const count = items.length;
+  if (count < 2) return [];
+  if (items.some((item) => item.type.startsWith("awning"))) {
+    return count === 2 ? ["awning-foot"] : [];
+  }
+  if (items.some((item) => item.type === "organizer")) {
+    return count === 2 ? ["organizer-slot"] : [];
+  }
+  if (items.some((item) => item.type === "basebox40")) {
+    return ["connector-360"];
+  }
+  const ports = joint.ports
     .map((ref) => {
       const item = items.find((candidate) => candidate.id === ref.itemId);
       return item ? portWorld(item, ref.portId) : null;
     })
     .filter((port): port is WorldPort => Boolean(port));
   const systems = uniqueSystems(ports);
-  const count = items.length;
-  const hasAwning = items.some((item) => item.type.startsWith("awning"));
-  let preferred: ConnectorType;
-  if (hasAwning) {
-    preferred = "awning-foot";
-  } else if (items.some((item) => item.type === "organizer")) {
-    preferred = "organizer-slot";
-  } else if (systems.size === 1 && systems.has("wire")) {
-    preferred = "wire-grid";
-  } else if (systems.size === 1 && systems.has("skadis")) {
-    if (count >= 4) preferred = "skadis-x";
-    else if (count === 3) preferred = "skadis-z";
-    else {
+  const allWire = systems.size === 1 && systems.has("wire");
+  const allSkadis = systems.size === 1 && systems.has("skadis");
+  const allDovetail = systems.size === 1 && systems.has("dovetail");
+  const allFlat = items.every((item) => planeAngle(items[0], item) < 15);
+  const angle = count >= 2 ? planeAngle(items[0], items[1]) : 90;
+
+  if (allWire) return ["wire-grid"];
+  if (allDovetail && allFlat) return ["dovetail"];
+
+  if (count === 2) {
+    if (allSkadis && angle < 15) {
       const zs = items.map((item) => item.baseZ);
-      preferred = Math.max(...zs) - Math.min(...zs) > 2 ? "skadis-v" : "skadis-h";
+      return [Math.max(...zs) - Math.min(...zs) > 2 ? "skadis-v" : "skadis-h"];
     }
-  } else if (systems.size === 1 && systems.has("dovetail") && items.every((item) => planeAngle(items[0], item) < 12)) {
-    preferred = "dovetail";
-  } else if (count === 2) {
-    const angle = planeAngle(items[0], items[1]);
-    if (angle < 15) preferred = "edge-2-flat";
-    else if (angle >= 25 && angle <= 35) preferred = "edge-2-30";
-    else if (angle >= 40 && angle <= 50) preferred = "edge-2-45";
-    else preferred = "edge-2-corner";
-  } else if (count === 3) {
-    const parallelPair =
-      planeAngle(items[0], items[1]) < 15 || planeAngle(items[0], items[2]) < 15 || planeAngle(items[1], items[2]) < 15;
-    preferred = items.every((item) => planeAngle(items[0], item) < 15)
-      ? "edge-3-flat"
-      : parallelPair
-        ? "edge-3-T"
-        : "edge-3-L";
-  } else if (count === 4) {
-    const angles = items.map((item) => planeAngle(items[0], item));
-    preferred = items.every((item) => planeAngle(items[0], item) < 15)
-      ? "edge-4-flat"
-      : angles.every((angle) => angle < 15 || angle > 75)
-        ? "edge-4-corner"
-        : "edge-4-L";
-  } else if (count === 5) {
-    preferred = "edge-5-corner";
-  } else {
-    preferred = "edge-7";
+    if (angle < 15) return ["edge-2-flat"];
+    if (angle >= 25 && angle <= 35) return ["edge-2-30"];
+    if (angle >= 40 && angle <= 50) return ["edge-2-45"];
+    if (angle > 75) return ["edge-2-corner"];
+    return ["connector-360"];
   }
-  const preview: AlleyJoint = { id: "preview", x: 0, y: 0, z: 0, type: preferred, ports: refs };
-  if (connectorAllowed(scene, preview, preferred)) return preferred;
-  return allowedConnectorTypes(scene, preview)[0] || "edge-2-flat";
+
+  if (allSkadis) {
+    if (count === 3) return ["skadis-z"];
+    if (count === 4) return ["skadis-x"];
+  }
+
+  const parallelGroups = samePlaneItems(items);
+  if (count === 3) {
+    if (allFlat) return ["edge-3-flat"];
+    if (!parallelGroups.length) return ["edge-3-corner"];
+    const pair = parallelGroups[0];
+    const offsetA = { x: pair[0].x - joint.x, y: pair[0].y - joint.y };
+    const offsetB = { x: pair[1].x - joint.x, y: pair[1].y - joint.y };
+    const opposite = offsetA.x * offsetB.x + offsetA.y * offsetB.y < 0;
+    return opposite ? ["edge-3-T"] : ["edge-3-L", "edge-3-L-flipped"];
+  }
+  if (count === 4) {
+    if (allFlat) return ["edge-4-flat"];
+    const perpendicular = items.every((item) => {
+      const a = planeAngle(items[0], item);
+      return a < 15 || a > 75;
+    });
+    return perpendicular ? ["edge-4-corner"] : ["edge-4-L", "edge-4-L-flipped"];
+  }
+  if (count === 5) {
+    return parallelGroups.length ? ["edge-5-L", "edge-5-L-flipped"] : ["edge-5-corner"];
+  }
+  return ["edge-7"];
 }
 
-/**
- * Connector choice is a recommendation, not a gate. Any connector with the
- * right panel count can be used; the editor automatically falls back to a
- * valid type when the geometry changes.
- */
+export function defaultConnectorType(scene: AlleyScene, refs: Array<PortRef>): ConnectorType {
+  const preview: AlleyJoint = { id: "preview", x: 0, y: 0, z: 0, type: "edge-2-flat", ports: refs };
+  return connectorCandidates(scene, preview)[0] || "edge-2-flat";
+}
+
+/** A connector can be selected only if it is a real candidate for the joint. */
 export function connectorAllowed(scene: AlleyScene, joint: AlleyJoint, type: ConnectorType): boolean {
-  const def = CONNECTORS[type];
-  if (!def) return false;
-  const items = itemsForPorts(scene, joint.ports);
-  if (type === "awning-foot" && !items.some((item) => item.type.startsWith("awning"))) return false;
-  if (type === "organizer-slot" && !items.some((item) => item.type === "organizer")) return false;
-  return items.length >= def.minPanels && items.length <= def.maxPanels;
+  return connectorCandidates(scene, joint).includes(type);
 }
 
 export function allowedConnectorTypes(scene: AlleyScene, joint: AlleyJoint): ConnectorType[] {
-  const items = itemsForPorts(scene, joint.ports);
-  const count = items.length;
-  const systems = new Set(
-    joint.ports
-      .map((ref) => {
-        const item = scene.items.find((candidate) => candidate.id === ref.itemId);
-        return item ? portWorld(item, ref.portId)?.system : undefined;
-      })
-      .filter((system): system is AlleySystem => Boolean(system)),
-  );
-  const angle = count >= 2 ? planeAngle(items[0], items[1]) : 90;
-  const hasAwning = items.some((item) => item.type.startsWith("awning"));
-  const preferred: ConnectorType[] = [];
-  if (hasAwning) preferred.push("awning-foot");
-  if (items.some((item) => item.type === "organizer")) preferred.push("organizer-slot");
-  if (systems.size === 1 && systems.has("wire")) preferred.push("wire-grid");
-  if (systems.size === 1 && systems.has("skadis")) {
-    if (count >= 4) preferred.push("skadis-x");
-    else if (count === 3) preferred.push("skadis-z");
-    else preferred.push("skadis-h", "skadis-v");
-  }
-  if (systems.size === 1 && systems.has("dovetail") && angle < 15) preferred.push("dovetail");
-  if (count === 2) {
-    if (angle < 15) preferred.push("edge-2-flat");
-    else if (angle >= 25 && angle <= 35) preferred.push("edge-2-30");
-    else if (angle >= 40 && angle <= 50) preferred.push("edge-2-45");
-    else preferred.push("edge-2-corner");
-  } else if (count === 3) {
-    preferred.push("edge-3-flat", "edge-3-L", "edge-3-T", "edge-3-corner");
-  } else if (count === 4) {
-    preferred.push("edge-4-flat", "edge-4-L", "edge-4-corner");
-  } else if (count === 5) {
-    preferred.push("edge-5-corner", "edge-5-L");
-  } else if (count >= 6) {
-    preferred.push("edge-7");
-  }
-  const all = (Object.values(CONNECTORS) as Array<{ id: ConnectorType }>).map((connector) => connector.id);
-  return Array.from(new Set([...preferred, ...all])).filter((type) => connectorAllowed(scene, joint, type));
+  return connectorCandidates(scene, joint);
 }
 
 function portKey(ref: PortRef): string {

@@ -11,6 +11,7 @@ import {
   workspaceAabb,
 } from "./geometry";
 import type {
+  AlleyGroup,
   AlleyGroupPreset,
   AlleyItem,
   AlleyJoint,
@@ -217,8 +218,16 @@ export function normalizeScene(raw: unknown): AlleyScene {
   const groups = Array.isArray(value.groups)
     ? value.groups
         .filter((group) => group && typeof group.id === "string")
-        .map((group) => ({ id: String(group.id), name: String(group.name || "Grupo") }))
+        .map((group) => ({
+          id: String(group.id),
+          name: String(group.name || "Grupo"),
+          parentId: typeof group.parentId === "string" ? group.parentId : undefined,
+        }))
     : [];
+  const groupIds = new Set(groups.map((group) => group.id));
+  for (const group of groups) {
+    if (group.parentId && !groupIds.has(group.parentId)) group.parentId = undefined;
+  }
   // Keep manually chosen connector types and suppressed joints across reloads.
   // Geometry is still recomputed from ports, so stale positions cannot survive.
   const previousJoints: AlleyJoint[] = Array.isArray(value.joints)
@@ -277,7 +286,15 @@ export function isLegacyStarterScene(scene: AlleyScene): boolean {
     scene.items.filter((item) => item.type === "organizer").every((item) => Boolean(item.mount)) &&
     scene.tables.length === 1 &&
     scene.groups.length === 1;
-  return originalStarter || intermediateTower;
+  const previousTower =
+    scene.items.length === 44 &&
+    counts.wire30 === 28 &&
+    counts.wireshelf30 === 12 &&
+    counts.organizer === 2 &&
+    counts.awning30 === 2 &&
+    scene.tables.length === 1 &&
+    scene.groups.length === 1;
+  return originalStarter || intermediateTower || previousTower;
 }
 
 export function loadScene(): AlleyScene {
@@ -519,7 +536,7 @@ export function addCatalogItem(
 export function addGroup(
   scene: AlleyScene,
   presetId: string,
-  options: { anchor?: { x: number; y: number }; name?: string } = {},
+  options: { anchor?: { x: number; y: number }; name?: string; parentId?: string } = {},
 ): { scene: AlleyScene; groupId: string; created: number } {
   const preset = GROUPS_BY_ID[presetId];
   if (!preset) return { scene, groupId: "", created: 0 };
@@ -580,10 +597,18 @@ export function addGroup(
   const next = commitScene({
     ...baseScene,
     items: [...baseScene.items, ...created],
-    groups: [...baseScene.groups, { id: groupId, name: groupName }],
+    groups: [...baseScene.groups, { id: groupId, name: groupName, parentId: options.parentId }],
   });
   const count = next.items.filter((item) => item.groupId === groupId).length;
-  return { scene: next, groupId: count ? groupId : "", created: count };
+  return { scene: next, groupId: itemsInGroup(next, groupId).length ? groupId : "", created: count };
+}
+
+export function addEmptyGroup(scene: AlleyScene, name: string, parentId?: string): { scene: AlleyScene; groupId: string } {
+  const groupId = uid("group");
+  return {
+    scene: { ...scene, groups: [...scene.groups, { id: groupId, name, parentId }] },
+    groupId,
+  };
 }
 
 export function moveItems(scene: AlleyScene, ids: string[], dx: number, dy: number, dz = 0): AlleyScene {
@@ -685,23 +710,43 @@ export function moveMountedItem(scene: AlleyScene, itemId: string, u: number, v:
 
 export function rotateItems(scene: AlleyScene, ids: string[], delta: number): AlleyScene {
   const selected = new Set(ids);
-  const groupIds = new Set(
-    scene.items.filter((item) => selected.has(item.id) && item.groupId).map((item) => item.groupId!),
-  );
+  const unitByItem = new Map<string, string>();
+
+  // Fully selected parent groups rotate as one unit around the parent pivot.
+  const fullySelected = fullySelectedGroups(scene, selected);
+  for (const group of topSelectedGroups(scene, fullySelected)) {
+    for (const item of itemsInGroup(scene, group.id)) unitByItem.set(item.id, group.id);
+  }
+
+  // A partial selection inside a leaf group still rotates that leaf as a unit.
+  for (const item of scene.items) {
+    if (!selected.has(item.id) || unitByItem.has(item.id) || !item.groupId) continue;
+    for (const grouped of scene.items) {
+      if (grouped.groupId === item.groupId) unitByItem.set(grouped.id, item.groupId);
+    }
+  }
+
+  const units = new Map<string, AlleyItem[]>();
+  for (const item of scene.items) {
+    const unit = unitByItem.get(item.id);
+    if (!unit) continue;
+    units.set(unit, [...(units.get(unit) || []), item]);
+  }
   const pivots = new Map<string, { x: number; y: number }>();
-  for (const groupId of groupIds) {
-    const groupItems = scene.items.filter((item) => item.groupId === groupId);
-    pivots.set(groupId, {
-      x: groupItems.reduce((sum, item) => sum + item.x, 0) / groupItems.length,
-      y: groupItems.reduce((sum, item) => sum + item.y, 0) / groupItems.length,
+  for (const [unit, unitItems] of units) {
+    pivots.set(unit, {
+      x: unitItems.reduce((sum, item) => sum + item.x, 0) / unitItems.length,
+      y: unitItems.reduce((sum, item) => sum + item.y, 0) / unitItems.length,
     });
   }
+
   const angle = (delta * Math.PI) / 180;
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
   const items = scene.items.map((item) => {
-    if (item.groupId && groupIds.has(item.groupId)) {
-      const pivot = pivots.get(item.groupId)!;
+    const unit = unitByItem.get(item.id);
+    if (unit) {
+      const pivot = pivots.get(unit)!;
       const dx = item.x - pivot.x;
       const dy = item.y - pivot.y;
       return {
@@ -739,20 +784,19 @@ export function deleteItems(scene: AlleyScene, ids: string[]): AlleyScene {
         rotation: 0,
       };
     });
-  const groups = scene.groups.filter((group) => items.some((item) => item.groupId === group.id));
-  return commitScene({ ...scene, items, groups });
+  return commitScene(removeEmptyGroups({ ...scene, items }));
 }
 
 export function deleteGroup(scene: AlleyScene, groupId: string): AlleyScene {
   return deleteItems(
     scene,
-    scene.items.filter((item) => item.groupId === groupId).map((item) => item.id),
+    itemsInGroup(scene, groupId).map((item) => item.id),
   );
 }
 
 export interface AlleyClipboard {
   items: AlleyItem[];
-  groups: { id: string; name: string }[];
+  groups: AlleyGroup[];
 }
 
 export function copySelection(scene: AlleyScene, ids: string[]): AlleyClipboard | null {
@@ -760,6 +804,14 @@ export function copySelection(scene: AlleyScene, ids: string[]): AlleyClipboard 
   const selected = scene.items.filter((item) => expanded.includes(item.id));
   if (!selected.length) return null;
   const groupIds = new Set(selected.map((item) => item.groupId).filter(Boolean) as string[]);
+  const byId = new Map(scene.groups.map((group) => [group.id, group]));
+  for (const groupId of Array.from(groupIds)) {
+    let parentId = byId.get(groupId)?.parentId;
+    while (parentId && !groupIds.has(parentId)) {
+      groupIds.add(parentId);
+      parentId = byId.get(parentId)?.parentId;
+    }
+  }
   return {
     items: selected.map((item) => ({
       ...item,
@@ -807,6 +859,7 @@ export function pasteSelection(
     ...clipboard.groups.map((group) => ({
       id: newGroupIds.get(group.id)!,
       name: `${group.name} copia`,
+      parentId: group.parentId ? newGroupIds.get(group.parentId) : undefined,
     })),
   ];
   const next = commitScene({ ...scene, items: [...scene.items, ...clones], groups });
@@ -822,22 +875,104 @@ export function duplicateSelection(scene: AlleyScene, ids: string[]): { scene: A
   return pasteSelection(scene, clipboard, 60);
 }
 
-export function groupSelection(scene: AlleyScene, ids: string[]): { scene: AlleyScene; groupId: string } {
-  if (ids.length < 2) return { scene, groupId: "" };
-  const groupId = uid("group");
-  const groupName = `Grupo ${scene.groups.length + 1}`;
-  const selected = new Set(ids);
-  const items = scene.items.map((item) => (selected.has(item.id) ? { ...item, groupId } : item));
-  const groups = scene.groups.filter((group) => items.some((item) => item.groupId === group.id));
-  const next = commitScene({ ...scene, items, groups: [...groups, { id: groupId, name: groupName }] });
-  return { scene: next, groupId };
+function fullySelectedGroups(scene: AlleyScene, selected: Set<string>): AlleyGroup[] {
+  return scene.groups.filter((group) => {
+    const items = itemsInGroup(scene, group.id);
+    return items.length > 0 && items.every((item) => selected.has(item.id));
+  });
 }
 
+function topSelectedGroups(scene: AlleyScene, fullySelected: AlleyGroup[]): AlleyGroup[] {
+  const selectedGroups = new Set(fullySelected.map((group) => group.id));
+  return fullySelected.filter((group) => !group.parentId || !selectedGroups.has(group.parentId));
+}
+
+function ancestorChain(scene: AlleyScene, groupId: string | undefined): string[] {
+  const chain: string[] = [];
+  let current = groupId;
+  const seen = new Set<string>();
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    chain.push(current);
+    current = scene.groups.find((group) => group.id === current)?.parentId;
+  }
+  return chain;
+}
+
+/** Deepest group that is an ancestor of every supplied starting group. */
+function commonAncestorId(scene: AlleyScene, groupIds: Array<string | undefined>): string | undefined {
+  if (!groupIds.length || groupIds.some((groupId) => !groupId)) return undefined;
+  const chains = groupIds.map((groupId) => ancestorChain(scene, groupId));
+  return chains[0].find((candidate) => chains.every((chain) => chain.includes(candidate)));
+}
+
+/**
+ * Group the selection one level up. Fully selected groups become child groups
+ * instead of being flattened into their pieces.
+ */
+export function groupSelection(scene: AlleyScene, ids: string[]): { scene: AlleyScene; groupId: string } {
+  if (!ids.length) return { scene, groupId: "" };
+  const selected = new Set(ids);
+  const fullySelected = fullySelectedGroups(scene, selected);
+  const topGroups = topSelectedGroups(scene, fullySelected);
+  const covered = new Set(topGroups.flatMap((group) => itemsInGroup(scene, group.id).map((item) => item.id)));
+  const direct = Array.from(selected).filter((id) => !covered.has(id));
+  if (!topGroups.length && direct.length < 2) return { scene, groupId: "" };
+  const groupId = uid("group");
+  const groupName = `Grupo ${scene.groups.length + 1}`;
+  const topIds = new Set(topGroups.map((group) => group.id));
+  const parentStarts: Array<string | undefined> = [
+    ...topGroups.map((group) => group.parentId),
+    ...direct.map((id) => {
+      const item = scene.items.find((candidate) => candidate.id === id);
+      return item?.groupId ? scene.groups.find((group) => group.id === item.groupId)?.parentId : undefined;
+    }),
+  ];
+  const parentId = commonAncestorId(scene, parentStarts);
+  const groups: AlleyGroup[] = [
+    ...scene.groups.map((group) => (topIds.has(group.id) ? { ...group, parentId: groupId } : group)),
+    { id: groupId, name: groupName, parentId },
+  ];
+  const directIds = new Set(direct);
+  const items = scene.items.map((item) => (directIds.has(item.id) ? { ...item, groupId } : item));
+  return { scene: commitScene({ ...scene, items, groups }), groupId };
+}
+
+function dissolveGroups(scene: AlleyScene, groupIds: string[]): AlleyScene {
+  const remove = new Set(groupIds);
+  if (!remove.size) return scene;
+  const byId = new Map(scene.groups.map((group) => [group.id, group]));
+  const promotedParent = (parentId: string | undefined): string | undefined => {
+    let current = parentId;
+    const seen = new Set<string>();
+    while (current && remove.has(current) && !seen.has(current)) {
+      seen.add(current);
+      current = byId.get(current)?.parentId;
+    }
+    return current && byId.has(current) ? current : undefined;
+  };
+  const items = scene.items.map((item) =>
+    item.groupId && remove.has(item.groupId) ? { ...item, groupId: promotedParent(item.groupId) } : item,
+  );
+  const groups = scene.groups
+    .filter((group) => !remove.has(group.id))
+    .map((group) =>
+      group.parentId && remove.has(group.parentId)
+        ? { ...group, parentId: promotedParent(group.parentId) }
+        : group,
+    );
+  return commitScene({ ...scene, items, groups });
+}
+
+/** Remove only the selected group level, promoting its pieces and child groups. */
 export function ungroupSelection(scene: AlleyScene, ids: string[]): AlleyScene {
   const selected = new Set(ids);
-  const items = scene.items.map((item) => (selected.has(item.id) ? { ...item, groupId: undefined } : item));
-  const groups = scene.groups.filter((group) => items.some((item) => item.groupId === group.id));
-  return commitScene({ ...scene, items, groups });
+  const fullySelected = fullySelectedGroups(scene, selected);
+  return dissolveGroups(scene, topSelectedGroups(scene, fullySelected).map((group) => group.id));
+}
+
+export function ungroupGroup(scene: AlleyScene, groupId: string): AlleyScene {
+  return dissolveGroups(scene, [groupId]);
 }
 
 export function setJointType(scene: AlleyScene, jointId: string, type: ConnectorType): AlleyScene {
@@ -904,10 +1039,12 @@ export function selectedPanelForMount(scene: AlleyScene, selection: AlleySelecti
 
 export function expandSelectionWithGroups(scene: AlleyScene, ids: string[]): string[] {
   const selected = new Set(ids);
-  const groups = new Set(scene.items.filter((item) => selected.has(item.id) && item.groupId).map((item) => item.groupId!));
+  const groupIds = new Set(
+    scene.items.filter((item) => selected.has(item.id) && item.groupId).map((item) => item.groupId!),
+  );
   const result = new Set(ids);
-  for (const item of scene.items) {
-    if (item.groupId && groups.has(item.groupId)) result.add(item.id);
+  for (const groupId of groupIds) {
+    for (const item of itemsInGroup(scene, groupId)) result.add(item.id);
   }
   return Array.from(result);
 }
@@ -974,8 +1111,21 @@ export function bomCsv(bom: SceneBom): string {
 
 export function starterScene(): AlleyScene {
   const base = emptyScene();
-  const result = addGroup(base, "twin-towers", { anchor: { x: 0, y: 0 }, name: "Puesto Artist Alley" });
-  return { ...result.scene, name: "Mi puesto Artist Alley" };
+  const root = addEmptyGroup(base, "Puesto Artist Alley");
+  let scene = root.scene;
+  for (const [presetId, name] of [
+    ["tower-base", "Base rosa"],
+    ["tower-core", "Torres"],
+    ["tower-awnings", "Toldos"],
+  ] as const) {
+    scene = addGroup(scene, presetId, { anchor: { x: 0, y: 0 }, name, parentId: root.groupId }).scene;
+  }
+  scene = addGroup(scene, "organizer-shelf", {
+    anchor: { x: 0, y: 300 },
+    name: "Estantería",
+    parentId: root.groupId,
+  }).scene;
+  return { ...scene, name: "Mi puesto Artist Alley" };
 }
 
 export function clearScene(scene: AlleyScene): AlleyScene {
@@ -987,8 +1137,58 @@ export function groupFor(scene: AlleyScene, groupId: string | undefined) {
   return groupId ? scene.groups.find((group) => group.id === groupId) : undefined;
 }
 
+export function childGroups(scene: AlleyScene, groupId: string | undefined): AlleyGroup[] {
+  return groupId ? scene.groups.filter((group) => group.parentId === groupId) : [];
+}
+
+/** Stable pre-order list of a group and all of its descendant groups. */
+export function descendantGroupIds(scene: AlleyScene, groupId: string): string[] {
+  if (!scene.groups.some((group) => group.id === groupId)) return [];
+  const result: string[] = [];
+  const visit = (id: string) => {
+    if (result.includes(id)) return;
+    result.push(id);
+    for (const child of scene.groups.filter((group) => group.parentId === id)) visit(child.id);
+  };
+  visit(groupId);
+  return result;
+}
+
+export function groupDepth(scene: AlleyScene, groupId: string): number {
+  let depth = 0;
+  let current = scene.groups.find((group) => group.id === groupId);
+  const seen = new Set<string>();
+  while (current?.parentId && !seen.has(current.id)) {
+    seen.add(current.id);
+    current = scene.groups.find((group) => group.id === current?.parentId);
+    if (current) depth += 1;
+  }
+  return depth;
+}
+
+export function rootGroups(scene: AlleyScene): AlleyGroup[] {
+  return scene.groups.filter((group) => !group.parentId || !scene.groups.some((candidate) => candidate.id === group.parentId));
+}
+
+/** Parent-first order for the group tree. */
+export function orderedGroups(scene: AlleyScene): AlleyGroup[] {
+  const result: AlleyGroup[] = [];
+  const seen = new Set<string>();
+  const visit = (group: AlleyGroup) => {
+    if (seen.has(group.id)) return;
+    seen.add(group.id);
+    result.push(group);
+    for (const child of childGroups(scene, group.id)) visit(child);
+  };
+  for (const group of rootGroups(scene)) visit(group);
+  for (const group of scene.groups) visit(group);
+  return result;
+}
+
 export function itemsInGroup(scene: AlleyScene, groupId: string | undefined): AlleyItem[] {
-  return groupId ? scene.items.filter((item) => item.groupId === groupId) : [];
+  if (!groupId) return [];
+  const groupIds = new Set(descendantGroupIds(scene, groupId));
+  return scene.items.filter((item) => item.groupId && groupIds.has(item.groupId));
 }
 
 export function selectionLabel(scene: AlleyScene, selection: AlleySelection | null): string {
@@ -1008,7 +1208,7 @@ export function defaultAnchorForNewItem(scene: AlleyScene): Vec3 {
 }
 
 export function countGroupItems(scene: AlleyScene, groupId: string | undefined): number {
-  return groupId ? scene.items.filter((item) => item.groupId === groupId).length : 0;
+  return groupId ? itemsInGroup(scene, groupId).length : 0;
 }
 
 export function itemAt(scene: AlleyScene, itemId: string): AlleyItem | undefined {
@@ -1016,7 +1216,20 @@ export function itemAt(scene: AlleyScene, itemId: string): AlleyItem | undefined
 }
 
 export function removeEmptyGroups(scene: AlleyScene): AlleyScene {
-  const groups = scene.groups.filter((group) => scene.items.some((item) => item.groupId === group.id));
+  const keep = new Set<string>();
+  const byId = new Map(scene.groups.map((group) => [group.id, group]));
+  for (const item of scene.items) {
+    let groupId = item.groupId;
+    while (groupId && byId.has(groupId) && !keep.has(groupId)) {
+      keep.add(groupId);
+      groupId = byId.get(groupId)?.parentId;
+    }
+  }
+  const groups = scene.groups
+    .filter((group) => keep.has(group.id))
+    .map((group) =>
+      group.parentId && byId.has(group.parentId) ? group : group.parentId ? { ...group, parentId: undefined } : group,
+    );
   return groups.length === scene.groups.length ? scene : { ...scene, groups };
 }
 

@@ -10,13 +10,17 @@ export type ConnectorType =
   | "edge-3-corner"
   | "edge-3-flat"
   | "edge-3-L"
+  | "edge-3-L-flipped"
   | "edge-3-T"
   | "edge-4-corner"
   | "edge-4-flat"
   | "edge-4-L"
+  | "edge-4-L-flipped"
   | "edge-5-corner"
   | "edge-5-L"
+  | "edge-5-L-flipped"
   | "edge-7"
+  | "connector-360"
   | "skadis-h"
   | "skadis-v"
   | "skadis-x"
@@ -105,6 +109,8 @@ export interface AlleyJoint {
 export interface AlleyGroup {
   id: string;
   name: string;
+  /** Optional parent for nested groups. Items keep their leaf groupId. */
+  parentId?: string;
 }
 
 export interface AlleyTable {
@@ -164,6 +170,8 @@ export interface AlleyGroupPreset {
   items: AlleyGroupItemSpec[];
   /** Optional workspace layout. When present, adding the preset also places these tables. */
   tables?: AlleyTableSpec[];
+  /** Internal composition presets are not shown as quick examples. */
+  hidden?: boolean;
 }
 
 export interface ConnectorDef {

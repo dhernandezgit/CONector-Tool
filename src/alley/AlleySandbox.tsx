@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
+  BoxSelect,
   Check,
   ChevronRight,
   Clipboard,
@@ -10,6 +11,7 @@ import {
   EyeOff,
   Grid2X2,
   Group,
+  Hand,
   Layers,
   Link2,
   List,
@@ -20,6 +22,7 @@ import {
   Plus,
   RotateCcw,
   RotateCw,
+  Ruler,
   Search,
   Sparkles,
   Table2,
@@ -48,9 +51,12 @@ import {
   deleteGroup,
   deleteItems,
   duplicateSelection,
+  childGroups,
   expandSelectionWithGroups,
+  groupDepth,
   groupFor,
   groupSelection,
+  orderedGroups,
   itemsInGroup,
   moveItems,
   moveMountedItem,
@@ -65,6 +71,7 @@ import {
   setJointType,
   starterScene,
   toggleJointSuppressed,
+  ungroupGroup,
   ungroupSelection,
   unmountItem,
   updateTable as updateTableInScene,
@@ -86,6 +93,7 @@ import { ColorField, NumberField, RangeField, Segmented, SelectField, Toggle } f
 import { clamp } from "../lib/utils";
 
 type CategoryFilter = AlleyCategory | "todos";
+type AlleyTool = "select" | "marquee" | "measure" | "orbit";
 
 interface Props {
   scene: AlleyScene;
@@ -131,7 +139,9 @@ export default function AlleySandbox({
   const pasteCountRef = useRef(0);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [selection, setSelection] = useState<AlleySelection | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [dragPreview, setDragPreview] = useState<AlleyDragPreview | null>(null);
+  const [tool, setTool] = useState<AlleyTool>("select");
   const [pendingPort, setPendingPort] = useState<PortRef | null>(null);
   const [category, setCategory] = useState<CategoryFilter>("todos");
   const [query, setQuery] = useState("");
@@ -150,7 +160,15 @@ export default function AlleySandbox({
     () => (selection?.type === "joint" ? scene.joints.find((joint) => selection.ids.includes(joint.id)) : undefined),
     [scene.joints, selection],
   );
-  const selectedGroup = selectedItem?.groupId ? groupFor(scene, selectedItem.groupId) : undefined;
+  const explicitGroup = groupFor(scene, selectedGroupId || undefined);
+  const explicitGroupItems = explicitGroup ? itemsInGroup(scene, explicitGroup.id) : [];
+  const explicitGroupSelected =
+    Boolean(explicitGroup) &&
+    selectedItems.length === explicitGroupItems.length &&
+    explicitGroupItems.every((item) => selectedItems.some((selected) => selected.id === item.id));
+  const selectedGroup =
+    (explicitGroupSelected ? explicitGroup : undefined) ||
+    (selectedItems.length === 1 && selectedItem?.groupId ? groupFor(scene, selectedItem.groupId) : undefined);
   const selectedGroupItems = selectedGroup ? itemsInGroup(scene, selectedGroup.id) : [];
   const selectionColor = selectedItems.length ? itemColor(selectedItems[0]) : "#f3c7d4";
   const selectionHasMixedColor = selectedItems.some((item) => itemColor(item) !== selectionColor);
@@ -172,9 +190,10 @@ export default function AlleySandbox({
   }, [category, query]);
 
   const filteredGroups = useMemo(() => {
+    const visible = GROUPS.filter((group) => !group.hidden);
     const needle = query.trim().toLowerCase();
-    if (!needle) return GROUPS;
-    return GROUPS.filter((group) => [group.name, group.description].join(" ").toLowerCase().includes(needle));
+    if (!needle) return visible;
+    return visible.filter((group) => [group.name, group.description].join(" ").toLowerCase().includes(needle));
   }, [query]);
 
   const mutate = useCallback(
@@ -294,6 +313,7 @@ export default function AlleySandbox({
       const hostPanel = isAwning ? selectedPanel : undefined;
       const result = addCatalogItem(scene, type, { panelId: selectedPanel?.id });
       mutate(result.scene);
+      setSelectedGroupId(null);
       setSelection({ type: "item", ids: [result.itemId] });
       setPendingPort(null);
       if (!result.created) {
@@ -335,6 +355,7 @@ export default function AlleySandbox({
         return;
       }
       mutate(result.scene);
+      setSelectedGroupId(null);
       const first = result.scene.items.find((item) => item.groupId === result.groupId);
       if (preset?.tables?.length) {
         setSelection(null);
@@ -372,6 +393,7 @@ export default function AlleySandbox({
       return;
     }
     mutate(result.scene);
+    setSelectedGroupId(null);
     setSelection({ type: result.ids.length > 1 ? "items" : "item", ids: result.ids });
     onToast(`Copia creada (${result.ids.length} pieza${result.ids.length === 1 ? "" : "s"}).`);
   }, [mutate, onToast, scene, selection]);
@@ -404,6 +426,7 @@ export default function AlleySandbox({
       return;
     }
     mutate(result.scene);
+    setSelectedGroupId(null);
     setSelection({ type: result.ids.length > 1 ? "items" : "item", ids: result.ids });
     onToast(`${result.ids.length} pieza${result.ids.length === 1 ? "" : "s"} pegada${result.ids.length === 1 ? "" : "s"}.`);
   }, [mutate, onToast, scene]);
@@ -413,6 +436,7 @@ export default function AlleySandbox({
       onToast("La mesa está vacía.");
       return;
     }
+    setSelectedGroupId(null);
     setSelection({ type: "items", ids: scene.items.map((item) => item.id) });
     onToast(`${scene.items.length} piezas seleccionadas. Arrastra una para moverlas juntas.`);
   }, [onToast, scene.items]);
@@ -439,6 +463,7 @@ export default function AlleySandbox({
     }
     const removed = selection.ids.length;
     mutate(deleteItems(scene, selection.ids));
+    setSelectedGroupId(null);
     setSelection(null);
     setPendingPort(null);
     onToast(`${removed === 1 ? "Pieza eliminada" : `${removed} piezas eliminadas`}. El resto del puesto sigue en pie.`);
@@ -448,6 +473,7 @@ export default function AlleySandbox({
     if (!selectedGroup) return;
     const count = countGroupItems(scene, selectedGroup.id);
     mutate(deleteGroup(scene, selectedGroup.id));
+    setSelectedGroupId(null);
     setSelection(null);
     setPendingPort(null);
     onToast(`Grupo "${selectedGroup.name}" eliminado (${count} piezas).`);
@@ -460,20 +486,36 @@ export default function AlleySandbox({
     }
     const ids = selectedItems.map((item) => item.id);
     const result = groupSelection(scene, ids);
+    if (!result.groupId) {
+      onToast("No hay piezas o grupos completos que agrupar.");
+      return;
+    }
     mutate(result.scene);
+    setSelectedGroupId(result.groupId);
     setSelection({ type: "items", ids });
     const group = result.scene.groups.find((entry) => entry.id === result.groupId);
-    onToast(`Grupo "${group?.name || "nuevo"}" creado. Se moverá y girará junto.`);
+    onToast(`Grupo "${group?.name || "nuevo"}" creado. Puede contener piezas y subgrupos.`);
   }, [mutate, onToast, scene, selectedItems]);
 
   const ungroupSelected = useCallback(() => {
+    if (selectedGroup) {
+      const childCount = childGroups(scene, selectedGroup.id).length;
+      mutate(ungroupGroup(scene, selectedGroup.id));
+      setSelectedGroupId(null);
+      setSelection(null);
+      onToast(
+        `Grupo "${selectedGroup.name}" desagrupado un nivel${childCount ? `; sus ${childCount} subgrupos se mantienen` : ""}.`,
+      );
+      return;
+    }
     if (!selectedItems.length) return;
     mutate(ungroupSelection(scene, selectedItems.map((item) => item.id)));
     onToast("Piezas desagrupadas. Ahora puedes moverlas por separado.");
-  }, [mutate, onToast, scene, selectedItems]);
+  }, [mutate, onToast, scene, selectedGroup, selectedItems]);
 
   const selectWholeGroup = useCallback(() => {
     if (!selectedGroup) return;
+    setSelectedGroupId(selectedGroup.id);
     setSelection({ type: "items", ids: selectedGroupItems.map((item) => item.id) });
     onToast(`Grupo "${selectedGroup.name}" seleccionado (${selectedGroupItems.length} piezas).`);
   }, [onToast, selectedGroup, selectedGroupItems]);
@@ -484,6 +526,7 @@ export default function AlleySandbox({
       if (!item) return;
       if (!pendingPort) {
         setPendingPort(port);
+        setSelectedGroupId(null);
         setSelection({ type: "item", ids: [item.id] });
         onToast("Origen elegido. Toca una esfera rosa compatible para conectar, o Esc para cancelar.");
         return;
@@ -523,6 +566,7 @@ export default function AlleySandbox({
           candidate.ports.some((ref) => ref.itemId === port.itemId && ref.portId === port.portId),
       );
       if (joint) {
+        setSelectedGroupId(null);
         setSelection({ type: "joint", ids: [joint.id] });
         onToast(`Conexión creada con ${CONNECTORS[joint.type]?.short || "conector"}.`);
       } else {
@@ -553,6 +597,7 @@ export default function AlleySandbox({
 
   const loadExample = useCallback(() => {
     mutate(starterScene());
+    setSelectedGroupId(null);
     setSelection(null);
     setPendingPort(null);
     onToast("Puesto de ejemplo cargado. Todo es editable.");
@@ -566,6 +611,7 @@ export default function AlleySandbox({
     }
     if (!window.confirm("¿Vaciar la mesa? Podrás deshacerlo con Ctrl+Z.")) return;
     mutate(clearScene(scene));
+    setSelectedGroupId(null);
     setSelection(null);
     setPendingPort(null);
     onToast("Mesa vacía. Usa Ctrl+Z para recuperar el puesto.");
@@ -661,9 +707,16 @@ export default function AlleySandbox({
         else if (event.key === "ArrowDown") nudge(0, -step);
         return;
       }
+      if (!mod && ["1", "2", "3", "4"].includes(event.key)) {
+        event.preventDefault();
+        setTool(event.key === "1" ? "select" : event.key === "2" ? "marquee" : event.key === "3" ? "measure" : "orbit");
+        return;
+      }
       if (event.key === "Escape") {
+        setSelectedGroupId(null);
         setSelection(null);
         setPendingPort(null);
+        setTool("select");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -837,7 +890,15 @@ export default function AlleySandbox({
       <main className="alley-stage">
         <div className="alley-toolbar">
           <div className="alley-tool-group">
-            <button type="button" className="alley-tool" onClick={() => setSelection(null)} title="Quitar selección">
+            <button
+              type="button"
+              className="alley-tool"
+              onClick={() => {
+                setSelectedGroupId(null);
+                setSelection(null);
+              }}
+              title="Quitar selección"
+            >
               <MousePointer2 size={16} />
             </button>
             <button type="button" className="alley-tool" onClick={onUndo} disabled={!canUndo} title="Deshacer (Ctrl+Z)">
@@ -845,6 +906,40 @@ export default function AlleySandbox({
             </button>
             <button type="button" className="alley-tool" onClick={onRedo} disabled={!canRedo} title="Rehacer (Ctrl+Mayús+Z)">
               <RotateCw size={16} />
+            </button>
+          </div>
+          <div className="alley-tool-group">
+            <button
+              type="button"
+              className={`alley-tool ${tool === "select" ? "active" : ""}`}
+              onClick={() => setTool("select")}
+              title="Seleccionar y mover piezas"
+            >
+              <MousePointer2 size={16} />
+            </button>
+            <button
+              type="button"
+              className={`alley-tool ${tool === "marquee" ? "active" : ""}`}
+              onClick={() => setTool("marquee")}
+              title="Selección por rectángulo"
+            >
+              <BoxSelect size={16} />
+            </button>
+            <button
+              type="button"
+              className={`alley-tool ${tool === "measure" ? "active" : ""}`}
+              onClick={() => setTool("measure")}
+              title="Medir distancias sobre la mesa"
+            >
+              <Ruler size={16} />
+            </button>
+            <button
+              type="button"
+              className={`alley-tool ${tool === "orbit" ? "active" : ""}`}
+              onClick={() => setTool("orbit")}
+              title="Orbitar sin seleccionar"
+            >
+              <Hand size={16} />
             </button>
           </div>
           <div className="alley-tool-group">
@@ -946,7 +1041,9 @@ export default function AlleySandbox({
             showPorts={showPorts}
             showGrid={showGrid}
             projection={projection}
+            tool={tool}
             onSelect={(next) => {
+              setSelectedGroupId(null);
               setSelection(next);
               if (next?.type === "joint") setPendingPort(null);
             }}
@@ -1114,47 +1211,6 @@ export default function AlleySandbox({
                 </p>
               </section>
 
-              {scene.groups.length > 0 && (
-                <section className="alley-panel">
-                  <h3>Tus grupos</h3>
-                  <div className="alley-group-rows">
-                    {scene.groups.map((group) => {
-                      const count = countGroupItems(scene, group.id);
-                      return (
-                        <div className="alley-group-row" key={group.id}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const items = itemsInGroup(scene, group.id);
-                              setSelection({ type: items.length > 1 ? "items" : "item", ids: items.map((item) => item.id) });
-                            }}
-                          >
-                            <Layers size={14} />
-                            <span>
-                              <strong>{group.name}</strong>
-                              <small>{count} pieza{count === 1 ? "" : "s"}</small>
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            className="alley-icon-danger"
-                            title="Eliminar grupo"
-                            onClick={() => {
-                              if (!window.confirm(`¿Eliminar "${group.name}" y sus ${count} piezas?`)) return;
-                              mutate(deleteGroup(scene, group.id));
-                              setSelection(null);
-                              onToast("Grupo eliminado.");
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-
               <section className="alley-panel">
                 <h3>Leyenda de conexiones</h3>
                 <div className="alley-legend">
@@ -1175,6 +1231,8 @@ export default function AlleySandbox({
                   <span><kbd>R</kbd>/<kbd>E</kbd> girar +90°</span>
                   <span><kbd>Q</kbd> girar -90°</span>
                   <span><kbd>Mayús</kbd>+<kbd>clic</kbd> multiselección</span>
+                  <span><kbd>1</kbd>-<kbd>4</kbd> herramientas</span>
+                  <span><kbd>2</kbd> rectángulo</span>
                   <span><kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd> copiar y pegar</span>
                   <span><kbd>Ctrl</kbd>+<kbd>A</kbd> seleccionar todo</span>
                   <span><kbd>Ctrl</kbd>+<kbd>D</kbd> duplicar</span>
@@ -1218,7 +1276,12 @@ export default function AlleySandbox({
                   <Layers size={15} />
                   <div>
                     <strong>{selectedGroup.name}</strong>
-                    <small>{selectedGroupItems.length} piezas se mueven y giran juntas</small>
+                    <small>
+                      {selectedGroupItems.length} piezas se mueven y giran juntas
+                      {childGroups(scene, selectedGroup.id).length
+                        ? ` · ${childGroups(scene, selectedGroup.id).length} subgrupos`
+                        : ""}
+                    </small>
                   </div>
                   <button type="button" onClick={selectWholeGroup}>Seleccionar</button>
                 </div>
@@ -1381,7 +1444,10 @@ export default function AlleySandbox({
                     <button
                       type="button"
                       key={item.id}
-                      onClick={() => setSelection({ type: "item", ids: [item.id] })}
+                      onClick={() => {
+                        setSelectedGroupId(null);
+                        setSelection({ type: "item", ids: [item.id] });
+                      }}
                     >
                       {dot(itemColor(item))}
                       <span>{itemTypeLabel(item)}</span>
@@ -1398,7 +1464,7 @@ export default function AlleySandbox({
                   value={selectedJoint.type}
                   options={jointTypeOptions}
                   onChange={(value) => mutate(setJointType(scene, selectedJoint.id, value as ConnectorType))}
-                  hint="Se muestran todos los conectores compatibles con el número de piezas."
+                  hint="Solo aparecen los conectores reales que encajan con esta unión."
                 />
                 <p className="alley-note">
                   {selectedJoint.manual
@@ -1454,11 +1520,33 @@ export default function AlleySandbox({
                 <h2>{selectedItems.length} piezas</h2>
                 <p>Muévelas juntas o conviértelas en grupo.</p>
               </div>
+              {selectedGroup && (
+                <div className="alley-group-banner">
+                  <Layers size={15} />
+                  <div>
+                    <strong>{selectedGroup.name}</strong>
+                    <small>
+                      Grupo seleccionado · {selectedGroupItems.length} piezas
+                      {childGroups(scene, selectedGroup.id).length
+                        ? ` · ${childGroups(scene, selectedGroup.id).length} subgrupos`
+                        : ""}
+                    </small>
+                  </div>
+                  <button type="button" onClick={ungroupSelected}>Desagrupar</button>
+                </div>
+              )}
               <section className="alley-panel">
                 <h3>Piezas seleccionadas</h3>
                 <div className="alley-connected-list">
                   {selectedItems.map((item) => (
-                    <button type="button" key={item.id} onClick={() => setSelection({ type: "item", ids: [item.id] })}>
+                    <button
+                      type="button"
+                      key={item.id}
+                      onClick={() => {
+                        setSelectedGroupId(null);
+                        setSelection({ type: "item", ids: [item.id] });
+                      }}
+                    >
                       {dot(itemColor(item))}
                       <span>{itemTypeLabel(item)}</span>
                       <ChevronRight size={14} />
@@ -1509,6 +1597,74 @@ export default function AlleySandbox({
                 <button type="button" className="secondary-button wide danger-text" onClick={removeSelection}><Trash2 size={15} /> Eliminar</button>
               </div>
             </>
+          )}
+
+          {scene.groups.length > 0 && (
+            <section className="alley-panel">
+              <h3>Tus grupos</h3>
+              <div className="alley-group-rows">
+                {orderedGroups(scene).map((group) => {
+                  const count = countGroupItems(scene, group.id);
+                  const children = childGroups(scene, group.id).length;
+                  const depth = groupDepth(scene, group.id);
+                  return (
+                    <div
+                      className="alley-group-row"
+                      key={group.id}
+                      style={{ paddingLeft: `${Math.min(depth, 5) * 14}px` }}
+                    >
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          const items = itemsInGroup(scene, group.id);
+                          const ids = items.map((item) => item.id);
+                          if (event.shiftKey && selection && selection.type !== "joint") {
+                            setSelectedGroupId(null);
+                            const merged = Array.from(new Set([...selection.ids, ...ids]));
+                            setSelection({ type: merged.length > 1 ? "items" : "item", ids: merged });
+                            return;
+                          }
+                          setSelectedGroupId(group.id);
+                          setSelection({ type: items.length > 1 ? "items" : "item", ids });
+                        }}
+                      >
+                        <Layers size={14} />
+                        <span>
+                          <strong>
+                            {depth ? "↳ " : ""}
+                            {group.name}
+                          </strong>
+                          <small>
+                            {count} pieza{count === 1 ? "" : "s"}
+                            {children ? ` · ${children} subgrupo${children === 1 ? "" : "s"}` : ""}
+                          </small>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="alley-icon-danger"
+                        title="Eliminar grupo"
+                        onClick={() => {
+                          if (!window.confirm(`¿Eliminar "${group.name}" y sus ${count} piezas?`)) return;
+                          mutate(deleteGroup(scene, group.id));
+                          setSelectedGroupId(null);
+                          setSelection(null);
+                          onToast("Grupo eliminado.");
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {scene.groups.length > 1 && (
+                <p className="alley-note">
+                  Mayús + clic en varios grupos para seleccionarlos juntos y crear un grupo padre. Al desagrupar solo se
+                  separa un nivel.
+                </p>
+              )}
+            </section>
           )}
         </div>
 
