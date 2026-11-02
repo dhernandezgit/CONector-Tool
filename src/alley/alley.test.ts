@@ -29,6 +29,7 @@ import {
   moveItems,
   moveTable,
   pasteSelection,
+  replacePanelType,
   recolorItems,
   removeTable,
   resetJointType,
@@ -50,38 +51,36 @@ function countItems(scene: ReturnType<typeof emptyScene>, type: string) {
 }
 
 describe("Artist Alley starter scene", () => {
-  it("loads the editable double tower with shelves and organizers", () => {
+  it("loads the editable double tower with its base and awnings", () => {
     const scene = starterScene();
-    expect(scene.items).toHaveLength(54);
-    expect(scene.groups).toHaveLength(5);
+    expect(scene.items).toHaveLength(48);
+    expect(scene.groups).toHaveLength(4);
     expect(scene.groups.filter((group) => !group.parentId)).toHaveLength(1);
-    expect(scene.groups.filter((group) => group.parentId).length).toBe(4);
-    expect(itemsInGroup(scene, scene.groups.find((group) => !group.parentId)?.id)).toHaveLength(54);
+    expect(scene.groups.filter((group) => group.parentId).length).toBe(3);
+    expect(itemsInGroup(scene, scene.groups.find((group) => !group.parentId)?.id)).toHaveLength(48);
     expect(countItems(scene, "wire30")).toBe(28);
-    expect(countItems(scene, "wireshelf30")).toBe(12);
-    expect(countItems(scene, "organizer")).toBe(2);
+    expect(countItems(scene, "wireshelf30")).toBe(8);
+    expect(countItems(scene, "organizer")).toBe(0);
     expect(countItems(scene, "awning30")).toBe(6);
     expect(countItems(scene, "basebox40")).toBe(6);
-    const organizers = scene.items.filter((item) => item.type === "organizer");
-    expect(organizers.every((item) => !item.mount)).toBe(true);
-    expect(new Set(organizers.map((item) => item.x))).toEqual(new Set([-150, 150]));
-    expect(new Set(organizers.map((item) => item.y))).toEqual(new Set([300]));
     expect(new Set(scene.items.filter((item) => item.type === "wireshelf30").map((item) => item.baseZ))).toEqual(
-      new Set([200, 500, 800, 1100, 40, 95, 150, 205].map((level) => scene.table.height + level)),
+      new Set([200, 500, 800, 1100].map((level) => scene.table.height + level)),
     );
     expect(new Set(scene.items.filter((item) => item.type === "basebox40").map((item) => item.x))).toEqual(
       new Set([-750, -450, -150, 150, 450, 750]),
     );
     expect(scene.joints.some((joint) => joint.type === "wire-grid")).toBe(true);
-    expect(scene.joints.some((joint) => joint.type === "organizer-slot")).toBe(true);
+    expect(scene.joints.some((joint) => joint.type === "organizer-slot")).toBe(false);
     expect(scene.joints.filter((joint) => joint.type === "awning-foot")).toHaveLength(12);
     expect(scene.joints.filter((joint) => joint.type === "connector-360").length).toBeGreaterThanOrEqual(19);
     expect(scene.joints.length).toBeGreaterThan(0);
     const restored = sceneFromJson(sceneToJson(scene));
     const restoredRoot = restored.groups.find((group) => !group.parentId);
+    const restoredTowers = restored.groups.find((group) => group.name === "Torres");
     const restoredBase = restored.groups.find((group) => group.name === "Base rosa");
     expect(restoredRoot).toBeTruthy();
-    expect(restoredBase?.parentId).toBe(restoredRoot?.id);
+    expect(restoredTowers?.parentId).toBe(restoredRoot?.id);
+    expect(restoredBase?.parentId).toBe(restoredTowers?.id);
   });
 
   it("has structural ports and a generated materials list", () => {
@@ -104,6 +103,22 @@ describe("panels, joints and connectors", () => {
     const bom = sceneBom(scene);
     expect(bom.integrated.some((line) => line.name.includes("cola de milano"))).toBe(true);
     expect(bom.parts.some((line) => line.name.includes("Conector de borde"))).toBe(false);
+  });
+
+  it("replaces a panel with an equivalent one of the same size", () => {
+    const scene = addGroup(emptyScene(), "wall-slatwall", { anchor: { x: 0, y: 0 } }).scene;
+    const panel = scene.items.find((item) => item.type === "slatwall30");
+    expect(panel).toBeTruthy();
+    if (!panel) return;
+    const replaced = replacePanelType(scene, panel.id, "wire30");
+    const next = replaced.items.find((item) => item.id === panel.id);
+    expect(next?.type).toBe("wire30");
+    expect(next?.x).toBe(panel.x);
+    expect(next?.y).toBe(panel.y);
+    expect(next?.rotation).toBe(panel.rotation);
+    expect(next?.groupId).toBe(panel.groupId);
+    expect(replaced.joints.some((joint) => joint.ports.some((port) => port.itemId === panel.id))).toBe(true);
+    expect(replacePanelType(scene, panel.id, "slatwall35")).toBe(scene);
   });
 
   it("offers only the real connector for a 90 degree slatwall corner", () => {

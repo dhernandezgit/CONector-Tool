@@ -17,8 +17,8 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
 
         <p className="about-lead">
           Un sandbox 3D para montar y editar un puesto de artistas con paneles, expositores, estantes, baldas,
-          organizadores, accesorios y toldo. La escena inicial es una doble torre sobre seis cajas rosas, con estantería
-          de organizadores detrás, seis toldos y grupos anidados. Puedes probar composiciones, seleccionar con rectángulo,
+          organizadores, accesorios y toldo. La escena inicial es una doble torre sobre seis cajas rosas unidas al grupo de
+          torres, con seis toldos y grupos anidados. Puedes probar composiciones, seleccionar con rectángulo,
           medir distancias, trabajar sobre una o varias mesas en L, copiar y pegar grupos, guardar el proyecto en un archivo
           local y preparar la lista de materiales antes de montar el puesto real.
         </p>

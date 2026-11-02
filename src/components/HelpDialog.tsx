@@ -21,9 +21,9 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
             <h3>Elige una pieza o un grupo</h3>
             <p>
               El catálogo incluye paneles, expositores, estantes, baldas, organizadores laterales, cajas base, accesorios
-              y el toldo. La escena inicial es la doble torre sobre seis cajas rosas, con estantería detrás y seis toldos.
-              Las cajas llevan sus propios Edge2_Corner y Edge3_Corner, y se enlazan con 360 Connector. Los grupos rápidos
-              colocan composiciones completas y se pueden mover o girar como una sola pieza.
+              y el toldo. La escena inicial es la doble torre sobre seis cajas rosas y seis toldos, con las cajas unidas al
+              grupo de torres. Las cajas llevan sus propios Edge2_Corner y Edge3_Corner, y se enlazan con 360 Connector. La
+              estantería de organizadores es opcional. Los grupos rápidos colocan composiciones completas.
             </p>
           </article>
           <article>
@@ -31,7 +31,8 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
             <h3>Coloca en isométrico</h3>
             <p>
               El cubo de arriba a la derecha alterna entre isométrico y perspectiva. En isométrico no hay distorsión y es
-              más fácil alinear paneles. Arrastra el cubo o el fondo para orbitar; toca una zona del cubo para cambiar de vista.
+              más fácil alinear paneles. Arrastra el cubo o el fondo para orbitar; toca una zona del cubo para cambiar de
+              vista. El modo claro es el predeterminado y el fondo del visor se cambia en el inspector.
             </p>
           </article>
           <article>
@@ -39,9 +40,9 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
             <h3>Arrastra y conecta</h3>
             <p>
               Arrastra una pieza cerca de un puerto: se imanta, se mueve en directo y muestra una línea con el panel destino
-              y el conector que se formará. Al soltar queda unida. También puedes seleccionar una pieza y usar las esferas
-              rosas: las libres son rosas suaves, las conectadas rosas oscuras, el origen rosa intenso y el destino rosa
-              brillante.
+              y el conector que se formará. Al soltar queda unida. El botón **Auto unir / Libre** alterna entre ese imán y
+              el movimiento libre sin conexión automática; las esferas siguen sirviendo para conectar a mano. Las esferas
+              libres son rosas suaves, las conectadas rosas oscuras, el origen rosa intenso y el destino rosa brillante.
             </p>
           </article>
           <article>
@@ -52,7 +53,8 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
               que encajan: Edge2/3/4/5/7, Angled30/45, placas Skadis, dovetail, rejilla, ranura de organizador, montaje de
               toldo integrado y 360 Connector para la base. La esquina superior del toldo coincide con la esquina del panel;
               sus patas cortas se insertan en los conectores de esquina existentes (no incluidos), la lona baja hacia
-              delante y su faldón de lóbulos curvos queda a unos 30° sin llegar al suelo.
+              delante y su faldón de lóbulos curvos queda a unos 30° sin llegar al suelo. Al seleccionar un panel puedes
+              cambiarlo por su equivalente del mismo tamaño; el fondo del visor se elige en el inspector.
             </p>
           </article>
           <article>
@@ -105,8 +107,8 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
           <strong>Atajos y seguridad</strong>
           <span>
             1/2/3/4 cambian de herramienta · PgUp/PgDn sube o baja 5 cm · R/E gira +90° · Q gira -90° · Ctrl+C/V copia
-            y pega · Ctrl+D duplica · Ctrl+G agrupa · Supr elimina · F encuadra · Ctrl+Z deshace · Esc cancela una
-            conexión. Todo se guarda en este
+            y pega · Ctrl+D duplica · Ctrl+G agrupa · Supr elimina · F encuadra · Ctrl+Z deshace · Ctrl+Mayús+Z o Ctrl+Y
+            rehace · Esc cancela una conexión. Todo se guarda en este
             navegador y también puede exportarse a un archivo local. Los modelos STL originales del pack no se cargan, no se
             sirven y no se publican: el sandbox usa representaciones originales y simplificadas.
           </span>

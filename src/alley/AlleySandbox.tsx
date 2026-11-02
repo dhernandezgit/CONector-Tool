@@ -68,6 +68,7 @@ import {
   pasteSelection,
   recolorItems,
   removeTable,
+  replacePanelType,
   resetJointType,
   rotateItems,
   sceneBom,
@@ -119,6 +120,19 @@ function dot(color: string) {
   return <span className="alley-dot" style={{ background: color }} />;
 }
 
+const STAGE_BG_KEY = "conector-stage-bg";
+const STAGE_BACKGROUNDS = ["#3a3038", "#272b30", "#66545d", "#efe5dc", "#dce8ee"];
+
+function readStageBackground() {
+  try {
+    const saved = localStorage.getItem(STAGE_BG_KEY);
+    if (saved && /^#[0-9a-f]{6}$/i.test(saved)) return saved;
+  } catch {
+    /* ignore */
+  }
+  return STAGE_BACKGROUNDS[0];
+}
+
 const QUICK_ADD = [
   { kind: "item", id: "slatwall30", label: "Panel 30", icon: "▤" },
   { kind: "item", id: "wire30", label: "Rejilla 30", icon: "▥" },
@@ -146,6 +160,8 @@ export default function AlleySandbox({
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [dragPreview, setDragPreview] = useState<AlleyDragPreview | null>(null);
   const [tool, setTool] = useState<AlleyTool>("select");
+  const [autoJoin, setAutoJoin] = useState(true);
+  const [stageBackground, setStageBackground] = useState(readStageBackground);
   const [pendingPort, setPendingPort] = useState<PortRef | null>(null);
   const [category, setCategory] = useState<CategoryFilter>("todos");
   const [query, setQuery] = useState("");
@@ -177,6 +193,18 @@ export default function AlleySandbox({
   const selectionColor = selectedItems.length ? itemColor(selectedItems[0]) : "#f3c7d4";
   const selectionHasMixedColor = selectedItems.some((item) => itemColor(item) !== selectionColor);
   const selectedPanel = selectedPanelForMount(scene, selection);
+  const equivalentPanels = useMemo(() => {
+    if (!selectedItem || catalogFor(selectedItem).category !== "paneles" || selectedItem.type === "triangle") return [];
+    const dims = catalogFor(selectedItem).dims;
+    return CATALOG.filter(
+      (candidate) =>
+        candidate.category === "paneles" &&
+        candidate.type !== "triangle" &&
+        candidate.type !== selectedItem.type &&
+        candidate.dims.w === dims.w &&
+        candidate.dims.h === dims.h,
+    );
+  }, [selectedItem]);
   const bom = useMemo(() => sceneBom(scene), [scene]);
   const activeJoints = scene.joints.filter((joint) => !joint.suppressed).length;
   const panels = scene.items.filter((item) => catalogFor(item).category === "paneles");
@@ -206,6 +234,14 @@ export default function AlleySandbox({
     },
     [onChange, scene],
   );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STAGE_BG_KEY, stageBackground);
+    } catch {
+      /* ignore */
+    }
+  }, [stageBackground]);
 
   const changeView = useCallback((next: AlleyViewName) => {
     viewportRef.current?.setView(next);
@@ -937,7 +973,7 @@ export default function AlleySandbox({
             <button type="button" className="alley-tool" onClick={onUndo} disabled={!canUndo} title="Deshacer (Ctrl+Z)">
               <RotateCcw size={16} />
             </button>
-            <button type="button" className="alley-tool" onClick={onRedo} disabled={!canRedo} title="Rehacer (Ctrl+Mayús+Z)">
+            <button type="button" className="alley-tool" onClick={onRedo} disabled={!canRedo} title="Rehacer (Ctrl+Mayús+Z o Ctrl+Y)">
               <RotateCw size={16} />
             </button>
           </div>
@@ -1057,6 +1093,19 @@ export default function AlleySandbox({
               <Grid2X2 size={16} />
               <span className="alley-tool-mini">Rejilla</span>
             </button>
+            <button
+              type="button"
+              className={`alley-tool${autoJoin ? " active" : ""}`}
+              onClick={() => setAutoJoin((value) => !value)}
+              title={
+                autoJoin
+                  ? "Auto unir activado: imán y conexión al arrastrar. Pulsa para mover libremente."
+                  : "Movimiento libre: sin imán de puertos. Pulsa para volver a auto unir."
+              }
+            >
+              {autoJoin ? <Link2 size={16} /> : <Unlink size={16} />}
+              <span className="alley-tool-mini">{autoJoin ? "Auto unir" : "Libre"}</span>
+            </button>
           </div>
           <div className="alley-tool-group push">
             <button type="button" className="alley-tool text" onClick={onOpenBom}>
@@ -1065,7 +1114,7 @@ export default function AlleySandbox({
           </div>
         </div>
 
-        <div className="alley-viewport-wrap">
+        <div className="alley-viewport-wrap" style={{ background: stageBackground }}>
           <AlleyViewport
             ref={viewportRef}
             scene={scene}
@@ -1075,6 +1124,7 @@ export default function AlleySandbox({
             showGrid={showGrid}
             projection={projection}
             tool={tool}
+            autoJoin={autoJoin}
             onSelect={(next) => {
               setSelectedGroupId(null);
               setSelection(next);
@@ -1265,6 +1315,27 @@ export default function AlleySandbox({
               </section>
 
               <section className="alley-panel">
+                <h3>Fondo del visor 3D</h3>
+                <ColorField label="Color" value={stageBackground} onChange={setStageBackground} />
+                <div className="alley-swatches">
+                  {STAGE_BACKGROUNDS.map((color) => (
+                    <button
+                      type="button"
+                      key={color}
+                      style={{ background: color }}
+                      className={stageBackground.toLowerCase() === color.toLowerCase() ? "active" : ""}
+                      onClick={() => setStageBackground(color)}
+                      aria-label={`Fondo ${color}`}
+                    />
+                  ))}
+                </div>
+                <p className="alley-note">
+                  El fondo del visor se guarda en este navegador. El modo claro es el predeterminado; el fondo oscuro
+                  mantiene el contraste de las piezas pastel.
+                </p>
+              </section>
+
+              <section className="alley-panel">
                 <h3>Leyenda de conexiones</h3>
                 <div className="alley-legend">
                   <span><i className="pink-free" /> Puerto libre</span>
@@ -1297,6 +1368,7 @@ export default function AlleySandbox({
                   <span><kbd>F</kbd> encuadrar</span>
                   <span><kbd>Supr</kbd> eliminar</span>
                   <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> deshacer</span>
+                  <span><kbd>Ctrl</kbd>+<kbd>Mayús</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> rehacer</span>
                   <span><kbd>Esc</kbd> cancelar</span>
                 </div>
               </section>
@@ -1402,6 +1474,29 @@ export default function AlleySandbox({
                     : "El color se aplica a esta pieza."}
                 </p>
               </section>
+
+              {equivalentPanels.length > 0 && (
+                <section className="alley-panel">
+                  <h3>Cambiar panel</h3>
+                  <p className="alley-note">
+                    Mismo tamaño, otro sistema de panel. Se conservan posición, giro, grupo y accesorios montados.
+                  </p>
+                  <div className="alley-panel-swap-grid">
+                    {equivalentPanels.map((option) => (
+                      <button
+                        type="button"
+                        key={option.type}
+                        onClick={() => mutate(replacePanelType(scene, selectedItem.id, option.type))}
+                        title={option.description}
+                      >
+                        <span style={{ background: `${option.color}55`, color: option.color }}>{option.icon}</span>
+                        <strong>{option.name}</strong>
+                        <small>{option.subtitle}</small>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {catalogFor(selectedItem).mountable && (
                 <section className="alley-panel">

@@ -67,6 +67,7 @@ interface Props {
   showGrid: boolean;
   projection: AlleyProjection;
   tool?: "select" | "marquee" | "measure" | "orbit";
+  autoJoin?: boolean;
   onSelect: (selection: AlleySelection | null) => void;
   onPortClick: (port: PortRef) => void;
   onMoveItems: (ids: string[], dx: number, dy: number, dz: number) => void;
@@ -149,6 +150,7 @@ function addOutline(parent: THREE.Object3D, dims: { w: number; d: number; h: num
     new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95 }),
   );
   outline.position.z = dims.h / 2;
+  outline.userData.selectionOutline = true;
   parent.add(outline);
 }
 
@@ -772,12 +774,31 @@ function buildItem(item: AlleyItem, selected: boolean): THREE.Group {
   return group;
 }
 
+const JOINT_SPHERE_GEOMETRY = new THREE.SphereGeometry(14, 12, 8);
+const JOINT_ARM_GEOMETRY = new THREE.CylinderGeometry(4.5, 4.5, 18, 8);
+const jointMaterialCache = new Map<string, THREE.MeshStandardMaterial>();
+
+function jointMaterial(color: string, suppressed: boolean) {
+  const key = `${color}|${suppressed ? 1 : 0}`;
+  let material = jointMaterialCache.get(key);
+  if (!material) {
+    material = mat(color, {
+      roughness: 0.4,
+      metalness: 0.08,
+      transparent: suppressed,
+      opacity: suppressed ? 0.35 : 1,
+    });
+    jointMaterialCache.set(key, material);
+  }
+  return material;
+}
+
 function buildJoint(scene: AlleyScene, joint: AlleyJoint, selected: boolean): THREE.Group {
   const group = new THREE.Group();
   const def = CONNECTORS[joint.type];
   const color = joint.suppressed ? "#9aa0a4" : def?.color || "#e47f9c";
-  const material = mat(color, { roughness: 0.4, metalness: 0.08, transparent: joint.suppressed, opacity: joint.suppressed ? 0.35 : 1 });
-  const hub = new THREE.Mesh(new THREE.SphereGeometry(14, 16, 12), material);
+  const material = jointMaterial(color, Boolean(joint.suppressed));
+  const hub = new THREE.Mesh(JOINT_SPHERE_GEOMETRY, material);
   hub.castShadow = true;
   group.add(hub);
   for (const ref of joint.ports) {
@@ -790,7 +811,7 @@ function buildJoint(scene: AlleyScene, joint: AlleyJoint, selected: boolean): TH
     direction.normalize();
     const start = direction.clone().multiplyScalar(4);
     const end = direction.clone().multiplyScalar(22);
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(4.5, 4.5, 18, 10), material);
+    const arm = new THREE.Mesh(JOINT_ARM_GEOMETRY, material);
     arm.position.copy(start.clone().add(end).multiplyScalar(0.5));
     arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
     arm.castShadow = true;
@@ -806,14 +827,32 @@ function buildJoint(scene: AlleyScene, joint: AlleyJoint, selected: boolean): TH
   return group;
 }
 
+const PORT_SPHERE_GEOMETRY = new THREE.SphereGeometry(1, 12, 10);
+const portMaterialCache = new Map<string, THREE.MeshBasicMaterial>();
+const PORT_BASE_RADIUS = 16;
+
+function portMaterial(color: string) {
+  let material = portMaterialCache.get(color);
+  if (!material) {
+    material = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.72,
+      depthTest: false,
+      depthWrite: false,
+    });
+    portMaterialCache.set(color, material);
+  }
+  return material;
+}
+
 function buildPortSphere(port: WorldPort, color: string, radius: number): THREE.Mesh {
-  const sphere = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 16, 12),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.72, depthTest: false, depthWrite: false }),
-  );
+  const sphere = new THREE.Mesh(PORT_SPHERE_GEOMETRY, portMaterial(color));
+  const baseScale = radius / PORT_BASE_RADIUS;
+  sphere.scale.setScalar(baseScale);
   sphere.position.set(port.x, port.y, port.z);
   sphere.renderOrder = 20;
-  sphere.userData = { type: "port", itemId: port.itemId, portId: port.portId };
+  sphere.userData = { type: "port", itemId: port.itemId, portId: port.portId, baseScale };
   return sphere;
 }
 
@@ -880,6 +919,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     showGrid,
     projection,
     tool = "select",
+    autoJoin = true,
     onSelect,
     onPortClick,
     onMoveItems,
@@ -905,6 +945,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
   const contentRef = useRef<THREE.Group | null>(null);
   const itemGroups = useRef(new Map<string, THREE.Group>());
   const tableGroups = useRef(new Map<string, THREE.Group>());
+  const portsGroupRef = useRef<THREE.Group | null>(null);
   const jointGroups = useRef(new Map<string, THREE.Group>());
   const pickablesRef = useRef<THREE.Object3D[]>([]);
   const portMeshesRef = useRef<THREE.Mesh[]>([]);
@@ -920,6 +961,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     startZ: number;
     startPointer: THREE.Vector3;
     startPositions: Map<string, { x: number; y: number; z: number }>;
+    portStartPositions?: Map<THREE.Mesh, THREE.Vector3>;
     delta: Vec3;
     moved: boolean;
     mountU: number;
@@ -957,6 +999,8 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
   const lastCameraReport = useRef({ azimuth: 0, polar: 0, at: 0 });
   const toolRef = useRef(tool);
   toolRef.current = tool;
+  const autoJoinRef = useRef(autoJoin);
+  autoJoinRef.current = autoJoin;
   const [marquee, setMarquee] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [measureLabel, setMeasureLabel] = useState<{ text: string; x: number; y: number } | null>(null);
   const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -1025,6 +1069,10 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     const rim = new THREE.DirectionalLight(0xc7ddff, 1.6);
     rim.position.set(0, 1600, -1000);
     scene3.add(rim);
+
+    const portsGroup = new THREE.Group();
+    scene3.add(portsGroup);
+    portsGroupRef.current = portsGroup;
 
     const snapMarker = new THREE.Mesh(
       new THREE.TorusGeometry(16, 3, 8, 24),
@@ -1157,6 +1205,23 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
       return ray.ray.intersectPlane(plane, hit) ? hit : null;
     };
 
+    const collectPortStarts = (ids: string[]) => {
+      const wanted = new Set(ids);
+      const positions = new Map<THREE.Mesh, THREE.Vector3>();
+      for (const mesh of portMeshesRef.current) {
+        if (wanted.has(mesh.userData.itemId)) positions.set(mesh, mesh.position.clone());
+      }
+      return positions;
+    };
+
+    const setPortPreview = (delta: Vec3) => {
+      const drag = dragRef.current;
+      if (!drag?.portStartPositions) return;
+      for (const [mesh, start] of drag.portStartPositions) {
+        mesh.position.set(start.x + delta[0], start.y + delta[1], start.z + delta[2]);
+      }
+    };
+
     const setItemPreview = (ids: string[], delta: Vec3) => {
       for (const id of ids) {
         const group = itemGroups.current.get(id);
@@ -1164,6 +1229,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
         if (!group || !start) continue;
         group.position.set(start.x + delta[0], start.y + delta[1], start.z + delta[2]);
       }
+      setPortPreview(delta);
     };
 
     const resolveDragDelta = (
@@ -1173,14 +1239,20 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     ): { delta: Vec3; snap: SnapCandidate | null } => {
       const point = planePoint(event, drag.startZ);
       if (!point) return { delta: drag.delta, snap: null };
-      const grid = gridRef.current || 1;
       let dx = point.x - drag.startPointer.x;
       let dy = point.y - drag.startPointer.y;
-      const snappedX = Math.round((drag.startX + dx) / grid) * grid;
-      const snappedY = Math.round((drag.startY + dy) / grid) * grid;
-      dx = snappedX - drag.startX;
-      dy = snappedY - drag.startY;
-      const snap = findSnapForMove(sceneDataRef.current, drag.ids, [dx, dy, 0], maxDistance);
+      let snap: SnapCandidate | null = null;
+      if (autoJoinRef.current) {
+        const grid = gridRef.current || 1;
+        const snappedX = Math.round((drag.startX + dx) / grid) * grid;
+        const snappedY = Math.round((drag.startY + dy) / grid) * grid;
+        dx = snappedX - drag.startX;
+        dy = snappedY - drag.startY;
+        snap = findSnapForMove(sceneDataRef.current, drag.ids, [dx, dy, 0], maxDistance);
+      } else {
+        dx = Math.round(dx);
+        dy = Math.round(dy);
+      }
       const delta: Vec3 = snap ? [snap.dx, snap.dy, snap.dz] : [dx, dy, 0];
       drag.delta = delta;
       return { delta, snap };
@@ -1240,6 +1312,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
           startZ: 0,
           startPointer: point,
           startPositions,
+          portStartPositions: collectPortStarts(tableItemIds),
           delta: [0, 0, 0],
           moved: false,
           mountU: 0.5,
@@ -1299,6 +1372,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
           startZ: item.baseZ,
           startPointer: new THREE.Vector3(),
           startPositions,
+          portStartPositions: collectPortStarts([item.id]),
           delta: [0, 0, 0],
           moved: false,
           mountU: item.mount.u,
@@ -1317,6 +1391,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
           startZ: item.baseZ,
           startPointer: point,
           startPositions,
+          portStartPositions: collectPortStarts(ids),
           delta: [0, 0, 0],
           moved: false,
           mountU: 0.5,
@@ -1337,9 +1412,11 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
               (candidate) => candidate.userData.itemId === port.itemId && candidate.userData.portId === port.portId,
             ) || null
           : null;
-        if (hoverPortRef.current && hoverPortRef.current !== mesh) hoverPortRef.current.scale.setScalar(1);
+        if (hoverPortRef.current && hoverPortRef.current !== mesh) {
+          hoverPortRef.current.scale.setScalar(hoverPortRef.current.userData.baseScale || 1);
+        }
         if (mesh) {
-          mesh.scale.setScalar(1.28);
+          mesh.scale.setScalar((mesh.userData.baseScale || 1) * 1.28);
           renderer.domElement.style.cursor = "pointer";
         } else {
           renderer.domElement.style.cursor = "";
@@ -1365,6 +1442,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
           const start = drag.startPositions.get(id);
           if (group && start) group.position.set(start.x + dx, start.y + dy, start.z);
         }
+        setPortPreview([dx, dy, 0]);
         return;
       }
       if (drag.kind === "mount") {
@@ -1395,6 +1473,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
         ]);
         const group = itemGroups.current.get(item.id);
         if (group) group.position.set(panel.x + local[0], panel.y + local[1], panel.baseZ + local[2]);
+        setPortPreview([panel.x + local[0] - item.x, panel.y + local[1] - item.y, panel.baseZ + local[2] - item.baseZ]);
         return;
       }
       const { delta, snap } = resolveDragDelta(event, drag, 160);
@@ -1447,7 +1526,7 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     };
 
     const onPointerLeave = () => {
-      if (hoverPortRef.current) hoverPortRef.current.scale.setScalar(1);
+      if (hoverPortRef.current) hoverPortRef.current.scale.setScalar(hoverPortRef.current.userData.baseScale || 1);
       hoverPortRef.current = null;
       renderer.domElement.style.cursor = "";
       if (dragRef.current) clearSnapPreview();
@@ -1485,8 +1564,8 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
           const now = performance.now();
           const last = lastCameraReport.current;
           if (
-            now - last.at > 70 &&
-            (Math.abs(azimuth - last.azimuth) > 1.5 || Math.abs(polar - last.polar) > 1.5)
+            now - last.at > 140 &&
+            (Math.abs(azimuth - last.azimuth) > 2 || Math.abs(polar - last.polar) > 2)
           ) {
             lastCameraReport.current = { azimuth, polar, at: now };
             callbacks.current.onCameraChange?.(azimuth, polar);
@@ -1616,45 +1695,17 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
     }
 
     for (const item of scene.items) {
-      const selected = Boolean(selection && selection.type !== "joint" && selection.ids.includes(item.id));
-      const group = buildItem(item, selected);
+      const group = buildItem(item, false);
       itemGroups.current.set(item.id, group);
       root.add(group);
       pickables.push(group);
     }
 
     for (const joint of scene.joints) {
-      const selected = Boolean(selection?.type === "joint" && selection.ids.includes(joint.id));
-      const group = buildJoint(scene, joint, selected);
+      const group = buildJoint(scene, joint, false);
       jointGroups.current.set(joint.id, group);
       root.add(group);
       pickables.push(group);
-    }
-
-    if (portsVisible(showPorts, selection)) {
-      const connected = connectedPortKeys(scene);
-      const pending = pendingPort
-        ? (() => {
-            const item = scene.items.find((candidate) => candidate.id === pendingPort.itemId);
-            return item ? portWorld(item, pendingPort.portId) : null;
-          })()
-        : null;
-      for (const port of scenePorts(scene)) {
-        if (port.system === "mount") continue;
-        const key = `${port.itemId}:${port.portId}`;
-        let color = connected.has(key) ? "#c77b93" : "#f5b8c8";
-        let radius = connected.has(key) ? 13 : 16;
-        if (pending && pending.itemId === port.itemId && pending.portId === port.portId) {
-          color = "#d81b60";
-          radius = 21;
-        } else if (pending && portCompatible(pending, port)) {
-          color = "#ff9fc0";
-          radius = 19;
-        }
-        const sphere = buildPortSphere(port, color, radius);
-        portMeshesRef.current.push(sphere);
-        root.add(sphere);
-      }
     }
 
     scene3.add(root);
@@ -1683,7 +1734,75 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
         controls.update();
       }
     }
-  }, [scene, selection, pendingPort, showPorts, showGrid]);
+  }, [scene, showGrid]);
+
+  useEffect(() => {
+    const removeSelectionMarkers = (group: THREE.Group) => {
+      for (const child of [...group.children]) {
+        if (!child.userData.selectionOutline) continue;
+        group.remove(child);
+        if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
+          child.geometry.dispose();
+          const material = child.material;
+          if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
+          else material.dispose();
+        }
+      }
+    };
+
+    const selectedItems = selection && selection.type !== "joint" ? new Set(selection.ids) : new Set<string>();
+    for (const [id, group] of itemGroups.current) {
+      removeSelectionMarkers(group);
+      if (!selectedItems.has(id)) continue;
+      const item = scene.items.find((candidate) => candidate.id === id);
+      if (item) addOutline(group, itemDims(item));
+    }
+
+    const selectedJoint = selection?.type === "joint" ? selection.ids[0] : undefined;
+    for (const [id, group] of jointGroups.current) {
+      removeSelectionMarkers(group);
+      if (id !== selectedJoint) continue;
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(17, 2.4, 8, 24),
+        new THREE.MeshBasicMaterial({ color: 0xf4c542 }),
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.userData.selectionOutline = true;
+      group.add(ring);
+    }
+  }, [scene, selection]);
+
+  useEffect(() => {
+    const group = portsGroupRef.current;
+    if (!group) return;
+    for (const child of [...group.children]) group.remove(child);
+    portMeshesRef.current = [];
+    hoverPortRef.current = null;
+    if (!portsVisible(showPorts, selection)) return;
+    const connected = connectedPortKeys(scene);
+    const pending = pendingPort
+      ? (() => {
+          const item = scene.items.find((candidate) => candidate.id === pendingPort.itemId);
+          return item ? portWorld(item, pendingPort.portId) : null;
+        })()
+      : null;
+    for (const port of scenePorts(scene)) {
+      if (port.system === "mount") continue;
+      const key = `${port.itemId}:${port.portId}`;
+      let color = connected.has(key) ? "#c77b93" : "#f5b8c8";
+      let radius = connected.has(key) ? 13 : 16;
+      if (pending && pending.itemId === port.itemId && pending.portId === port.portId) {
+        color = "#d81b60";
+        radius = 21;
+      } else if (pending && portCompatible(pending, port)) {
+        color = "#ff9fc0";
+        radius = 19;
+      }
+      const sphere = buildPortSphere(port, color, radius);
+      portMeshesRef.current.push(sphere);
+      group.add(sphere);
+    }
+  }, [scene, selection, pendingPort, showPorts]);
 
   useImperativeHandle(
     ref,
@@ -1951,7 +2070,9 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
             ? "Haz clic en dos puntos de la mesa para medir"
             : tool === "orbit"
               ? "Arrastra para orbitar; cambia a Seleccionar para editar"
-              : "Arrastra el fondo para orbitar · rueda para acercar · R gira 90°"}
+              : !autoJoin
+                ? "Movimiento libre: sin imán de puertos · las esferas siguen permitiendo conectar"
+                : "Arrastra el fondo para orbitar · rueda para acercar · R gira 90°"}
       </div>
     </div>
   );

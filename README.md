@@ -2,7 +2,7 @@
 
 **Un montador 3D editable para planificar un puesto de artistas.**
 
-CONector Tool es ahora un sandbox local-first para componer un puesto con paneles, expositores, estantes, accesorios y toldo. Puedes mover y girar piezas, conectarlas por sus puertos, agrupar composiciones, trabajar sobre una o varias mesas en L, deshacer cambios y generar una lista de materiales antes de montar el puesto real. La escena inicial es una **doble torre de cuatro cubos sobre una base rosa de seis cajas, con estantería de organizadores detrás y seis toldos**, todo organizado en grupos y subgrupos. Al arrastrar, las piezas se imantan a los puertos cercanos y verás el destino y el conector antes de soltar; solo se ofrecen conectores reales del pack y el tipo se elige automáticamente.
+CONector Tool es ahora un sandbox local-first para componer un puesto con paneles, expositores, estantes, accesorios y toldo. Puedes mover y girar piezas, conectarlas por sus puertos, agrupar composiciones, trabajar sobre una o varias mesas en L, deshacer cambios y generar una lista de materiales antes de montar el puesto real. La escena inicial es una **doble torre de cuatro cubos sobre una base rosa de seis cajas y seis toldos**, organizada en grupos y subgrupos. La estantería de organizadores sigue disponible como grupo opcional. Al arrastrar, las piezas se imantan a los puertos cercanos y verás el destino y el conector antes de soltar; solo se ofrecen conectores reales del pack y el tipo se elige automáticamente.
 
 - Web: `https://dhernandezgit.github.io/CONector-Tool/`
 - Repo: `https://github.com/dhernandezgit/CONector-Tool`
@@ -41,13 +41,16 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 - Si añades el toldo sin seleccionar un panel, queda suelto sobre la mesa; selecciona un panel y vuelve a añadirlo para anclarlo en sus conectores.
 - El **organizador de panel** es un lateral con cuatro ranuras. Coloca **dos, uno a cada lado**, y desliza baldas o paneles en las ranuras para formar una estantería. No se cuelga de un panel: se apoya en la mesa y queda estabilizado por las baldas y los paneles que lo rodean.
 - La **base rosa** son seis cajas sin fondo y sin trasera de 40 × 30 × 20 cm. La torre se eleva 20 cm y queda enrasada por detrás. Cada caja lleva 4 `Edge2_Corner` y 2 `Edge3_Corner`; las cajas entre sí y con los paneles de la torre usan **360 Connector**.
-- La **doble torre** incluye la base rosa, la estantería de organizadores detrás y **seis toldos**, uno en cada panel frontal superior; la **torre individual** mantiene sus cuatro baldas de rejilla.
+- La **doble torre** incluye la base rosa unida al grupo de torres y **seis toldos**, uno en cada panel frontal superior. La estantería de organizadores es opcional y se añade desde su grupo; la **torre individual** mantiene sus cuatro baldas de rejilla.
 - El grupo **Estantería de organizadores** coloca las dos estructuras laterales y cuatro baldas listas para usar.
 
 ### Edición segura
 
 - Rotación en pasos de 90° con **R** o **E** (y **Q** en sentido contrario), además de ajuste fino.
 - **Herramientas:** `1` seleccionar/mover, `2` selección por rectángulo arrastrable, `3` medir distancias y `4` orbitar sin seleccionar.
+- **Auto unir / Libre:** el botón del visor alterna entre imán de puertos al arrastrar y movimiento libre sin conexión automática. Las esferas siguen disponibles para conectar a mano.
+- **Cambiar panel:** al seleccionar un panel, el inspector ofrece sus equivalentes del mismo tamaño (slatwall, Skadis, rejilla o liso) conservando posición, giro, grupo y accesorios montados.
+- **Fondo del visor:** se puede cambiar entre fondos oscuros de contraste y tonos claros. El modo claro es el predeterminado y el fondo se guarda en el navegador.
 - Selección múltiple con Mayús + clic o con un **rectángulo de selección**; al arrastrar una pieza seleccionada se mueve todo el conjunto.
 - **Ctrl+C / Ctrl+V** para copiar y pegar piezas o grupos completos; **Ctrl+A** selecciona todo.
 - Flechas para mover 1 cm (Mayús: 5 cm); **Ctrl + ↑/↓** para subir o bajar 1 cm, **PageUp/PageDown** para 5 cm, y botones ↑/↓ en la barra flotante de selección.
@@ -57,7 +60,7 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 - Eliminar un panel no rompe el resto: las conexiones se recalculan y los accesorios montados se liberan.
 - Deshacer y rehacer con historial.
 - Los accesorios se pueden montar en la cara frontal o dorsal de un panel y recolocar arrastrándolos.
-- Atajos: **1/2/3/4** cambian de herramienta, **R/E** giran +90°, **Q** gira -90°, **Ctrl+C/V** copia y pega, **Ctrl+D** duplica, **G/Ctrl+G** agrupa, **Supr** elimina, **F** encuadra, **Ctrl+Z** deshace, **Esc** cancela una conexión y vuelve a Seleccionar.
+- Atajos: **1/2/3/4** cambian de herramienta, **R/E** giran +90°, **Q** gira -90°, **Ctrl+C/V** copia y pega, **Ctrl+D** duplica, **G/Ctrl+G** agrupa, **Supr** elimina, **F** encuadra, **Ctrl+Z** deshace, **Ctrl+Mayús+Z / Ctrl+Y** rehace, **Esc** cancela una conexión y vuelve a Seleccionar.
 
 ### Mesas en L y archivos locales
 
@@ -87,7 +90,7 @@ El **Artist Alley STL Pack** es una creación de **Jessie Shi** (**Sandoik / @sa
 
 ## Cómo se usa
 
-1. Abre la app: se carga la **Doble torre 4 cubos** sobre la base rosa, con estantería de organizadores detrás y seis toldos.
+1. Abre la app: se carga la **Doble torre 4 cubos** sobre la base rosa, con seis toldos y los grupos anidados.
 2. Elige piezas o grupos en el catálogo de la izquierda. Prueba **Estantería de organizadores**, **Base rosa 6 cajas**, **Torre 4 cubos** o **Mesa en L de trabajo** para ver otras composiciones.
 3. Usa el cubo de vistas para colocar en isométrico y revisar en perspectiva.
 4. Arrastra una pieza cerca de un puerto: verás el destino y el conector real previsto. Suelta para dejarla unida. También puedes seleccionar una pieza y tocar dos esferas rosas, o usar la herramienta de rectángulo (`2`) para seleccionar varias.

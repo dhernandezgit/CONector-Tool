@@ -3323,9 +3323,13 @@ kbd {
   position: absolute;
   left: 14px;
   bottom: 12px;
-  color: var(--muted);
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(25, 18, 22, 0.58);
+  color: rgba(255, 255, 255, 0.86);
   font-size: 9.5px;
   pointer-events: none;
+  backdrop-filter: blur(8px);
   z-index: 3;
 }
 
@@ -3664,6 +3668,53 @@ kbd {
   min-height: 0;
   overflow: auto;
   padding: 15px 14px 10px;
+}
+
+.alley-panel-swap-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.alley-panel-swap-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--ink-soft);
+  text-align: left;
+}
+
+.alley-panel-swap-grid button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.alley-panel-swap-grid button > span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  font-size: 14px;
+}
+
+.alley-panel-swap-grid strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+
+.alley-panel-swap-grid small {
+  color: var(--muted);
+  font-size: 9px;
 }
 
 .alley-inspector-head {

@@ -295,7 +295,16 @@ export function isLegacyStarterScene(scene: AlleyScene): boolean {
     counts.awning30 === 2 &&
     scene.tables.length === 1 &&
     scene.groups.length === 1;
-  return originalStarter || intermediateTower || previousTower;
+  const previousOrganizerDefault =
+    scene.items.length === 54 &&
+    counts.wire30 === 28 &&
+    counts.wireshelf30 === 12 &&
+    counts.organizer === 2 &&
+    counts.awning30 === 6 &&
+    counts.basebox40 === 6 &&
+    scene.tables.length === 1 &&
+    scene.groups.length === 5;
+  return originalStarter || intermediateTower || previousTower || previousOrganizerDefault;
 }
 
 export function loadScene(): AlleyScene {
@@ -793,6 +802,25 @@ export function rotateItems(scene: AlleyScene, ids: string[], delta: number): Al
   return commitScene({ ...scene, items });
 }
 
+/** Swap a panel for an equivalent panel of exactly the same size. */
+export function replacePanelType(scene: AlleyScene, itemId: string, type: string): AlleyScene {
+  const target = CATALOG_BY_TYPE[type];
+  const item = scene.items.find((candidate) => candidate.id === itemId);
+  if (!target || !item || target.category !== "paneles") return scene;
+  const current = catalogFor(item);
+  if (!current || current.category !== "paneles") return scene;
+  if (current.dims.w !== target.dims.w || current.dims.h !== target.dims.h) {
+    return scene;
+  }
+  if (item.type === type) return scene;
+  const items = scene.items.map((candidate) =>
+    candidate.id === itemId
+      ? { ...candidate, type, name: target.name, color: candidate.color || target.color }
+      : candidate,
+  );
+  return commitScene({ ...scene, items });
+}
+
 export function deleteItems(scene: AlleyScene, ids: string[]): AlleyScene {
   const removed = new Set(ids);
   if (!removed.size) return scene;
@@ -1141,20 +1169,22 @@ export function bomCsv(bom: SceneBom): string {
 export function starterScene(): AlleyScene {
   const base = emptyScene();
   const root = addEmptyGroup(base, "Puesto Artist Alley");
-  let scene = root.scene;
-  for (const [presetId, name] of [
-    ["tower-base", "Base rosa"],
-    ["tower-core", "Torres"],
-    ["tower-awnings", "Toldos"],
-  ] as const) {
-    scene = addGroup(scene, presetId, { anchor: { x: 0, y: 0 }, name, parentId: root.groupId }).scene;
-  }
-  scene = addGroup(scene, "organizer-shelf", {
-    anchor: { x: 0, y: 300 },
-    name: "Estantería",
+  const towers = addGroup(root.scene, "tower-core", {
+    anchor: { x: 0, y: 0 },
+    name: "Torres",
     parentId: root.groupId,
-  }).scene;
-  return { ...scene, name: "Mi puesto Artist Alley" };
+  });
+  const boxes = addGroup(towers.scene, "tower-base", {
+    anchor: { x: 0, y: 0 },
+    name: "Base rosa",
+    parentId: towers.groupId,
+  });
+  const awnings = addGroup(boxes.scene, "tower-awnings", {
+    anchor: { x: 0, y: 0 },
+    name: "Toldos",
+    parentId: towers.groupId,
+  });
+  return { ...awnings.scene, name: "Mi puesto Artist Alley" };
 }
 
 export function clearScene(scene: AlleyScene): AlleyScene {
