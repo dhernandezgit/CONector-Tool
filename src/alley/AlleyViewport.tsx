@@ -829,7 +829,6 @@ function buildJoint(scene: AlleyScene, joint: AlleyJoint, selected: boolean): TH
 
 const PORT_SPHERE_GEOMETRY = new THREE.SphereGeometry(1, 12, 10);
 const portMaterialCache = new Map<string, THREE.MeshBasicMaterial>();
-const PORT_BASE_RADIUS = 16;
 
 function portMaterial(color: string) {
   let material = portMaterialCache.get(color);
@@ -848,7 +847,8 @@ function portMaterial(color: string) {
 
 function buildPortSphere(port: WorldPort, color: string, radius: number): THREE.Mesh {
   const sphere = new THREE.Mesh(PORT_SPHERE_GEOMETRY, portMaterial(color));
-  const baseScale = radius / PORT_BASE_RADIUS;
+  // The cached geometry is a unit sphere, so the port radius is also its world scale.
+  const baseScale = radius;
   sphere.scale.setScalar(baseScale);
   sphere.position.set(port.x, port.y, port.z);
   sphere.renderOrder = 20;
