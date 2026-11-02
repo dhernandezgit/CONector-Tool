@@ -113,6 +113,19 @@ export interface AlleyGroup {
   parentId?: string;
 }
 
+export type AlleyTableClothPattern = "plain" | "stripes" | "checks" | "dots" | "flowers";
+
+export interface AlleyTableCloth {
+  enabled: boolean;
+  color: string;
+  accent: string;
+  pattern: AlleyTableClothPattern;
+  /** Vertical drop of the skirt in millimetres. */
+  drop: number;
+  /** Optional local drawing used as a repeating fabric print. */
+  image?: string;
+}
+
 export interface AlleyTable {
   id: string;
   name: string;
@@ -125,6 +138,7 @@ export interface AlleyTable {
   rotation: number;
   /** Locked tables keep their floor position while items can still be edited. */
   locked?: boolean;
+  cloth: AlleyTableCloth;
 }
 
 export interface AlleyTableSpec {
@@ -136,6 +150,7 @@ export interface AlleyTableSpec {
   x: number;
   y: number;
   rotation?: number;
+  cloth?: Partial<AlleyTableCloth>;
 }
 
 export interface AlleyScene {

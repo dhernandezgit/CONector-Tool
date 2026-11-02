@@ -57,17 +57,34 @@ export function slug(value: string, fallback = "conector"): string {
   );
 }
 
-export function downloadBlob(blob: Blob, filename: string): void {
+export function downloadBlob(blob: Blob, filename: string): boolean {
+  if (typeof window === "undefined" || typeof document === "undefined") return false;
+
+  // Old Edge/IE expose a native save dialog; newer browsers use a temporary anchor.
+  const navigatorWithSave = window.navigator as Navigator & {
+    msSaveOrOpenBlob?: (file: Blob, name: string) => boolean;
+  };
+  if (navigatorWithSave.msSaveOrOpenBlob) {
+    navigatorWithSave.msSaveOrOpenBlob(blob, filename);
+    return true;
+  }
+
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.rel = "noopener";
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  // If an older browser ignores download, opening the blob in a tab still lets it be saved.
+  anchor.target = "_blank";
+  anchor.rel = "noopener";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  // Keep the blob alive long enough for slow download managers and Safari.
+  window.setTimeout(() => {
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }, 30000);
+  return true;
 }
 
 export function base64ToBytes(value: string): Uint8Array {

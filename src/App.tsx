@@ -6,11 +6,22 @@ import AboutDialog from "./components/AboutDialog";
 import AlleySandbox from "./alley/AlleySandbox";
 import BomDialog from "./alley/BomDialog";
 import { loadScene, saveScene, sceneFileName, sceneFromJson, sceneToJson } from "./alley/scene";
+import { downloadBlob } from "./lib/utils";
 import type { AlleyScene } from "./alley/types";
 
 const THEME_KEY = "conector-theme";
 
 type Theme = "light" | "dark";
+
+function readFileAsText(file: File): Promise<string> {
+  if (typeof file.text === "function") return file.text();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(reader.error || new Error("No se pudo leer el archivo."));
+    reader.readAsText(file, "utf-8");
+  });
+}
 
 function readTheme(): Theme {
   try {
@@ -96,20 +107,23 @@ export default function App() {
 
   const saveNow = useCallback(() => {
     saveScene({ ...scene, name: projectName });
-    notify("Puesto guardado en este navegador.");
+    notify("Guardado en este navegador. Para crear un archivo usa Descargar.");
   }, [notify, projectName, scene]);
 
-  const exportProject = useCallback(() => {
-    const blob = new Blob([sceneToJson(scene, projectName)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = sceneFileName(projectName);
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    notify("Archivo del puesto descargado con toda la configuración.");
+  const downloadProject = useCallback(() => {
+    try {
+      const filename = sceneFileName(projectName);
+      const blob = new Blob([sceneToJson(scene, projectName)], {
+        type: "application/json;charset=utf-8",
+      });
+      if (!downloadBlob(blob, filename)) {
+        notify("No se pudo iniciar la descarga del archivo.");
+        return;
+      }
+      notify(`Descargado "${filename}". Puedes abrirlo con Importar.`);
+    } catch {
+      notify("No se pudo preparar el archivo del puesto.");
+    }
   }, [notify, projectName, scene]);
 
   const importProject = useCallback(
@@ -118,7 +132,7 @@ export default function App() {
       event.target.value = "";
       if (!file) return;
       try {
-        const text = await file.text();
+        const text = await readFileAsText(file);
         const next = sceneFromJson(text);
         changeScene(next);
         setProjectName(next.name);
@@ -155,15 +169,30 @@ export default function App() {
           </span>
         </div>
         <div className="topbar-actions">
-          <button type="button" className="icon-text-button" onClick={exportProject} title="Descargar un archivo local con toda la configuración">
-            <Download size={16} /> <span>Archivo</span>
+          <button
+            type="button"
+            className="icon-text-button"
+            onClick={downloadProject}
+            title="Descargar una copia del puesto como archivo JSON; después se puede abrir con Importar"
+          >
+            <Download size={16} /> <span>Descargar</span>
           </button>
-          <button type="button" className="icon-text-button" onClick={() => fileInputRef.current?.click()} title="Abrir un archivo local del puesto">
-            <Upload size={16} /> <span>Abrir</span>
+          <button
+            type="button"
+            className="icon-text-button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Importar un archivo JSON descargado de CONector Tool"
+          >
+            <Upload size={16} /> <span>Importar</span>
           </button>
-          <input ref={fileInputRef} type="file" accept=".json,application/json" hidden onChange={importProject} />
-          <button type="button" className="icon-text-button" onClick={saveNow} title="Guardar en este navegador">
-            <Save size={16} /> <span>Guardar</span>
+          <input ref={fileInputRef} type="file" accept=".json,application/json,text/json" hidden onChange={importProject} />
+          <button
+            type="button"
+            className="icon-text-button"
+            onClick={saveNow}
+            title="Guardar ahora en este navegador (no descarga ningún archivo)"
+          >
+            <Save size={16} /> <span>Guardar local</span>
           </button>
           <button type="button" className="primary-button" onClick={() => setBomOpen(true)}>
             <List size={16} /> Lista de materiales

@@ -26,6 +26,7 @@ import {
   groupSelection,
   isLegacyStarterScene,
   itemsInGroup,
+  makeTable,
   moveItems,
   moveTable,
   pasteSelection,
@@ -44,6 +45,7 @@ import {
   ungroupGroup,
   ungroupSelection,
   updateTable,
+  upgradeStarterTable,
 } from "./scene";
 
 function countItems(scene: ReturnType<typeof emptyScene>, type: string) {
@@ -63,6 +65,14 @@ describe("Artist Alley starter scene", () => {
     expect(countItems(scene, "organizer")).toBe(0);
     expect(countItems(scene, "awning30")).toBe(6);
     expect(countItems(scene, "basebox40")).toBe(6);
+    expect(scene.table).toMatchObject({ width: 2000, depth: 800, height: 750 });
+    expect(scene.grid).toBe(100);
+    expect(scene.table.cloth).toMatchObject({
+      enabled: true,
+      color: "#f3b7c7",
+      pattern: "plain",
+      drop: 500,
+    });
     expect(new Set(scene.items.filter((item) => item.type === "wireshelf30").map((item) => item.baseZ))).toEqual(
       new Set([200, 500, 800, 1100].map((level) => scene.table.height + level)),
     );
@@ -81,6 +91,16 @@ describe("Artist Alley starter scene", () => {
     expect(restoredRoot).toBeTruthy();
     expect(restoredTowers?.parentId).toBe(restoredRoot?.id);
     expect(restoredBase?.parentId).toBe(restoredTowers?.id);
+  });
+
+  it("upgrades the previous starter table to 2000 × 800 and 100 mm grid", () => {
+    const base = starterScene();
+    const oldTable = makeTable({ ...base.table, width: 2200, depth: 900 }, base.table);
+    const oldScene = { ...base, table: oldTable, tables: [oldTable], grid: 50 };
+    const upgraded = upgradeStarterTable(oldScene);
+    expect(upgraded.table).toMatchObject({ width: 2000, depth: 800, height: 750 });
+    expect(upgraded.grid).toBe(100);
+    expect(upgraded.items).toHaveLength(48);
   });
 
   it("has structural ports and a generated materials list", () => {
@@ -686,11 +706,44 @@ describe("towers and L-shaped work tables", () => {
     const base = addGroup(emptyScene(), "workspace-l-work", { anchor: { x: 0, y: 0 } }).scene;
     const added = addTable(base, "straight");
     expect(added.scene.tables).toHaveLength(3);
+    const fromDefault = addTable(emptyScene(), "straight");
+    expect(fromDefault.scene.tables[1]).toMatchObject({ width: 2000, depth: 800 });
     const raised = updateTable(added.scene, added.tableId, { height: 820 });
     expect(raised.tables.every((table) => table.height === 820)).toBe(true);
     expect(raised.items.every((item) => item.baseZ === 820)).toBe(true);
     const removed = removeTable(raised, added.tableId);
     expect(removed.tables).toHaveLength(2);
+  });
+
+  it("customizes the tablecloth, keeps it through JSON and clamps its drop", () => {
+    const scene = emptyScene();
+    const table = scene.table;
+    const custom = updateTable(scene, table.id, {
+      cloth: {
+        ...table.cloth,
+        color: "#cfe8e2",
+        accent: "#ffffff",
+        pattern: "checks",
+        drop: 650,
+        image: "data:image/png;base64,iVBORw0KGgo=",
+      },
+    });
+    expect(custom.table.cloth).toMatchObject({
+      color: "#cfe8e2",
+      accent: "#ffffff",
+      pattern: "checks",
+      drop: 650,
+      image: "data:image/png;base64,iVBORw0KGgo=",
+    });
+    const restored = sceneFromJson(sceneToJson(custom));
+    expect(restored.table.cloth).toMatchObject({
+      color: "#cfe8e2",
+      pattern: "checks",
+      drop: 650,
+      image: "data:image/png;base64,iVBORw0KGgo=",
+    });
+    const shortened = updateTable(custom, table.id, { height: 400 });
+    expect(shortened.table.cloth.drop).toBeLessThanOrEqual(370);
   });
 });
 
@@ -741,7 +794,7 @@ describe("clipboard and local project files", () => {
     expect(restored.tables).toHaveLength(2);
     expect(restored.tables[1].rotation).toBe(90);
     expect(restored.groups).toHaveLength(1);
-    expect(sceneFileName("Puesto Ñandú")).toBe("puesto-nandu.artist-alley.json");
+    expect(sceneFileName("Puesto Ñandú")).toBe("puesto-nandu.json");
   });
 
   it("rejects files from another format", () => {

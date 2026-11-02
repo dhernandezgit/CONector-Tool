@@ -64,11 +64,13 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 
 ### Mesas en L y archivos locales
 
-- El inspector permite añadir una **mesa recta** o una **mesa en L** girada 90°.
+- El inspector permite añadir una **mesa recta** o una **mesa en L** girada 90°. La mesa inicial mide **2000 × 800 mm**, con alto habitual de **750 mm** y rejilla de **100 mm** para colocar piezas.
 - Las mesas comparten altura; al cambiarla, las piezas se desplazan para seguir apoyadas.
+- Cada mesa lleva un **mantel por defecto rosa** que cubre el tablero y cae por los cuatro lados. Puedes desactivarlo, cambiar sus dos colores, elegir estampado (liso, rayas, cuadros, lunares o flores), ajustar la **caída** y subir un dibujo propio para usarlo como estampado.
+- El dibujo del mantel se guarda dentro del proyecto y viaja con **Descargar / Importar**. La caída máxima deja 3 cm libres sobre el suelo.
 - Los ejemplos **Mesa en L de trabajo** y **Mesa en L + pared** montan la configuración completa.
-- **Archivo** descarga un `.artist-alley.json` con mesas, piezas, grupos, colores y conexiones.
-- **Abrir** recupera ese archivo en cualquier navegador. El guardado automático local sigue activo.
+- **Descargar** crea un archivo `.json` con mesas, piezas, grupos, colores y conexiones.
+- **Importar** recupera ese archivo en cualquier navegador. **Guardar local** solo guarda en este navegador y no crea un archivo; el autoguardado sigue activo.
 
 ### Lista de materiales
 
@@ -96,7 +98,7 @@ El **Artist Alley STL Pack** es una creación de **Jessie Shi** (**Sandoik / @sa
 4. Arrastra una pieza cerca de un puerto: verás el destino y el conector real previsto. Suelta para dejarla unida. También puedes seleccionar una pieza y tocar dos esferas rosas, o usar la herramienta de rectángulo (`2`) para seleccionar varias.
 5. Selecciona una unión para cambiar el conector o volver al automático; selecciona una pieza para moverla, girarla, colorearla o montarla en un panel. El color y los campos de transformación se aplican a todo el grupo. Para el toldo, selecciona antes el panel.
 6. Con Mayús + clic o con el rectángulo selecciona varias piezas, arrastra para moverlas juntas, copia con Ctrl+C y pega con Ctrl+V. La sección **Color de la selección** recolorea todas las piezas y sus grupos. La lista **Tus grupos** permite seleccionar grupos completos y crear grupos anidados.
-7. En **Mesas de trabajo** añade o edita mesas. Arrastra una mesa desde una zona libre del tablero para moverla con todo lo que tiene encima y actívala como **Bloqueada** cuando esté en su sitio. Usa **Archivo** y **Abrir** para guardar o recuperar un proyecto local.
+7. En **Mesas de trabajo** añade o edita mesas. Arrastra una mesa desde una zona libre del tablero para moverla con todo lo que tiene encima y actívala como **Bloqueada** cuando esté en su sitio. Usa **Descargar** para crear un `.json` e **Importar** para recuperarlo; **Guardar local** solo afecta a este navegador.
 8. Abre **Lista de materiales** para copiar o descargar el CSV.
 
 ## Desarrollo
@@ -143,7 +145,7 @@ src/
   components/          # logo, UI, ayuda y acerca de
 ```
 
-La escena usa coordenadas Z-up. Las mesas se describen en `scene.tables` y comparten altura; los paneles se apoyan en `z = table.height` y sus puertos se calculan a partir de la posición y la rotación. Las uniones son datos derivados: se reconstruyen al mover, girar o eliminar piezas. El portapapeles y los archivos `.artist-alley.json` viven en `scene.ts`.
+La escena usa coordenadas Z-up. Las mesas se describen en `scene.tables` y comparten altura; los paneles se apoyan en `z = table.height` y sus puertos se calculan a partir de la posición y la rotación. Las uniones son datos derivados: se reconstruyen al mover, girar o eliminar piezas. El portapapeles y los archivos `.json` viven en `scene.ts`.
 
 ## Licencias
 

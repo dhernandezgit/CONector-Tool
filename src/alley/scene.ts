@@ -18,6 +18,8 @@ import type {
   AlleyScene,
   AlleySelection,
   AlleyTable,
+  AlleyTableCloth,
+  AlleyTableClothPattern,
   AlleyTableSpec,
   BomLine,
   ConnectorType,
@@ -29,22 +31,68 @@ export const ALLEY_STORAGE_KEY = "conector-alley-scene-v1";
 export const ALLEY_FILE_FORMAT = "conector-artist-alley";
 export const ALLEY_FILE_VERSION = 2;
 
-const DEFAULT_TABLE = { width: 2200, depth: 900, height: 750, color: "#f0d9c8" };
+const DEFAULT_TABLE = { width: 2000, depth: 800, height: 750, color: "#f0d9c8" };
+const DEFAULT_GRID = 100;
+const DEFAULT_CLOTH: AlleyTableCloth = {
+  enabled: true,
+  color: "#f3b7c7",
+  accent: "#fff2f6",
+  pattern: "plain",
+  drop: 500,
+};
+const CLOTH_PATTERNS: AlleyTableClothPattern[] = ["plain", "stripes", "checks", "dots", "flowers"];
 
-export function makeTable(overrides: Partial<AlleyTable> = {}, fallback?: AlleyTable): AlleyTable {
+type TableOverrides = Partial<Omit<AlleyTable, "cloth">> & { cloth?: Partial<AlleyTableCloth> };
+
+function normalizeCloth(
+  input: Partial<AlleyTableCloth> | undefined,
+  fallback: AlleyTableCloth | undefined,
+  height: number,
+): AlleyTableCloth {
+  const base = fallback || DEFAULT_CLOTH;
+  const color = /^#[0-9a-f]{6}$/i.test(String(input?.color)) ? String(input?.color) : base.color;
+  const accent = /^#[0-9a-f]{6}$/i.test(String(input?.accent)) ? String(input?.accent) : base.accent;
+  const pattern = CLOTH_PATTERNS.includes(input?.pattern as AlleyTableClothPattern)
+    ? (input?.pattern as AlleyTableClothPattern)
+    : base.pattern;
+  const dropCandidate = Number(input?.drop ?? base.drop);
+  const maxDrop = Math.max(0, height - 30);
+  const drop = clamp(Number.isFinite(dropCandidate) ? dropCandidate : DEFAULT_CLOTH.drop, 0, maxDrop);
+  const imageCandidate = input && Object.prototype.hasOwnProperty.call(input, "image") ? input.image : base.image;
+  const image =
+    typeof imageCandidate === "string" &&
+    /^data:image\/(?:png|jpe?g|webp);base64,/i.test(imageCandidate) &&
+    imageCandidate.length <= 4_000_000
+      ? imageCandidate
+      : undefined;
+  return {
+    enabled: input?.enabled ?? base.enabled ?? true,
+    color,
+    accent,
+    pattern,
+    drop,
+    image,
+  };
+}
+
+export function makeTable(overrides: TableOverrides = {}, fallback?: AlleyTable): AlleyTable {
   const colorCandidate = String(overrides.color || fallback?.color || DEFAULT_TABLE.color);
   const heightCandidate = Number(overrides.height ?? fallback?.height ?? DEFAULT_TABLE.height);
+  const width = clamp(Number(overrides.width ?? fallback?.width ?? DEFAULT_TABLE.width) || DEFAULT_TABLE.width, 600, 5000);
+  const depth = clamp(Number(overrides.depth ?? fallback?.depth ?? DEFAULT_TABLE.depth) || DEFAULT_TABLE.depth, 400, 2500);
+  const height = clamp(Number.isFinite(heightCandidate) ? heightCandidate : DEFAULT_TABLE.height, 0, 1200);
   return {
     id: overrides.id || uid("table"),
     name: overrides.name || "Mesa principal",
-    width: clamp(Number(overrides.width ?? fallback?.width ?? DEFAULT_TABLE.width) || DEFAULT_TABLE.width, 600, 5000),
-    depth: clamp(Number(overrides.depth ?? fallback?.depth ?? DEFAULT_TABLE.depth) || DEFAULT_TABLE.depth, 400, 2500),
-    height: clamp(Number.isFinite(heightCandidate) ? heightCandidate : DEFAULT_TABLE.height, 0, 1200),
+    width,
+    depth,
+    height,
     color: /^#[0-9a-f]{6}$/i.test(colorCandidate) ? colorCandidate : DEFAULT_TABLE.color,
     x: Number(overrides.x ?? fallback?.x ?? 0) || 0,
     y: Number(overrides.y ?? fallback?.y ?? 0) || 0,
     rotation: normalizeAngle(overrides.rotation ?? fallback?.rotation ?? 0),
     locked: Boolean(overrides.locked ?? fallback?.locked ?? false),
+    cloth: normalizeCloth(overrides.cloth, fallback?.cloth, height),
   };
 }
 
@@ -66,7 +114,7 @@ export function emptyScene(): AlleyScene {
     groups: [],
     table,
     tables: [table],
-    grid: 50,
+    grid: DEFAULT_GRID,
   };
 }
 
@@ -263,7 +311,7 @@ export function normalizeScene(raw: unknown): AlleyScene {
     groups,
     table,
     tables,
-    grid: clamp(Number(value.grid) || 50, 10, 200),
+    grid: clamp(Number(value.grid) || DEFAULT_GRID, 10, 200),
   };
   return commitScene(scene, previousJoints);
 }
@@ -307,12 +355,32 @@ export function isLegacyStarterScene(scene: AlleyScene): boolean {
   return originalStarter || intermediateTower || previousTower || previousOrganizerDefault;
 }
 
+/**
+ * The previous 48-piece default used a 2200 × 900 table and 50 mm grid.
+ * Upgrade only that untouched starter so custom projects keep their own size.
+ */
+export function upgradeStarterTable(scene: AlleyScene): AlleyScene {
+  const table = scene.tables[0];
+  const groupNames = new Set(scene.groups.map((group) => group.name));
+  const isPreviousStarter =
+    scene.items.length === 48 &&
+    scene.tables.length === 1 &&
+    scene.groups.length === 4 &&
+    table?.width === 2200 &&
+    table?.depth === 900 &&
+    scene.grid === 50 &&
+    ["Puesto Artist Alley", "Torres", "Base rosa", "Toldos"].every((name) => groupNames.has(name));
+  if (!isPreviousStarter) return scene;
+  const upgraded = makeTable({ ...table, width: DEFAULT_TABLE.width, depth: DEFAULT_TABLE.depth }, table);
+  return { ...scene, table: upgraded, tables: [upgraded], grid: DEFAULT_GRID };
+}
+
 export function loadScene(): AlleyScene {
   try {
     const raw = localStorage.getItem(ALLEY_STORAGE_KEY);
     if (!raw) return starterScene();
     const scene = normalizeScene(JSON.parse(raw));
-    return isLegacyStarterScene(scene) ? starterScene() : scene;
+    return isLegacyStarterScene(scene) ? starterScene() : upgradeStarterTable(scene);
   } catch {
     return starterScene();
   }
@@ -367,7 +435,7 @@ export function sceneFileName(name: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 48);
-  return `${base || "puesto-artist-alley"}.artist-alley.json`;
+  return `${base || "puesto-artist-alley"}.json`;
 }
 
 function pointInAabb(x: number, y: number, box: { minX: number; maxX: number; minY: number; maxY: number }, pad = 0) {
@@ -687,7 +755,12 @@ export function updateTable(scene: AlleyScene, tableId: string, patch: Partial<A
     if (table.id === tableId) {
       return makeTable({ ...table, ...patch, height: nextHeight }, table);
     }
-    return dz ? { ...table, height: nextHeight } : table;
+    if (!dz) return table;
+    return {
+      ...table,
+      height: nextHeight,
+      cloth: normalizeCloth({ drop: table.cloth.drop }, table.cloth, nextHeight),
+    };
   });
   const items = dz
     ? scene.items.map((item) => ({ ...item, baseZ: Math.max(0, item.baseZ + dz) }))

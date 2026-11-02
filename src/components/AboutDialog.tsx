@@ -31,8 +31,9 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
               slatwall, Skadis, rejilla y triangulares, también en medidas de 1/4 y 1/2 y en versión lisa coloreada;
               expositores de 2,5 a 5 pulgadas; risers, mini estante, balda horizontal, organizadores laterales con
               ranuras, cajas base de 40 × 30 × 20 cm con sus Edge2_Corner/Edge3_Corner y enlace 360, bandejas, ganchos,
-              clips, toldo con faldón curvo y sin patas al suelo, y mango de abanico. Los ejemplos rápidos combinan paneles
-              con baldas y organizadores, y la lista de conectores solo ofrece las piezas reales que encajan en cada unión.
+              clips, toldo con faldón curvo y sin patas al suelo, y mango de abanico. Las mesas parten de 200 × 80 cm con
+              rejilla de 10 cm y mantel configurable con dibujo propio. Los ejemplos rápidos combinan paneles con baldas y
+              organizadores, y la lista de conectores solo ofrece las piezas reales que encajan en cada unión.
             </p>
           </section>
           <section>

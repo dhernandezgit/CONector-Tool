@@ -35,6 +35,8 @@ import type {
   AlleyProjection,
   AlleyScene,
   AlleySelection,
+  AlleyTable,
+  AlleyTableCloth,
   AlleyViewName,
   ConnectorType,
   PortRef,
@@ -154,6 +156,164 @@ function addOutline(parent: THREE.Object3D, dims: { w: number; d: number; h: num
   parent.add(outline);
 }
 
+function clothTexture(cloth: AlleyTableCloth): THREE.Texture {
+  if (cloth.image) {
+    const texture = new THREE.TextureLoader().load(cloth.image);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(2, 2);
+    texture.anisotropy = 8;
+    return texture;
+  }
+
+  const texture = canvasTexture((ctx, width, height) => {
+    ctx.fillStyle = cloth.color;
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = cloth.accent;
+
+    if (cloth.pattern === "stripes") {
+      const band = width / 8;
+      ctx.globalAlpha = 0.78;
+      for (let i = 0; i < 8; i += 2) ctx.fillRect(i * band, 0, band * 0.58, height);
+    } else if (cloth.pattern === "checks") {
+      const band = width / 6;
+      ctx.globalAlpha = 0.52;
+      for (let i = 0; i < 6; i += 2) ctx.fillRect(i * band, 0, band, height);
+      for (let i = 0; i < 6; i += 2) ctx.fillRect(0, i * band, width, band);
+      ctx.globalAlpha = 0.24;
+      for (let i = 0; i < 6; i += 2) {
+        for (let j = 0; j < 6; j += 2) ctx.fillRect(i * band, j * band, band, band);
+      }
+    } else if (cloth.pattern === "dots") {
+      ctx.globalAlpha = 0.82;
+      for (let row = 0; row < 5; row += 1) {
+        for (let col = 0; col < 5; col += 1) {
+          const x = (col + 0.5) * (width / 5) + (row % 2 ? width / 10 : 0);
+          const y = (row + 0.5) * (height / 5);
+          ctx.beginPath();
+          ctx.arc(x, y, width * 0.024, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else if (cloth.pattern === "flowers") {
+      ctx.globalAlpha = 0.8;
+      const flower = (cx: number, cy: number, scale: number) => {
+        for (let petal = 0; petal < 5; petal += 1) {
+          const angle = (petal / 5) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.ellipse(
+            cx + Math.cos(angle) * scale * 0.9,
+            cy + Math.sin(angle) * scale * 0.9,
+            scale * 0.62,
+            scale * 0.38,
+            angle,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+        }
+        ctx.fillStyle = "#f8df8f";
+        ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        ctx.arc(cx, cy, scale * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = cloth.accent;
+        ctx.globalAlpha = 0.8;
+      };
+      flower(width * 0.27, height * 0.28, width * 0.16);
+      flower(width * 0.73, height * 0.72, width * 0.14);
+    } else {
+      // A subtle woven texture keeps the plain colour from reading as plastic.
+      ctx.globalAlpha = 0.08;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1;
+      for (let y = 4; y < height; y += 7) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = "#7d4d5b";
+      ctx.globalAlpha = 0.045;
+      for (let x = 6; x < width; x += 9) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+    }
+
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height * 0.12);
+    ctx.globalAlpha = 1;
+  }, 256);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(6, 4);
+  return texture;
+}
+
+function addTableCloth(parent: THREE.Object3D, table: AlleyTable) {
+  const cloth = table.cloth;
+  if (!cloth?.enabled) return;
+
+  const material = new THREE.MeshStandardMaterial({
+    map: clothTexture(cloth),
+    color: 0xffffff,
+    roughness: 0.9,
+    metalness: 0,
+    side: THREE.DoubleSide,
+  });
+  const topZ = table.height + 0.8;
+  const top = new THREE.Mesh(new THREE.PlaneGeometry(table.width + 24, table.depth + 24), material);
+  top.rotation.x = -Math.PI / 2;
+  top.position.z = topZ;
+  top.receiveShadow = true;
+  parent.add(top);
+
+  const drop = Math.max(0, Math.min(cloth.drop, table.height));
+  if (drop < 10) return;
+
+  const thickness = 4;
+  const overhang = 12;
+  const skirtHeight = drop + 2;
+  const centerZ = topZ - skirtHeight / 2;
+
+  const longGeometry = new THREE.BoxGeometry(table.width + overhang * 2, thickness, skirtHeight);
+  const sideGeometry = new THREE.BoxGeometry(thickness, table.depth + overhang * 2, skirtHeight);
+  for (const sign of [-1, 1]) {
+    const front = new THREE.Mesh(longGeometry, material);
+    front.position.set(0, sign * (table.depth / 2 + thickness / 2), centerZ);
+    front.castShadow = true;
+    front.receiveShadow = true;
+    parent.add(front);
+
+    const side = new THREE.Mesh(sideGeometry, material);
+    side.position.set(sign * (table.width / 2 + thickness / 2), 0, centerZ);
+    side.castShadow = true;
+    side.receiveShadow = true;
+    parent.add(side);
+  }
+
+  const hemMaterial = new THREE.MeshStandardMaterial({
+    color: cloth.accent,
+    roughness: 0.9,
+    metalness: 0,
+    side: THREE.DoubleSide,
+  });
+  const hemZ = topZ - skirtHeight + 3.5;
+  const longHemGeometry = new THREE.BoxGeometry(table.width + overhang * 2 + 8, 7, 7);
+  const sideHemGeometry = new THREE.BoxGeometry(7, table.depth + overhang * 2 + 8, 7);
+  for (const sign of [-1, 1]) {
+    const frontHem = new THREE.Mesh(longHemGeometry, hemMaterial);
+    frontHem.position.set(0, sign * (table.depth / 2 + thickness / 2), hemZ);
+    parent.add(frontHem);
+    const sideHem = new THREE.Mesh(sideHemGeometry, hemMaterial);
+    sideHem.position.set(sign * (table.width / 2 + thickness / 2), 0, hemZ);
+    parent.add(sideHem);
+  }
+}
+
 function addTableGrid(parent: THREE.Object3D, width: number, depth: number, step: number, z = 3) {
   const points: number[] = [];
   const cols = Math.max(1, Math.round(width / Math.max(10, step)));
@@ -170,7 +330,7 @@ function addTableGrid(parent: THREE.Object3D, width: number, depth: number, step
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
   const grid = new THREE.LineSegments(
     geometry,
-    new THREE.LineBasicMaterial({ color: 0xbfa8a5, transparent: true, opacity: 0.42 }),
+    new THREE.LineBasicMaterial({ color: 0x95777d, transparent: true, opacity: 0.58 }),
   );
   grid.position.z = z;
   parent.add(grid);
@@ -1683,15 +1843,22 @@ export default forwardRef<AlleyViewportHandle, Props>(function AlleyViewport(
         }
       }
 
-      const runner = new THREE.Mesh(
-        new THREE.BoxGeometry(table.width * 0.72, 3, table.depth * 0.32),
-        new THREE.MeshStandardMaterial({ color: "#f3b7c7", roughness: 0.8, transparent: true, opacity: 0.45 }),
-      );
-      runner.position.set(0, 0, table.height + 1.5);
-      runner.receiveShadow = true;
-      tableRoot.add(runner);
+      if (table.cloth?.enabled) {
+        addTableCloth(tableRoot, table);
+      } else {
+        const runner = new THREE.Mesh(
+          new THREE.BoxGeometry(table.width * 0.72, 3, table.depth * 0.32),
+          new THREE.MeshStandardMaterial({ color: "#f3b7c7", roughness: 0.8, transparent: true, opacity: 0.45 }),
+        );
+        runner.position.set(0, 0, table.height + 1.5);
+        runner.receiveShadow = true;
+        tableRoot.add(runner);
+      }
 
-      if (showGrid) addTableGrid(tableRoot, table.width, table.depth, scene.grid || 50, table.height + 3);
+      if (showGrid) {
+        const gridZ = table.cloth?.enabled ? table.height + 20 : table.height + 3;
+        addTableGrid(tableRoot, table.width, table.depth, scene.grid || 100, gridZ);
+      }
     }
 
     for (const item of scene.items) {

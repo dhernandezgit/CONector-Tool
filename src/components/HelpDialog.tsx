@@ -80,17 +80,19 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
             <span className="help-num">07</span>
             <h3>Trabaja en L</h3>
             <p>
-              En «Mesas de trabajo» puedes añadir una mesa recta o una mesa en L girada 90°. Arrastra una mesa desde una
-              zona libre del tablero para moverla con todo lo que tiene encima y usa «Bloquear mesa» para fijarla. Las mesas
-              comparten altura; los ejemplos «Mesa en L de trabajo» y «Mesa en L + pared» montan la configuración completa.
+              En «Mesas de trabajo» puedes añadir una mesa recta o una mesa en L girada 90°. La mesa inicial mide 200 × 80 cm,
+              con 75 cm de alto y rejilla de 10 cm. Arrastra una mesa desde una zona libre del tablero para moverla con todo lo
+              que tiene encima y usa «Bloquear mesa» para fijarla. Cada mesa lleva un mantel rosa configurable: color, dibujo,
+              estampado y caída; también puedes subir una imagen propia. Las mesas comparten altura.
             </p>
           </article>
           <article>
             <span className="help-num">08</span>
-            <h3>Guarda o abre un archivo</h3>
+            <h3>Descarga, importa o guarda</h3>
             <p>
-              «Archivo» descarga un JSON local con mesas, piezas, grupos, colores y conexiones. «Abrir» recupera ese archivo
-              en cualquier navegador. El guardado automático sigue funcionando en este navegador.
+              <strong>Descargar</strong> crea un archivo JSON con mesas, piezas, grupos, colores y conexiones. <strong>Importar</strong> recupera
+              ese archivo en cualquier navegador. <strong>Guardar local</strong> solo guarda en este navegador y no descarga
+              nada; el autoguardado sigue funcionando.
             </p>
           </article>
           <article>

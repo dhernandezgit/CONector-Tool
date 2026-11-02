@@ -14,6 +14,7 @@ import {
   Grid2X2,
   Group,
   Hand,
+  ImagePlus,
   Layers,
   Link2,
   List,
@@ -88,6 +89,7 @@ import type {
   AlleyProjection,
   AlleyScene,
   AlleySelection,
+  AlleyTableClothPattern,
   AlleyViewName,
   ConnectorType,
   PortRef,
@@ -122,6 +124,14 @@ function dot(color: string) {
 
 const STAGE_BG_KEY = "conector-stage-bg";
 const STAGE_BACKGROUNDS = ["#3a3038", "#272b30", "#66545d", "#efe5dc", "#dce8ee"];
+const CLOTH_PATTERN_OPTIONS: { value: AlleyTableClothPattern; label: string }[] = [
+  { value: "plain", label: "Liso" },
+  { value: "stripes", label: "Rayas" },
+  { value: "checks", label: "Cuadros" },
+  { value: "dots", label: "Lunares" },
+  { value: "flowers", label: "Flores" },
+];
+const MAX_CLOTH_IMAGE_BYTES = 8 * 1024 * 1024;
 
 function readStageBackground() {
   try {
@@ -131,6 +141,41 @@ function readStageBackground() {
     /* ignore */
   }
   return STAGE_BACKGROUNDS[0];
+}
+
+function readClothDrawing(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    return Promise.reject(new Error("Elige una imagen para el mantel."));
+  }
+  if (file.size > MAX_CLOTH_IMAGE_BYTES) {
+    return Promise.reject(new Error("La imagen es demasiado grande; usa una de menos de 8 MB."));
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const source = new Image();
+      source.onload = () => {
+        const max = 512;
+        const scale = Math.min(1, max / Math.max(source.width, source.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(source.width * scale));
+        canvas.height = Math.max(1, Math.round(source.height * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("No se pudo preparar el dibujo del mantel."));
+          return;
+        }
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.86));
+      };
+      source.onerror = () => reject(new Error("No se pudo leer la imagen del mantel."));
+      source.src = String(reader.result || "");
+    };
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo de imagen."));
+    reader.readAsDataURL(file);
+  });
 }
 
 const QUICK_ADD = [
@@ -155,6 +200,7 @@ export default function AlleySandbox({
   const viewportRef = useRef<AlleyViewportHandle | null>(null);
   const clipboardRef = useRef<AlleyClipboard | null>(null);
   const pasteCountRef = useRef(0);
+  const clothImageRef = useRef<HTMLInputElement | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [selection, setSelection] = useState<AlleySelection | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -318,6 +364,22 @@ export default function AlleySandbox({
       mutate(updateTableInScene(scene, tableId, patch));
     },
     [mutate, scene],
+  );
+
+  const applyClothDrawing = useCallback(
+    async (file: File | undefined) => {
+      if (!file || !selectedTable) return;
+      try {
+        const image = await readClothDrawing(file);
+        patchTable(selectedTable.id, {
+          cloth: { ...selectedTable.cloth, image },
+        });
+        onToast("Dibujo aplicado al mantel. Se repite como estampado.");
+      } catch (error) {
+        onToast(error instanceof Error ? error.message : "No se pudo aplicar el dibujo.");
+      }
+    },
+    [onToast, patchTable, selectedTable],
   );
 
   const addTableToScene = useCallback(
@@ -1298,6 +1360,74 @@ export default function AlleySandbox({
                   <NumberField label="Rejilla" value={scene.grid} min={10} max={200} step={10} suffix="mm" onChange={(value) => mutate({ ...scene, grid: value })} />
                 </div>
                 <ColorField label="Color de la mesa" value={selectedTable.color} onChange={(value) => patchTable(selectedTable.id, { color: value })} />
+                <h4 className="alley-subhead">Mantel</h4>
+                <Toggle
+                  label="Mantel de mesa"
+                  detail="Cubre el tablero y cae por los cuatro lados. Por defecto, rosa."
+                  checked={selectedTable.cloth.enabled}
+                  onChange={(value) => patchTable(selectedTable.id, { cloth: { ...selectedTable.cloth, enabled: value } })}
+                />
+                {selectedTable.cloth.enabled && (
+                  <>
+                    <ColorField
+                      label="Color del mantel"
+                      value={selectedTable.cloth.color}
+                      onChange={(value) => patchTable(selectedTable.id, { cloth: { ...selectedTable.cloth, color: value } })}
+                    />
+                    <SelectField
+                      label="Estampado"
+                      value={selectedTable.cloth.pattern}
+                      options={CLOTH_PATTERN_OPTIONS}
+                      onChange={(value) => patchTable(selectedTable.id, { cloth: { ...selectedTable.cloth, pattern: value } })}
+                    />
+                    <ColorField
+                      label="Color del dibujo"
+                      value={selectedTable.cloth.accent}
+                      onChange={(value) => patchTable(selectedTable.id, { cloth: { ...selectedTable.cloth, accent: value } })}
+                    />
+                    <NumberField
+                      label="Caída"
+                      value={selectedTable.cloth.drop}
+                      min={0}
+                      max={Math.max(0, selectedTable.height - 30)}
+                      step={10}
+                      suffix="mm"
+                      onChange={(value) => patchTable(selectedTable.id, { cloth: { ...selectedTable.cloth, drop: value } })}
+                    />
+                    <div className="alley-inline-actions">
+                      <button type="button" className="alley-small-button" onClick={() => clothImageRef.current?.click()}>
+                        <ImagePlus size={14} /> Subir dibujo
+                      </button>
+                      {selectedTable.cloth.image && (
+                        <button
+                          type="button"
+                          className="alley-small-button danger-text"
+                          onClick={() => patchTable(selectedTable.id, { cloth: { ...selectedTable.cloth, image: undefined } })}
+                        >
+                          <X size={14} /> Quitar
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      ref={clothImageRef}
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={async (event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = "";
+                        await applyClothDrawing(file);
+                      }}
+                    />
+                    {selectedTable.cloth.image && (
+                      <img className="alley-cloth-preview" src={selectedTable.cloth.image} alt="Dibujo del mantel" />
+                    )}
+                    <p className="alley-note">
+                      El dibujo se guarda dentro del proyecto y se repite como estampado. La caída máxima deja 3 cm
+                      libres sobre el suelo.
+                    </p>
+                  </>
+                )}
                 <Toggle
                   label="Bloquear mesa"
                   detail={
