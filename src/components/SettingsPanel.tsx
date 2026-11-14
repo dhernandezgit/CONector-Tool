@@ -770,7 +770,7 @@ export default function SettingsPanel({
               />
               <Toggle
                 label="Espejo en X"
-                detail="Invierte la pieza para crear la versi?n izquierda/derecha."
+                detail="Invierte la pieza para crear la versión izquierda/derecha."
                 checked={settings.template_mirror}
                 onChange={(checked) => patch({ template_mirror: checked, family: "parametric" })}
               />
