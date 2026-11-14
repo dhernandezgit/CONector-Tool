@@ -279,7 +279,7 @@ export default function ConnectorStudio({ onToast, customConnectors, onSaveCusto
           <div className="viewport-toolbar">
             <div className="studio-title">
               <span className="eyebrow">Diseño paramétrico</span>
-              <h2>{settings.name || "Conector"}</h2>
+              <input className="studio-name-input" value={settings.name} onChange={(event) => setSettings({ ...settings, name: event.target.value })} aria-label="Nombre del conector" />
               <small>{engineLabel}{engine.engineError ? ` · ${engine.engineError}` : ""}</small>
             </div>
             <div className="studio-actions">
