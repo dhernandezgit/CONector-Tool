@@ -1,4 +1,4 @@
-export type Family = "template" | "node" | "angle" | "leg" | "edge" | "flat" | "hook" | "plate" | "profile" | "calibration";
+export type Family = "template" | "node" | "angle" | "leg" | "edge" | "flat" | "hook" | "plate" | "profile" | "parametric" | "calibration";
 export type PanelType = "wire" | "frame" | "foam";
 export type DecorSide = "front" | "back" | "both";
 export type MountType = "press" | "magnet" | "screw";
@@ -15,6 +15,19 @@ export interface ImportedShape {
   source_kind?: string;
 }
 
+export type PortLevel = "both" | "top" | "bottom" | "middle";
+
+export interface ConnectorPort {
+  id: string;
+  angle: number;
+  level: PortLevel;
+  /** Radial reach beyond the body, in mm. */
+  length: number;
+  /** Tangential width of the root arm, in mm. */
+  width: number;
+  enabled: boolean;
+}
+
 export interface ConnectorSettings {
   family: Family;
   name: string;
@@ -23,6 +36,18 @@ export interface ConnectorSettings {
   profile_scale_x: number;
   profile_scale_y: number;
   profile_scale_z: number;
+  /** Feature-based connector: list of radial connections. */
+  ports: ConnectorPort[];
+  body_width: number;
+  body_depth: number;
+  channel_width: number;
+  grip_lines: number;
+  grip_depth: number;
+  smoothness: number;
+  port_height: number;
+  leg_azimuth: number;
+  leg_width: number;
+  leg_thickness: number;
   template_id: number;
   template_scale_xy: number;
   template_scale_z: number;

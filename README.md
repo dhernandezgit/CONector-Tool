@@ -12,20 +12,20 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 
 ## Estudio de conectores
 
-La pestaña **Conectores** recupera el estudio paramétrico. Los 43 presets del Edge Connector Bundle y del Connector Bundle se reconstruyen con **perfiles de contorno derivados** de sus secciones: no se carga, sirve ni redistribuye ningún STL de referencia.
+La pestaña **Conectores** incluye los 43 presets del Edge Connector Bundle y del Connector Bundle como **modelos paramétricos editables**. Cada preset arranca con medidas derivadas de la referencia, pero el cuerpo, las conexiones, los canales y las patas se generan desde parámetros: no es una malla copiada.
 
-- **43 presets agrupados** por tipo y por número de conexiones: Edge1–Edge7, nodos, 360°, angulados 30/45, patas y calibración.
-- **Bases derivadas** con loft de secciones y tapas watertight. La tabla `conectors/profiles.json` contiene solo contornos 2D remuestreados (no mallas trianguladas ni STL).
-- **Exactitud medida**: error de nube de puntos (Chamfer simétrico / diagonal de la envolvente) entre **0,34 % y 0,88 %** para los 43 presets, por debajo del objetivo del 1 %. El script local `scripts/verify_reference_profiles.py` permite repetir la comparación contra los STL privados.
-- **Configuración paramétrica**: escala independiente X/Y/Z, color y selección de base. Las escalas sirven para tamaños intermedios y variantes nuevas sin reconstruir la topología; los canales de reja, patas, clavijas y chaflanes se conservan al 1:1.
-- **Diseño libre** con las familias paramétricas originales: tamaño del cuerpo, forma, altura, ancho de brazos, canales C, separación de agarres, ángulos, patas, clavijas, split de impresión y decoración.
-- **Dibujo propio** para placas decorativas, importado desde SVG/PNG/JPG/WebP.
-- **Preparado para imprimir**: el modo **Auto 45°** prueba poses verticales e inclinadas, elige la de menor voladizo que cabe en la cama y exporta el STL ya orientado. El modo vertical y el giro Z de 45° siguen disponibles.
-- **Usar en el puesto** guarda una definición en la biblioteca local con nombre, color y envolvente. Después puedes asignarla a una unión en Artist Alley; la lista de materiales y el color del conector se actualizan.
-- **Exportar** STL por pieza, 3MF o proyecto JSON. Los presets y las definiciones guardadas viven en el navegador.
-- El motor Python se genera con `npm run build:engine` y se carga sólo al entrar en Conectores. El zip generado no se versiona y no contiene STL ni 3MF de referencia.
+- **Editor paramétrico**:
+  - Cuerpo con forma (redondo, elipse, hexágono, octágono, orgánico, gota), ancho, fondo, alto, redondeo y suavidad de uniones.
+  - Conexiones que se pueden **añadir, quitar y mover angularmente**. Cada puerto tiene ángulo, nivel (arriba/abajo/centrado), alcance y ancho de brazo.
+  - **Agarre interior** ajustable: ancho de cavidad, juego, pared, boca, abrazo, altura del canal, número de líneas interiores y profundidad de las líneas. Las líneas son resaltes en la pared de la cavidad: más profundidad o más líneas = más retención.
+  - **Patas** con altura sobre la mesa, inclinación, alcance, pie, suela, grosor, ancho y orientación.
+  - Clavija central y color del cuerpo.
+- **Base fiel**: para comparar o imprimir la referencia exacta sigue disponible la base derivada. Los 43 perfiles mantienen **0,34–0,88 %** de error de nube de puntos (Chamfer simétrico / diagonal de la envolvente), todos watertight. El botón **Usar base fiel** cambia al modo derivado; **Editar cuerpo, puertos y patas** vuelve al editor paramétrico.
+- **Preparado para imprimir**: el modo **Auto 45°** prueba poses verticales e inclinadas, elige la de menor voladizo que cabe en la cama y orienta el STL/3MF antes de exportar.
+- **Usar en el puesto** guarda el conector con su envolvente y su número real de conexiones. La lista de materiales de Artist Alley muestra las dimensiones del conector personalizado.
+- **Exportar** STL por pieza, 3MF o proyecto JSON. Todo se calcula en local.
 
-Para regenerar las bases de los bundles Edge/Connector en local (sus STL no están en el repositorio; las 7 plantillas CC BY-NC del simulador son otra referencia separada):
+Los presets y las bases fieles se generan con el motor Python. La tabla `conectors/profiles.json` contiene solo contornos 2D remuestreados (no mallas trianguladas ni STL). Los scripts locales permiten regenerar y verificar la base fiel contra los STL privados; los STL de los bundles no est?n en el repositorio ni en el zip publicado.
 
 ```bash
 python scripts/extract_connector_profiles.py \
@@ -36,7 +36,7 @@ python scripts/verify_reference_profiles.py \
   --connector-dir "ruta/al/Connector Bundle/STLs"
 ```
 
-Los scripts de extracción y verificación requieren `trimesh` y `scipy` en local; no forman parte del motor que se ejecuta en el navegador.
+Los scripts de extracci?n y verificaci?n requieren `trimesh` y `scipy` en local; no forman parte del motor que se ejecuta en el navegador.
 
 ## Qué incluye
 

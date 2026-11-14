@@ -7,6 +7,7 @@ import {
   ImagePlus,
   Move3D,
   PanelTop,
+  Plus,
   Printer,
   Ruler,
   Shapes,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import type {
   BuildResult,
+  ConnectorPort,
   ConnectorSettings,
   DeepPartial,
   DecorSide,
@@ -36,6 +38,7 @@ import {
   TEMPLATE_SIDE_OPTIONS,
 } from "../data/presets";
 import { CONNECTOR_PROFILE_OPTIONS } from "../data/connectorPresets";
+import { derivedPorts, editablePorts } from "../lib/connectorPorts";
 import { deepMerge } from "../lib/utils";
 import {
   ColorField,
@@ -49,15 +52,16 @@ import {
 } from "./UI";
 
 const FAMILIES: { value: Family; label: string; detail: string }[] = [
-  { value: "profile", label: "Derivado", detail: "Base de referencia" },
-  { value: "node", label: "Nodo", detail: "Puck / varias v?as" },
-  { value: "edge", label: "Borde", detail: "Edge1?Edge7" },
-  { value: "angle", label: "?ngulo", detail: "30?, 45??" },
+  { value: "parametric", label: "Param\u00e9trico", detail: "Cuerpo, puertos y patas" },
+  { value: "profile", label: "Fiel", detail: "Base derivada \u22641 %" },
+  { value: "node", label: "Nodo", detail: "Puck / varias v\u00edas" },
+  { value: "edge", label: "Borde", detail: "Edge1\u2013Edge7" },
+  { value: "angle", label: "\u00c1ngulo", detail: "30\u00b0, 45\u00b0..." },
   { value: "leg", label: "Pata", detail: "Soporte y altura" },
   { value: "flat", label: "Placa", detail: "Placa con clavija" },
   { value: "hook", label: "Gancho", detail: "Estante o cartel" },
   { value: "plate", label: "Decorada", detail: "Solo decoraci?n" },
-  { value: "calibration", label: "Cup?n", detail: "Prueba de ajuste" },
+  { value: "calibration", label: "Cup\u00f3n", detail: "Prueba de ajuste" },
 ];
 
 const JOINT_OPTIONS = [
@@ -131,7 +135,7 @@ export default function SettingsPanel({
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const patch = (part: DeepPartial<ConnectorSettings>) => onChange(deepMerge(settings, part));
-  const genericVisible = settings.family !== "profile";
+  const genericVisible = settings.family !== "profile" && settings.family !== "parametric";
   const currentProfile = CONNECTOR_PROFILE_OPTIONS.find((option) => option.value === settings.profile_id);
   const selectProfile = (value: string) => {
     const option = CONNECTOR_PROFILE_OPTIONS.find((item) => item.value === value);
@@ -142,6 +146,43 @@ export default function SettingsPanel({
       profile_scale_x: 1,
       profile_scale_y: 1,
       profile_scale_z: 1,
+    });
+  };
+
+  const editable = editablePorts(settings);
+  const updatePort = (index: number, change: Partial<ConnectorPort>) => {
+    const next = editable.map((port, portIndex) => (portIndex === index ? { ...port, ...change } : port));
+    patch({ family: "parametric", ports: next });
+  };
+  const addPort = () => {
+    const used = new Set(editable.map((port) => Math.round(port.angle)));
+    let angle = 0;
+    while (used.has(angle) && angle < 360) angle += 45;
+    const width = settings.arm_width >= 5 && settings.arm_width <= 45 ? settings.arm_width : Math.max(7, settings.body_size * 0.3);
+    patch({
+      family: "parametric",
+      ports: [
+        ...editable,
+        {
+          id: `port-${Date.now().toString(36)}`,
+          angle: angle % 360,
+          level: "both",
+          length: 0,
+          width,
+          enabled: true,
+        },
+      ],
+    });
+  };
+  const removePort = (index: number) => {
+    patch({ family: "parametric", ports: editable.filter((_, portIndex) => portIndex !== index) });
+  };
+  const useParametric = () => {
+    patch({
+      family: "parametric",
+      ports: settings.ports.length ? editablePorts(settings) : derivedPorts(settings),
+      body_width: settings.body_width || settings.body_size,
+      body_depth: settings.body_depth || settings.body_size,
     });
   };
 
@@ -271,6 +312,10 @@ export default function SettingsPanel({
               key={family.value}
               className={settings.family === family.value ? "family active" : "family"}
               onClick={() => {
+                if (family.value === "parametric") {
+                  useParametric();
+                  return;
+                }
                 if (family.value === "profile" && !settings.profile_id) {
                   const first = CONNECTOR_PROFILE_OPTIONS[0];
                   if (first) {
@@ -648,6 +693,401 @@ export default function SettingsPanel({
           </Section>
         )}
 
+        {settings.family === "parametric" && (
+          <>
+            <Section
+              title="Cuerpo paramétrico"
+              hint="Forma, tamaño y suavidad"
+              icon={<Shapes size={17} />}
+              badge="Editor"
+            >
+              <SelectField
+                label="Forma del cuerpo"
+                value={settings.body_shape}
+                options={[
+                  { value: "rounded", label: "Cuadrado suave" },
+                  { value: "round", label: "Redondo" },
+                  { value: "ellipse", label: "Elipse" },
+                  { value: "hex", label: "Hexágono" },
+                  { value: "octagon", label: "Octágono" },
+                  { value: "organic", label: "Orgánico" },
+                  { value: "teardrop", label: "Gota / elegante" },
+                ]}
+                onChange={(value) => patch({ body_shape: value, family: "parametric" })}
+              />
+              <div className="field-grid">
+                <NumberField
+                  label="Ancho"
+                  value={settings.body_width || settings.body_size}
+                  onChange={(value) => patch({ body_width: value, family: "parametric" })}
+                  min={4}
+                  max={140}
+                  step={0.5}
+                  suffix="mm"
+                />
+                <NumberField
+                  label="Fondo"
+                  value={settings.body_depth || settings.body_size}
+                  onChange={(value) => patch({ body_depth: value, family: "parametric" })}
+                  min={4}
+                  max={140}
+                  step={0.5}
+                  suffix="mm"
+                />
+                <NumberField
+                  label="Alto"
+                  value={settings.body_height}
+                  onChange={(value) => patch({ body_height: value, family: "parametric" })}
+                  min={6}
+                  max={100}
+                  step={0.5}
+                  suffix="mm"
+                />
+                <NumberField
+                  label="Redondeo de bordes"
+                  value={settings.body_chamfer}
+                  onChange={(value) => patch({ body_chamfer: value, family: "parametric" })}
+                  min={0}
+                  max={12}
+                  step={0.25}
+                  suffix="mm"
+                />
+              </div>
+              <RangeField
+                label="Suavidad de uniones"
+                value={Math.round(settings.smoothness * 100)}
+                onChange={(value) => patch({ smoothness: value / 100, family: "parametric" })}
+                min={0}
+                max={100}
+                step={5}
+                suffix="%"
+                hint="Más alto = transiciones más orgánicas; más bajo = aristas más marcadas."
+              />
+              <ColorField
+                label="Color del cuerpo"
+                value={settings.body_color}
+                onChange={(value) => patch({ body_color: value, family: "parametric" })}
+              />
+              <Toggle
+                label="Espejo en X"
+                detail="Invierte la pieza para crear la versi?n izquierda/derecha."
+                checked={settings.template_mirror}
+                onChange={(checked) => patch({ template_mirror: checked, family: "parametric" })}
+              />
+              <div className="inline-note">
+                <span className="note-dot" />
+                <span>
+                  Cuerpo, puertos y patas se generan desde estas medidas. La base fiel derivada
+                  queda disponible si quieres comparar o imprimir la referencia original.
+                </span>
+              </div>
+              <button type="button" className="secondary-button wide" onClick={() => patch({ family: "profile" })}>
+                <SlidersHorizontal size={15} /> Usar base fiel (≤1 %)
+              </button>
+            </Section>
+
+            <Section
+              title="Conexiones"
+              hint="Añade, quita y orienta cada puerto"
+              icon={<Combine size={17} />}
+              badge={`${editable.length} puerto${editable.length === 1 ? "" : "s"}`}
+            >
+              <div className="param-port-list">
+                {editable.map((port, index) => (
+                  <div className="param-port-row" key={port.id}>
+                    <div className="port-row-head">
+                      <strong>Conexión {index + 1}</strong>
+                      <button type="button" className="icon-button danger" onClick={() => removePort(index)} title="Quitar conexión">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                    <div className="field-grid">
+                      <NumberField
+                        label="ángulo"
+                        value={port.angle}
+                        onChange={(value) => updatePort(index, { angle: value })}
+                        min={-180}
+                        max={360}
+                        step={5}
+                        suffix={"°"}
+                      />
+                      <SelectField
+                        label="Nivel"
+                        value={port.level}
+                        options={[
+                          { value: "both", label: "Arriba y abajo" },
+                          { value: "top", label: "Solo arriba" },
+                          { value: "bottom", label: "Solo abajo" },
+                          { value: "middle", label: "Centrado" },
+                        ]}
+                        onChange={(value) => updatePort(index, { level: value as ConnectorPort["level"] })}
+                      />
+                      <NumberField
+                        label="Alcance"
+                        value={port.length}
+                        onChange={(value) => updatePort(index, { length: value })}
+                        min={0}
+                        max={80}
+                        step={1}
+                        suffix="mm"
+                        hint="0 = en el borde"
+                      />
+                      <NumberField
+                        label="Ancho del brazo"
+                        value={port.width}
+                        onChange={(value) => updatePort(index, { width: value })}
+                        min={3}
+                        max={80}
+                        step={0.5}
+                        suffix="mm"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button type="button" className="secondary-button wide" onClick={addPort}>
+                <Plus size={15} /> Añadir conexión
+              </button>
+              <div className="inline-note">
+                <span className="note-dot" />
+                <span>
+                  Puedes añadir, quitar y mover puertos en pasos de 5°. El cuerpo se adapta a la
+                  posición de las conexiones; los cambios se ven en la vista 3D.
+                </span>
+              </div>
+            </Section>
+
+            <Section
+              title="Agarre interior"
+              hint="Cavidad, boca y líneas de retención"
+              icon={<Hand size={17} />}
+              defaultOpen={false}
+              badge={`${(settings.channel_width || settings.wire_diameter + settings.clearance * 2).toFixed(1)} mm`}
+            >
+              <div className="field-grid">
+                <NumberField
+                  label="Ancho interior"
+                  value={settings.channel_width || settings.wire_diameter + settings.clearance * 2}
+                  onChange={(value) => patch({ channel_width: value, family: "parametric" })}
+                  min={1.5}
+                  max={30}
+                  step={0.1}
+                  suffix="mm"
+                  hint="menos = aprieta más"
+                />
+                <NumberField
+                  label="Juego de ajuste"
+                  value={settings.clearance}
+                  onChange={(value) => patch({ clearance: value, family: "parametric" })}
+                  min={0}
+                  max={1.2}
+                  step={0.05}
+                  suffix="mm"
+                />
+                <NumberField
+                  label="Pared del canal"
+                  value={settings.grip_wall}
+                  onChange={(value) => patch({ grip_wall: value, family: "parametric" })}
+                  min={1}
+                  max={8}
+                  step={0.1}
+                  suffix="mm"
+                />
+                <NumberField
+                  label="Boca del clip"
+                  value={settings.mouth_width}
+                  onChange={(value) => patch({ mouth_width: value, family: "parametric" })}
+                  min={0.8}
+                  max={12}
+                  step={0.1}
+                  suffix="mm"
+                />
+                <NumberField
+                  label="Abrazo"
+                  value={settings.wrap_degrees}
+                  onChange={(value) => patch({ wrap_degrees: value, family: "parametric" })}
+                  min={120}
+                  max={340}
+                  step={5}
+                  suffix={"°"}
+                />
+                <NumberField
+                  label="Altura del canal"
+                  value={settings.port_height}
+                  onChange={(value) => patch({ port_height: value, family: "parametric" })}
+                  min={0}
+                  max={90}
+                  step={1}
+                  suffix="mm"
+                  hint="0 = automática"
+                />
+                <NumberField
+                  label="Líneas interiores"
+                  value={settings.grip_lines}
+                  onChange={(value) => patch({ grip_lines: value, family: "parametric" })}
+                  min={0}
+                  max={20}
+                  step={1}
+                />
+                <NumberField
+                  label="Profundidad de líneas"
+                  value={settings.grip_depth}
+                  onChange={(value) => patch({ grip_depth: value, family: "parametric" })}
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  suffix="mm"
+                  hint="más = enganche más fuerte"
+                />
+              </div>
+              <div className="inline-note">
+                <span className="note-dot" />
+                <span>
+                  Las líneas interiores son resaltes en la pared de la cavidad. Aumenta su número
+                  o profundidad para que la reja quede más retenida; bájalos para que entre y salga
+                  con menos esfuerzo.
+                </span>
+              </div>
+            </Section>
+
+            <Section
+              title="Patas"
+              hint="Altura, inclinación y apoyo"
+              icon={<Move3D size={17} />}
+              defaultOpen={false}
+              badge={settings.leg.enabled ? "Activa" : undefined}
+            >
+              <Toggle
+                label="Añadir pata"
+                detail="Eleva el cuerpo y apoya una pata estable sobre la mesa."
+                checked={settings.leg.enabled}
+                onChange={(checked) => patch({ leg: { ...settings.leg, enabled: checked }, family: "parametric" })}
+              />
+              {settings.leg.enabled && (
+                <>
+                  <div className="field-grid">
+                    <NumberField
+                      label="Altura sobre la mesa"
+                      value={settings.leg.height}
+                      onChange={(value) => patch({ leg: { ...settings.leg, height: value }, family: "parametric" })}
+                      min={0}
+                      max={220}
+                      step={1}
+                      suffix="mm"
+                    />
+                    <NumberField
+                      label="Inclinación"
+                      value={settings.leg.angle}
+                      onChange={(value) => patch({ leg: { ...settings.leg, angle: value }, family: "parametric" })}
+                      min={0}
+                      max={75}
+                      step={1}
+                      suffix={"°"}
+                    />
+                    <NumberField
+                      label="Alcance"
+                      value={settings.leg_length}
+                      onChange={(value) => patch({ leg_length: value, family: "parametric" })}
+                      min={8}
+                      max={140}
+                      step={1}
+                      suffix="mm"
+                    />
+                    <NumberField
+                      label="Pie"
+                      value={settings.leg.foot}
+                      onChange={(value) => patch({ leg: { ...settings.leg, foot: value }, family: "parametric" })}
+                      min={6}
+                      max={80}
+                      step={1}
+                      suffix="mm"
+                    />
+                    <NumberField
+                      label="Suela"
+                      value={settings.leg.sole}
+                      onChange={(value) => patch({ leg: { ...settings.leg, sole: value }, family: "parametric" })}
+                      min={1}
+                      max={8}
+                      step={0.5}
+                      suffix="mm"
+                    />
+                    <NumberField
+                      label="Grosor"
+                      value={settings.leg_thickness}
+                      onChange={(value) => patch({ leg_thickness: value, family: "parametric" })}
+                      min={2}
+                      max={12}
+                      step={0.5}
+                      suffix="mm"
+                    />
+                    <NumberField
+                      label="Ancho de pata"
+                      value={settings.leg_width}
+                      onChange={(value) => patch({ leg_width: value, family: "parametric" })}
+                      min={4}
+                      max={40}
+                      step={1}
+                      suffix="mm"
+                    />
+                    <NumberField
+                      label="Orientación"
+                      value={settings.leg_azimuth}
+                      onChange={(value) => patch({ leg_azimuth: value, family: "parametric" })}
+                      min={0}
+                      max={360}
+                      step={15}
+                      suffix={"°"}
+                    />
+                  </div>
+                  <div className="inline-note">
+                    <span className="note-dot" />
+                    <span>Altura 0 deja el cuerpo sobre la mesa; al subirla, la pata se alarga y el conjunto gana altura.</span>
+                  </div>
+                </>
+              )}
+            </Section>
+
+            <Section
+              title="Extras"
+              hint="Clavijas y preparación"
+              icon={<Wrench size={17} />}
+              defaultOpen={false}
+            >
+              <Toggle
+                label="Clavija central"
+                detail="Espiga para paneles de foam o placas con taladro."
+                checked={settings.special.peg}
+                onChange={(checked) => patch({ special: { ...settings.special, peg: checked }, family: "parametric" })}
+              />
+              {settings.special.peg && (
+                <div className="field-grid">
+                  <NumberField
+                    label="Diámetro de clavija"
+                    value={settings.special.peg_diameter}
+                    onChange={(value) => patch({ special: { ...settings.special, peg_diameter: value }, family: "parametric" })}
+                    min={1.5}
+                    max={20}
+                    step={0.1}
+                    suffix="mm"
+                  />
+                  <NumberField
+                    label="Largo de clavija"
+                    value={settings.special.peg_length}
+                    onChange={(value) => patch({ special: { ...settings.special, peg_length: value }, family: "parametric" })}
+                    min={1}
+                    max={40}
+                    step={0.5}
+                    suffix="mm"
+                  />
+                </div>
+              )}
+              <button type="button" className="secondary-button wide" onClick={onSavePreset}>
+                <SlidersHorizontal size={15} /> Guardar esta configuración como preset
+              </button>
+            </Section>
+          </>
+        )}
+
         {settings.family === "profile" && (
           <Section
             title="Base derivada"
@@ -725,6 +1165,9 @@ export default function SettingsPanel({
               onClick={() => patch({ profile_scale_x: 1, profile_scale_y: 1, profile_scale_z: 1 })}
             >
               <SlidersHorizontal size={15} /> Volver a escala 1:1
+            </button>
+            <button type="button" className="secondary-button wide" onClick={useParametric}>
+              <SlidersHorizontal size={15} /> Editar cuerpo, puertos y patas
             </button>
             <button type="button" className="secondary-button wide" onClick={onSavePreset}>
               <SlidersHorizontal size={15} /> Guardar esta configuracion como preset

@@ -1298,6 +1298,31 @@ kbd {
   padding: 6px 7px;
 }
 
+.param-port-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.param-port-row {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel-2);
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.param-port-row .port-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
 .port-group {
   border: 1px solid var(--line);
   border-radius: 11px;

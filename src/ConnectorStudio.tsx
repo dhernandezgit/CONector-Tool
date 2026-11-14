@@ -188,7 +188,10 @@ export default function ConnectorStudio({ onToast, customConnectors, onSaveCusto
 
   const saveToBooth = useCallback(() => {
     const profilePreset = CONNECTOR_PRESETS.find((preset) => preset.patch.profile_id === settings.profile_id);
-    const profileConnections = presetConnectionCount(profilePreset?.connections);
+    const profileConnections =
+      settings.family === "parametric"
+        ? settings.ports.filter((port) => port.enabled).length
+        : presetConnectionCount(profilePreset?.connections);
     const definition = customConnectorFromSettings(
       settings,
       settings.name || "Conector personalizado",

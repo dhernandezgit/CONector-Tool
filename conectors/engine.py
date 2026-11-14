@@ -40,6 +40,7 @@ from .mesh import (
 from .shapes import custom_polygon, decor_details, decor_polygon
 from .shape import Shape, analyze_bytes
 from .profiles import profile_mesh
+from .freeform import parametric_mesh
 from .spool import spool_mesh
 from .template import template_meshes
 
@@ -63,6 +64,17 @@ DEFAULTS: dict[str, Any] = {
     "profile_scale_x": 1.0,
     "profile_scale_y": 1.0,
     "profile_scale_z": 1.0,
+    "ports": [],
+    "body_width": 0.0,
+    "body_depth": 0.0,
+    "channel_width": 0.0,
+    "grip_lines": 0,
+    "grip_depth": 0.5,
+    "smoothness": 0.65,
+    "port_height": 0.0,
+    "leg_azimuth": 0.0,
+    "leg_width": 12.0,
+    "leg_thickness": 4.0,
     "template_id": 4,
     "template_scale_xy": 1.0,
     "template_scale_z": 1.0,
@@ -200,6 +212,7 @@ FAMILY_LABELS = {
     "hook": "Gancho",
     "plate": "Placa",
     "profile": "Perfil derivado",
+    "parametric": "Param\u00e9trico",
     "calibration": "Calibración",
 }
 
@@ -763,6 +776,29 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
     body_size = _clamp(_f(settings.get("body_size"), 38.0), 8.0, 90.0)
     decor = settings.get("decor", {})
     decor_enabled = _bool(decor.get("enabled"), False)
+
+    if family == "parametric":
+        body = parametric_mesh(settings)
+        if not len(body.faces):
+            raise ValueError(
+                "No se pudo generar el conector param\u00e9trico. Revisa el cuerpo, "
+                "las conexiones y las patas."
+            )
+        meshes.append(("Cuerpo param\u00e9trico", body, body_color))
+        details.append(
+            "Conector generado desde cuerpo, conexiones, canales y patas editables. "
+            "Ajusta \u00e1ngulos, alturas, anchos y l\u00edneas de agarre sin cambiar de base."
+        )
+        split = settings.get("split", {})
+        if _bool(split.get("enabled"), False):
+            split_parts = _split_with_pads(body, settings)
+            meshes = []
+            for name, half in split_parts:
+                meshes.append((name, half, body_color))
+            warnings.append(
+                "El conector va dividido. Usa los agujeros de las orejetas para alinear y atornillar las mitades."
+            )
+        return meshes, warnings, details
 
     if family == "profile":
         profile_id = str(settings.get("profile_id") or "")

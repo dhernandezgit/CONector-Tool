@@ -1,6 +1,7 @@
 import type { ConnectorSettings, DeepPartial, Preset } from "../types";
 import { deepMerge } from "../lib/utils";
 import { DEFAULT_CONNECTOR } from "./presets";
+import { derivedPorts } from "../lib/connectorPorts";
 
 type Patch = DeepPartial<ConnectorSettings>;
 
@@ -85,6 +86,7 @@ const edgeBase: Patch = {
   edge_length: 14.5,
   edge_width: 8,
   edge_foot: 0,
+  vertical_ports: [],
   wire_diameter: 4,
   clearance: 0.25,
   grip_wall: 1.75,
@@ -122,15 +124,15 @@ const RAW_CONNECTOR_PRESETS: Preset[] = [
   edge("edge3-l-flipped", "Edge3_LFlipped", "Tres canales en L espejada.", [37, 22.49, 26], { ...edgeBase, horizontal_ports: [0, 90, 270] }, "Edge · 3 conexiones", "3", "tee", "#c86f96"),
   edge("edge3-t", "Edge3_T", "Tres canales en T plana.", [37, 22.5, 26], { ...edgeBase, horizontal_ports: [0, 180, 90] }, "Edge · 3 conexiones", "3", "tee", "#c86f96"),
 
-  edge("edge4-corner", "Edge4_Corner", "Cuatro canales en esquina.", [37, 22.5, 26], { ...edgeBase, horizontal_ports: [0, 180, 90] }, "Edge · 4 conexiones", "4", "cross", "#b46691"),
+  edge("edge4-corner", "Edge4_Corner", "Cuatro canales en esquina.", [37, 22.5, 26], { ...edgeBase, horizontal_ports: [0, 90, 180, 270] }, "Edge · 4 conexiones", "4", "cross", "#b46691"),
   edge("edge4-flat", "Edge4_Flat", "Cuatro canales planos con labio.", [36.99, 31.48, 30.57], { ...edgeBase, body_height: 28, edge_foot: 2.5, horizontal_ports: [0, 180, 90, 270] }, "Edge · 4 conexiones", "4", "cross", "#b46691"),
-  edge("edge4-l", "Edge4_L", "Cuatro canales en L.", [37, 22.5, 26], { ...edgeBase, horizontal_ports: [0, 180, 90] }, "Edge · 4 conexiones", "4", "tee", "#b46691"),
-  edge("edge4-l-flipped", "Edge4_LFlipped", "Cuatro canales en L espejada.", [37, 22.5, 26], { ...edgeBase, horizontal_ports: [0, 90, 270] }, "Edge · 4 conexiones", "4", "tee", "#b46691"),
+  edge("edge4-l", "Edge4_L", "Cuatro canales en L.", [37, 22.5, 26], { ...edgeBase, horizontal_ports: [0, 90, 180, 270] }, "Edge · 4 conexiones", "4", "tee", "#b46691"),
+  edge("edge4-l-flipped", "Edge4_LFlipped", "Cuatro canales en L espejada.", [37, 22.5, 26], { ...edgeBase, horizontal_ports: [0, 90, 180, 270] }, "Edge · 4 conexiones", "4", "tee", "#b46691"),
 
   edge("edge5-corner", "Edge5_Corner", "Cinco canales en esquina.", [37, 22.5, 26], { ...edgeBase, horizontal_ports: [0, 180, 90], vertical_ports: [0, 180] }, "Edge · 5 conexiones", "5", "cross", "#9d5a82"),
-  edge("edge5-l", "Edge5_L", "Cinco canales en L.", [37, 36.99, 26], { ...edgeBase, horizontal_ports: [0, 90, 180, 270] }, "Edge · 5 conexiones", "5", "cross", "#9d5a82"),
-  edge("edge5-l-flipped", "Edge5_LFlipped", "Cinco canales en L espejada.", [37, 36.99, 26], { ...edgeBase, horizontal_ports: [0, 90, 180, 270] }, "Edge · 5 conexiones", "5", "cross", "#9d5a82"),
-  edge("edge7-corner", "Edge7_Corner", "Siete canales en esquina completa.", [36.99, 37, 26], { ...edgeBase, horizontal_ports: [0, 90, 180, 270], vertical_ports: [0, 180] }, "Edge · 7 conexiones", "7", "six", "#875073"),
+  edge("edge5-l", "Edge5_L", "Cinco canales en L.", [37, 36.99, 26], { ...edgeBase, horizontal_ports: [0, 90, 180, 270], vertical_ports: [0] }, "Edge · 5 conexiones", "5", "cross", "#9d5a82"),
+  edge("edge5-l-flipped", "Edge5_LFlipped", "Cinco canales en L espejada.", [37, 36.99, 26], { ...edgeBase, horizontal_ports: [0, 90, 180, 270], vertical_ports: [0] }, "Edge · 5 conexiones", "5", "cross", "#9d5a82"),
+  edge("edge7-corner", "Edge7_Corner", "Siete canales en esquina completa.", [36.99, 37, 26], { ...edgeBase, horizontal_ports: [0, 90, 180, 270], vertical_ports: [0, 90, 180] }, "Edge · 7 conexiones", "7", "six", "#875073"),
 
   spool("connector", "Connector", "Nodo de cuatro vías con cuerpo tipo puck.", [37, 37, 26], { ...nodeBase }, "Nodos · 4 vías", "4", "ring", pink),
   spool("connector-peg", "Connector_Peg", "Nodo de cuatro vías con clavija de 2,5 mm.", [37, 37, 28.5], { ...nodeBase, special: { ...DEFAULT_CONNECTOR.special, peg: true, peg_diameter: 5, peg_length: 2.5 } }, "Nodos · 4 vías", "4", "peg", "#cf7d97"),
@@ -181,10 +183,10 @@ const RAW_CONNECTOR_PRESETS: Preset[] = [
 ];
 
 /**
- * Derived contour presets.  The values are the public preset ids; the actual
- * contours live in `conectors/profiles.json` and are generated locally from
- * the private reference STLs.  At 1:1 scale every base reproduces its source
- * envelope within the measured 1 % point-cloud tolerance.
+ * Preset ids and their faithful contour ids.  The studio opens each preset in
+ * the feature-based parametric editor; the contour is kept as the optional
+ * "Fiel" base and reproduces the source envelope within the measured 1 %
+ * point-cloud tolerance at 1:1 scale.
  */
 const PROFILE_ID_BY_PRESET: Record<string, string> = {
   edge1: "edge1",
@@ -282,5 +284,44 @@ export const CONNECTOR_GROUPS = [
 ];
 
 export function presetSettings(preset: Preset): ConnectorSettings {
-  return deepMerge(DEFAULT_CONNECTOR, preset.patch);
+  const settings = deepMerge(DEFAULT_CONNECTOR, preset.patch);
+  if (settings.profile_id && preset.target && preset.id !== "peg-cutout") {
+    // Presets open in the real feature editor.  The derived contour is kept
+    // as the optional faithful base (Fiel), but the default model is built
+    // from body + ports + channels + legs.
+    settings.family = "parametric";
+    const isLeg = Boolean(preset.group?.startsWith("Patas"));
+    if (preset.target) {
+      if (!isLeg) {
+        settings.body_width = preset.target.width;
+        settings.body_depth = preset.target.height;
+        // The target envelope calls the vertical size "depth" (Z-up design).
+        // Pegged plates keep their thin plate height; the peg adds the rest.
+        if (!settings.special.peg) {
+          settings.body_height = preset.target.depth;
+        }
+      } else {
+        settings.body_width = preset.target.width;
+        settings.body_depth = preset.target.width;
+        settings.leg = { ...settings.leg, height: 0, angle: settings.leg.angle };
+        settings.leg_length = Math.max(8, preset.target.height - preset.target.width);
+        settings.leg_azimuth = 90;
+      }
+    }
+    if (isLeg) {
+      settings.leg = { ...settings.leg, height: 0 };
+    }
+    if (preset.group === "Nodos planos") {
+      settings.body_width = settings.flat_width;
+      settings.body_depth = settings.flat_depth;
+      settings.body_height = settings.flat_height;
+      settings.ports = [];
+      settings.leg = { ...settings.leg, enabled: false };
+    } else {
+      settings.ports = derivedPorts(settings);
+    }
+    settings.grip_lines = 3;
+    settings.grip_depth = 0.35;
+  }
+  return settings;
 }

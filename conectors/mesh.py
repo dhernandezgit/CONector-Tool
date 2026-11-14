@@ -403,6 +403,8 @@ def c_profile(
     mouth_width: float = 3.2,
     wrap_degrees: float = 305.0,
     segments: int = 64,
+    grip_lines: int = 0,
+    grip_depth: float = 0.0,
 ) -> Polygon:
     """Open C-shaped clamp cross-section.  The mouth is on +Y.
 
@@ -421,7 +423,16 @@ def c_profile(
     outer_t = np.linspace(start, start + math.tau - gap, max(24, segments // 2))
     inner_t = np.linspace(start + math.tau - gap, start, max(24, segments // 2))
     outer = np.column_stack([np.cos(outer_t) * ro, np.sin(outer_t) * ro])
-    inner = np.column_stack([np.cos(inner_t) * ri, np.sin(inner_t) * ri])
+    # Optional grip ridges: modulate the inner wall radius.  Positive depth
+    # protrudes into the cavity (tighter grip); the lips remain untouched.
+    inner_radius = np.full_like(inner_t, ri)
+    lines = max(0, min(20, int(grip_lines)))
+    depth = max(0.0, min(float(grip_depth), ri * 0.34))
+    if lines and depth > 1e-4:
+        phase = np.linspace(0.0, 1.0, len(inner_t))
+        ripple = 0.5 - 0.5 * np.cos(math.tau * lines * phase)
+        inner_radius = ri - depth * ripple
+    inner = np.column_stack([np.cos(inner_t) * inner_radius, np.sin(inner_t) * inner_radius])
     pts = np.vstack([outer, inner])
     poly = Polygon(pts)
     if not poly.is_valid:
