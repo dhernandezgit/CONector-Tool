@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CONNECTOR_PRESETS, presetSettings } from "./connectorPresets";
+import { CONNECTOR_PRESETS, CONNECTOR_PROFILE_OPTIONS, presetSettings } from "./connectorPresets";
 
 describe("parametric connector presets", () => {
   it("has a parameter set for every supplied connector family", () => {
@@ -11,8 +11,14 @@ describe("parametric connector presets", () => {
       expect(preset.target?.height).toBeGreaterThan(0);
       expect(preset.target?.depth).toBeGreaterThan(0);
       const settings = presetSettings(preset);
-      expect(settings.family).not.toBe("template");
+      expect(settings.family).toBe("profile");
+      expect(settings.profile_id).toBeTruthy();
+      expect(settings.profile_scale_x).toBe(1);
+      expect(settings.profile_scale_y).toBe(1);
+      expect(settings.profile_scale_z).toBe(1);
+      expect(settings.print.orientation).toBe("auto45");
     }
+    expect(CONNECTOR_PROFILE_OPTIONS).toHaveLength(CONNECTOR_PRESETS.length);
   });
 
   it("groups the library by type and by connection count", () => {

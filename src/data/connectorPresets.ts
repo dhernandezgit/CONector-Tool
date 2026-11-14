@@ -108,7 +108,7 @@ const legBase: Patch = {
   decor: { ...DEFAULT_CONNECTOR.decor, enabled: false },
 };
 
-export const CONNECTOR_PRESETS: Preset[] = [
+const RAW_CONNECTOR_PRESETS: Preset[] = [
   edge("edge1", "Edge1", "Clip de borde de una vía.", [8, 18.5, 26], { ...edgeBase, edge_length: 10.5, horizontal_ports: [0] }, "Edge · 1 conexión", "1", "edge", pink),
   edge("edge1-boot", "Edge1_Boot", "Clip de borde con pie largo tipo bota.", [8, 24.25, 26], { ...edgeBase, edge_length: 16.25, horizontal_ports: [0] }, "Edge · 1 conexión", "1", "edge", sand),
   edge("edge1-paw", "Edge1_Paw", "Clip de borde con remate de pata.", [8, 21.08, 26.6], { ...edgeBase, edge_length: 13.08, body_height: 26.6, edge_foot: 0.6, horizontal_ports: [0] }, "Edge · 1 conexión", "1", "edge", "#b884c8"),
@@ -179,6 +179,92 @@ export const CONNECTOR_PRESETS: Preset[] = [
     },
   },
 ];
+
+/**
+ * Derived contour presets.  The values are the public preset ids; the actual
+ * contours live in `conectors/profiles.json` and are generated locally from
+ * the private reference STLs.  At 1:1 scale every base reproduces its source
+ * envelope within the measured 1 % point-cloud tolerance.
+ */
+const PROFILE_ID_BY_PRESET: Record<string, string> = {
+  edge1: "edge1",
+  "edge1-boot": "edge1-boot",
+  "edge1-paw": "edge1-paw",
+  "edge2-corner": "edge2-corner",
+  "edge2-flat": "edge2-flat",
+  "edge3-corner": "edge3-corner",
+  "edge3-flat": "edge3-flat",
+  "edge3-l": "edge3-l",
+  "edge3-l-flipped": "edge3-l-flipped",
+  "edge3-t": "edge3-t",
+  "edge4-corner": "edge4-corner",
+  "edge4-flat": "edge4-flat",
+  "edge4-l": "edge4-l",
+  "edge4-l-flipped": "edge4-l-flipped",
+  "edge5-corner": "edge5-corner",
+  "edge5-l": "edge5-l",
+  "edge5-l-flipped": "edge5-l-flipped",
+  "edge7-corner": "edge7-corner",
+  connector: "connector",
+  "connector-peg": "connector-peg",
+  "connector-peg-5mm": "connector-peg-5mm",
+  "connector-360": "connector-360",
+  "connector-flat-peg": "connector-flat-peg",
+  "connector-flat-peg-5mm": "connector-flat-peg-5mm",
+  angled30: "angled30",
+  "angled30-l": "angled30-l",
+  "angled30-r": "angled30-r",
+  angled45: "angled45",
+  "angled45-l": "angled45-l",
+  "angled45-r": "angled45-r",
+  "leg-connector": "leg-connector",
+  "leg-connector-peg": "leg-connector-peg",
+  "leg-connector-peg-5mm": "leg-connector-peg-5mm",
+  "leg30-connector": "leg30-connector",
+  "leg30-connector-peg": "leg30-connector-peg",
+  "leg30-connector-peg-5mm": "leg30-connector-peg-5mm",
+  "leg30-s": "leg30-s",
+  "leg30-s-l": "leg30-s-l",
+  "leg30-s-r": "leg30-s-r",
+  "leg45-s": "leg45-s",
+  "leg45-s-l": "leg45-s-l",
+  "leg45-s-r": "leg45-s-r",
+  "peg-cutout": "peg-cutout",
+};
+
+export const CONNECTOR_PRESETS: Preset[] = RAW_CONNECTOR_PRESETS.map((preset) => {
+  const profileId = PROFILE_ID_BY_PRESET[preset.id];
+  if (!profileId) return preset;
+  return {
+    ...preset,
+    patch: {
+      ...preset.patch,
+      family: "profile",
+      profile_id: profileId,
+      profile_scale_x: 1,
+      profile_scale_y: 1,
+      profile_scale_z: 1,
+      // The source half pieces are already complete printable halves.  Keep
+      // the derived base intact unless the user explicitly turns split on.
+      split: { ...DEFAULT_CONNECTOR.split, ...preset.patch.split, enabled: false },
+      print: {
+        ...DEFAULT_CONNECTOR.print,
+        ...preset.patch.print,
+        orientation: "auto45",
+        diagonal: false,
+      },
+    },
+  };
+});
+
+export const CONNECTOR_PROFILE_OPTIONS = CONNECTOR_PRESETS
+  .filter((preset) => Boolean(preset.patch.profile_id))
+  .map((preset) => ({
+    value: String(preset.patch.profile_id),
+    label: preset.name,
+    group: preset.group || preset.category,
+    target: preset.target,
+  }));
 
 export const CONNECTOR_GROUPS = [
   "Edge · 1 conexión",

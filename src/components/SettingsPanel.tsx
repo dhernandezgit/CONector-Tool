@@ -35,6 +35,7 @@ import {
   TEMPLATE_FREE_SIDES,
   TEMPLATE_SIDE_OPTIONS,
 } from "../data/presets";
+import { CONNECTOR_PROFILE_OPTIONS } from "../data/connectorPresets";
 import { deepMerge } from "../lib/utils";
 import {
   ColorField,
@@ -48,6 +49,7 @@ import {
 } from "./UI";
 
 const FAMILIES: { value: Family; label: string; detail: string }[] = [
+  { value: "profile", label: "Derivado", detail: "Base de referencia" },
   { value: "node", label: "Nodo", detail: "Puck / varias v?as" },
   { value: "edge", label: "Borde", detail: "Edge1?Edge7" },
   { value: "angle", label: "?ngulo", detail: "30?, 45??" },
@@ -129,6 +131,19 @@ export default function SettingsPanel({
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const patch = (part: DeepPartial<ConnectorSettings>) => onChange(deepMerge(settings, part));
+  const genericVisible = settings.family !== "profile";
+  const currentProfile = CONNECTOR_PROFILE_OPTIONS.find((option) => option.value === settings.profile_id);
+  const selectProfile = (value: string) => {
+    const option = CONNECTOR_PROFILE_OPTIONS.find((item) => item.value === value);
+    patch({
+      family: "profile",
+      profile_id: value,
+      name: option?.label || settings.name,
+      profile_scale_x: 1,
+      profile_scale_y: 1,
+      profile_scale_z: 1,
+    });
+  };
 
   const togglePort = (kind: "horizontal" | "vertical", angle: number, level?: "top" | "bottom") => {
     const key = kind === "horizontal" ? "horizontal_ports" : "vertical_ports";
@@ -255,7 +270,16 @@ export default function SettingsPanel({
               type="button"
               key={family.value}
               className={settings.family === family.value ? "family active" : "family"}
-              onClick={() => patch({ family: family.value })}
+              onClick={() => {
+                if (family.value === "profile" && !settings.profile_id) {
+                  const first = CONNECTOR_PROFILE_OPTIONS[0];
+                  if (first) {
+                    selectProfile(first.value);
+                    return;
+                  }
+                }
+                patch({ family: family.value });
+              }}
             >
               <strong>{family.label}</strong>
               <small>{family.detail}</small>
@@ -624,7 +648,92 @@ export default function SettingsPanel({
           </Section>
         )}
 
-        {settings.family !== "template" && (
+        {settings.family === "profile" && (
+          <Section
+            title="Base derivada"
+            hint="Contorno loft con canales reales"
+            icon={<Shapes size={17} />}
+            badge="<= 1 %"
+          >
+            <SelectField
+              label="Perfil de referencia"
+              value={settings.profile_id}
+              options={CONNECTOR_PROFILE_OPTIONS.map((option) => ({
+                value: option.value,
+                label: `${option.label} - ${option.group}`,
+              }))}
+              onChange={selectProfile}
+            />
+            {currentProfile ? (
+              <div className="inline-note">
+                <span className="note-dot" />
+                <span>
+                  Envolvente de referencia: <strong>{currentProfile.target ? `${currentProfile.target.width} \u00d7 ${currentProfile.target.height} \u00d7 ${currentProfile.target.depth} mm` : "medida local"}</strong>.
+                  A escala 1:1 conserva los canales, patas, clavijas y chaflanes de la base.
+                </span>
+              </div>
+            ) : (
+              <div className="inline-warning">
+                El perfil no esta en la tabla local. Elige otra base o vuelve a una familia parametrica.
+              </div>
+            )}
+            <div className="field-grid">
+              <NumberField
+                label="Escala X"
+                value={settings.profile_scale_x}
+                onChange={(value) => patch({ profile_scale_x: value })}
+                min={0.25}
+                max={3}
+                step={0.01}
+                suffix="x"
+              />
+              <NumberField
+                label="Escala Y"
+                value={settings.profile_scale_y}
+                onChange={(value) => patch({ profile_scale_y: value })}
+                min={0.25}
+                max={3}
+                step={0.01}
+                suffix="x"
+              />
+              <NumberField
+                label="Escala Z"
+                value={settings.profile_scale_z}
+                onChange={(value) => patch({ profile_scale_z: value })}
+                min={0.25}
+                max={3}
+                step={0.01}
+                suffix="x"
+              />
+            </div>
+            <div className="inline-note">
+              <span className="note-dot" />
+              <span>
+                Las tres escalas son independientes: sirven para tamanos intermedios y variantes nuevas sin
+                reconstruir la topologia. Para el encaje exacto de la reja de 30{"\u00d7"}30 cm usa escala 1:1; al
+                escalar, revisa el canal antes de imprimir.
+              </span>
+            </div>
+            <ColorField
+              label="Color del cuerpo"
+              value={settings.body_color}
+              onChange={(value) => patch({ body_color: value })}
+            />
+            <button
+              type="button"
+              className="secondary-button wide"
+              onClick={() => patch({ profile_scale_x: 1, profile_scale_y: 1, profile_scale_z: 1 })}
+            >
+              <SlidersHorizontal size={15} /> Volver a escala 1:1
+            </button>
+            <button type="button" className="secondary-button wide" onClick={onSavePreset}>
+              <SlidersHorizontal size={15} /> Guardar esta configuracion como preset
+            </button>
+          </Section>
+        )}
+
+        {genericVisible && (
+          <div>
         <Section
           title="Agarre"
           hint="Cómo se fija a la reja"
@@ -710,7 +819,6 @@ export default function SettingsPanel({
             Imprime el cupón una vez. Prueba los cinco canales y usa la holgura que mejor encaje en el conector final.
           </p>
         </Section>
-        )}
 
         {settings.family !== "template" && (
         <Section title="Uniones" hint="Canales de la reja" icon={<Combine size={17} />}>
@@ -1250,6 +1358,8 @@ export default function SettingsPanel({
           </div>
         </Section>
         )}
+          </div>
+        )}
 
         <Section title="Impresión" hint="Material y comprobaciones" icon={<Printer size={17} />} defaultOpen={false}>
           <div className="field-grid">
@@ -1297,11 +1407,31 @@ export default function SettingsPanel({
               suffix="mm"
             />
           </div>
+          <SelectField
+            label={"Orientaci\u00f3n de impresi\u00f3n"}
+            value={settings.print.orientation}
+            options={[
+              { value: "upright", label: "Vertical - apoyo original" },
+              { value: "auto45", label: "Auto 45\u00b0 - menos soportes" },
+              { value: "diagonal", label: "Giro Z 45\u00b0 - solo capas" },
+            ]}
+            onChange={(value) =>
+              patch({ print: { ...settings.print, orientation: value, diagonal: value === "diagonal" } })
+            }
+          />
           <Toggle
-            label="Girar 45° en la cama"
-            detail="Cambia la dirección de las capas sin tocar el modelo montado."
+            label={"Girar 45\u00b0 en la cama"}
+            detail={"Compatibilidad con el modo de giro cl\u00e1sico alrededor de Z."}
             checked={settings.print.diagonal}
-            onChange={(checked) => patch({ print: { ...settings.print, diagonal: checked } })}
+            onChange={(checked) =>
+              patch({
+                print: {
+                  ...settings.print,
+                  diagonal: checked,
+                  orientation: checked ? "diagonal" : "upright",
+                },
+              })
+            }
           />
           <div className="print-advice">
             <Printer size={16} />

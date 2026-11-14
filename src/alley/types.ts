@@ -101,6 +101,8 @@ export interface AlleyCustomConnector {
   bodySize: number;
   bodyHeight: number;
   ports: number;
+  /** Optional measured snapshot for BOM notes and viewport proportions. */
+  dimensions?: { width: number; height: number; depth: number };
 }
 
 export interface AlleyJoint {

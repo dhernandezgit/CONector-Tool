@@ -91,6 +91,7 @@ export default function ExportDialog({
                     <strong>{part.name}</strong>
                     <small>
                       {part.print_dimensions.map((value) => fmt(value)).join(" × ")} mm · {fmt(part.volume / 1000, 1)} cm³
+                      {part.print_orientation ? ` ? ${part.print_orientation}` : ""}
                     </small>
                   </span>
                   {!part.watertight && <span className="part-warning">malla abierta</span>}

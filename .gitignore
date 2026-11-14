@@ -8,3 +8,8 @@ public/connectors.zip
 .DS_Store
 # Private reference pack. Never commit or publish these files.
 ArtistAlleyPack/
+# Purchased/reference meshes must never enter the repository. The studio ships
+# only the compact derived contour table (conectors/profiles.json).
+*.stl
+*.3mf
+*.obj

@@ -8,6 +8,8 @@ export interface CustomConnectorDefinition {
   bodySize: number;
   bodyHeight: number;
   ports: number;
+  /** Snapshot of the generated envelope, so the BOM stays meaningful. */
+  dimensions?: { width: number; height: number; depth: number };
   createdAt: number;
 }
 
@@ -35,6 +37,17 @@ export function loadCustomConnectors(): CustomConnectorDefinition[] {
         bodySize: safeNumber(entry.bodySize, 37),
         bodyHeight: safeNumber(entry.bodyHeight, 26),
         ports: safeNumber(entry.ports, 4),
+        dimensions:
+          entry.dimensions &&
+          Number.isFinite(entry.dimensions.width) &&
+          Number.isFinite(entry.dimensions.height) &&
+          Number.isFinite(entry.dimensions.depth)
+            ? {
+                width: Number(entry.dimensions.width),
+                height: Number(entry.dimensions.height),
+                depth: Number(entry.dimensions.depth),
+              }
+            : undefined,
         createdAt: safeNumber(entry.createdAt, Date.now()),
       }));
   } catch {
@@ -65,15 +78,18 @@ export function removeCustomConnector(id: string): CustomConnectorDefinition[] {
 export function customConnectorFromSettings(
   settings: ConnectorSettings,
   name = settings.name || "Conector personalizado",
+  dimensions?: { width: number; height: number; depth: number },
+  connections?: number,
 ): CustomConnectorDefinition {
   return {
     id: `custom_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
     name,
     settings,
     color: settings.body_color || "#e98da6",
-    bodySize: settings.body_size,
-    bodyHeight: settings.body_height,
-    ports: settings.horizontal_ports.length + settings.vertical_ports.length,
+    bodySize: dimensions?.width ?? settings.body_size,
+    bodyHeight: dimensions?.height ?? settings.body_height,
+    ports: connections ?? settings.horizontal_ports.length + settings.vertical_ports.length,
+    dimensions,
     createdAt: Date.now(),
   };
 }

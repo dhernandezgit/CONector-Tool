@@ -39,6 +39,7 @@ from .mesh import (
 )
 from .shapes import custom_polygon, decor_details, decor_polygon
 from .shape import Shape, analyze_bytes
+from .profiles import profile_mesh
 from .spool import spool_mesh
 from .template import template_meshes
 
@@ -58,6 +59,10 @@ def _deep_merge(base: dict, extra: dict) -> dict:
 DEFAULTS: dict[str, Any] = {
     "family": "node",
     "name": "Conector",
+    "profile_id": "",
+    "profile_scale_x": 1.0,
+    "profile_scale_y": 1.0,
+    "profile_scale_z": 1.0,
     "template_id": 4,
     "template_scale_xy": 1.0,
     "template_scale_z": 1.0,
@@ -194,6 +199,7 @@ FAMILY_LABELS = {
     "flat": "Placa plana",
     "hook": "Gancho",
     "plate": "Placa",
+    "profile": "Perfil derivado",
     "calibration": "Calibración",
 }
 
@@ -758,6 +764,34 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
     decor = settings.get("decor", {})
     decor_enabled = _bool(decor.get("enabled"), False)
 
+    if family == "profile":
+        profile_id = str(settings.get("profile_id") or "")
+        body = profile_mesh(settings)
+        if not len(body.faces):
+            raise ValueError(
+                "No se encontr\u00f3 el perfil derivado. Elige una base de la biblioteca "
+                "o vuelve a una familia param\u00e9trica."
+            )
+        meshes.append(("Cuerpo de perfil", body, body_color))
+        details.append(
+            f"Perfil '{profile_id}' generado por loft de secciones derivadas. "
+            "Las escalas X/Y/Z permiten configuraciones intermedias sin perder los canales."
+        )
+        details.append(
+            "La orientaci\u00f3n de impresi\u00f3n autom\u00e1tica prueba inclinaciones de 45\u00b0 "
+            "y elige la que reduce el voladizo y cabe en la cama."
+        )
+        split = settings.get("split", {})
+        if _bool(split.get("enabled"), False):
+            split_parts = _split_with_pads(body, settings)
+            meshes = []
+            for name, half in split_parts:
+                meshes.append((name, half, body_color))
+            warnings.append(
+                "El perfil va dividido. Usa los agujeros de las orejetas para alinear y atornillar las mitades."
+            )
+        return meshes, warnings, details
+
     if family == "template":
         reference, reference_warnings = template_meshes(settings)
         for label, mesh, part_color in reference:
@@ -880,6 +914,64 @@ def _place_on_bed(mesh: Mesh, split_axis: str | None = None, lower_half: bool = 
     return m
 
 
+def _prepare_print_mesh(
+    mesh: Mesh,
+    orientation: str,
+    split_axis: str | None,
+    lower_half: bool,
+    bed_width: float,
+    bed_depth: float,
+) -> tuple[Mesh, str, float]:
+    """Orient a printable part, preferring the lowest 45-degree overhang.
+
+    The assembled model is always Z-up.  For printing we test the upright pose
+    plus the useful 45-degree tilts around X and Y.  The selected pose is the
+    one with the least downward-facing area that fits the configured bed; this
+    is the practical "print without supports" pose for these clamp shapes.
+    """
+    candidates: list[tuple[str, float, float, float]] = [("vertical", 0.0, 0.0, 0.0)]
+    if orientation == "diagonal":
+        candidates = [("diagonal Z", 0.0, 0.0, 45.0)]
+    elif orientation == "auto45":
+        candidates = [
+            ("vertical", 0.0, 0.0, 0.0),
+            ("X +45", 45.0, 0.0, 0.0),
+            ("X -45", -45.0, 0.0, 0.0),
+            ("Y +45", 0.0, 45.0, 0.0),
+            ("Y -45", 0.0, -45.0, 0.0),
+            ("XY +45", 45.0, 45.0, 0.0),
+            ("XY -45", -45.0, -45.0, 0.0),
+            ("X+Y", 45.0, -45.0, 0.0),
+            ("X-Y", -45.0, 45.0, 0.0),
+        ]
+
+    best: tuple[Mesh, str, float] | None = None
+    best_score = float("inf")
+    for label, rotate_x, rotate_y, rotate_z in candidates:
+        transformed = mesh.transformed(
+            transform_matrix(
+                rotate_x=math.radians(rotate_x),
+                rotate_y=math.radians(rotate_y),
+                rotate_z=math.radians(rotate_z),
+            )
+        )
+        placed = _place_on_bed(transformed, split_axis=split_axis, lower_half=lower_half)
+        bounds = placed.bounds
+        dims = [bounds["max"][i] - bounds["min"][i] for i in range(3)]
+        if dims[0] > bed_width + 0.01 or dims[1] > bed_depth + 0.01:
+            continue
+        overhang = overhang_ratio(placed)
+        # Overhang dominates; height and footprint are gentle tie-breakers.
+        score = overhang * 10.0 + dims[2] / max(bed_width, 1.0) * 0.05
+        if score < best_score:
+            best_score = score
+            best = (placed, label, overhang)
+    if best is None:
+        placed = _place_on_bed(mesh, split_axis=split_axis, lower_half=lower_half)
+        return placed, "vertical (no cabe inclinada)", overhang_ratio(placed)
+    return best
+
+
 def _serialize_part(
     name: str,
     mesh: Mesh,
@@ -887,14 +979,24 @@ def _serialize_part(
     index: int,
     lower_half: bool = False,
     split_axis: str | None = None,
+    orientation: str = "upright",
     diagonal: bool = False,
+    bed_width: float = 256.0,
+    bed_depth: float = 256.0,
 ) -> dict:
     b = mesh.bounds
     dims = [b["max"][i] - b["min"][i] for i in range(3)]
-    print_mesh = mesh
-    if diagonal:
-        print_mesh = print_mesh.transformed(transform_matrix(rotate_z=math.radians(45)))
-    print_mesh = _place_on_bed(print_mesh, split_axis=split_axis, lower_half=lower_half)
+    effective_orientation = orientation
+    if diagonal and effective_orientation not in {"auto45", "diagonal"}:
+        effective_orientation = "diagonal"
+    print_mesh, print_orientation, print_overhang = _prepare_print_mesh(
+        mesh,
+        effective_orientation,
+        split_axis,
+        lower_half,
+        bed_width,
+        bed_depth,
+    )
     pb = print_mesh.bounds
     pdims = [pb["max"][i] - pb["min"][i] for i in range(3)]
     return {
@@ -911,6 +1013,8 @@ def _serialize_part(
         "triangles": mesh.triangles,
         "watertight": is_shell_watertight(mesh),
         "overhang": overhang_ratio(mesh),
+        "print_overhang": print_overhang,
+        "print_orientation": print_orientation,
     }
 
 
@@ -936,6 +1040,10 @@ def build(payload: dict) -> dict:
     parts = []
     split_axis = str(settings.get("split", {}).get("axis", "z")) if _bool(settings.get("split", {}).get("enabled"), False) else None
     diagonal = _bool(settings.get("print", {}).get("diagonal"), False)
+    print_settings = settings.get("print", {})
+    orientation = str(print_settings.get("orientation", "upright") or "upright")
+    bed_width = _f(print_settings.get("bed_width"), 256.0)
+    bed_depth = _f(print_settings.get("bed_depth"), 256.0)
     for i, (part_name, mesh, color) in enumerate(meshes):
         if not len(mesh.faces):
             continue
@@ -948,7 +1056,10 @@ def build(payload: dict) -> dict:
                 i,
                 lower_half=lower,
                 split_axis=split_axis,
+                orientation=orientation,
                 diagonal=diagonal,
+                bed_width=bed_width,
+                bed_depth=bed_depth,
             )
         )
     if not parts:
@@ -966,8 +1077,10 @@ def build(payload: dict) -> dict:
     for p in parts:
         if not p["watertight"]:
             checks.append({"level": "error", "title": "Malla no estanca", "detail": f"{p['name']} tiene bordes abiertos. Prueba otra orientación o desactiva el split."})
-        if p["overhang"] > 0.35 and family not in {"node", "angle"}:
-            checks.append({"level": "warn", "title": "Voladizos altos", "detail": f"{p['name']} tiene un {p['overhang']*100:.0f}% de superficie en voladizo. Usa soportes o aplica orientación diagonal."})
+        if p["print_overhang"] > 0.35:
+            checks.append({"level": "warn", "title": "Voladizos altos", "detail": f"{p['name']} tiene un {p['print_overhang']*100:.0f}% de superficie en voladizo incluso en la orientaci\u00f3n elegida. Revisa la pieza o a\u00f1ade soportes locales."})
+        elif p["print_orientation"] != "vertical":
+            checks.append({"level": "info", "title": "Orientaci\u00f3n de impresi\u00f3n", "detail": f"{p['name']} se ha colocado en {p['print_orientation']} para reducir voladizos ({p['print_overhang']*100:.0f}%)."})
         bed_w = _f(settings.get("print", {}).get("bed_width"), 256.0)
         bed_d = _f(settings.get("print", {}).get("bed_depth"), 256.0)
         pd = p["print_dimensions"]

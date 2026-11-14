@@ -12,6 +12,10 @@ import { clone, deepMerge } from "../lib/utils";
 export const DEFAULT_CONNECTOR: ConnectorSettings = {
   family: "node",
   name: "Conector",
+  profile_id: "",
+  profile_scale_x: 1,
+  profile_scale_y: 1,
+  profile_scale_z: 1,
   template_id: 4,
   template_scale_xy: 1,
   template_scale_z: 1,

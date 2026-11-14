@@ -68,6 +68,13 @@ function typeGroup(preset: Preset): string {
   return preset.category;
 }
 
+function presetConnectionCount(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  if (value.includes("360")) return 4;
+  const match = value.match(/\d+/);
+  return match ? Number(match[0]) : undefined;
+}
+
 function connectionGroup(preset: Preset): string {
   const value = preset.connections || "—";
   if (value === "0") return "Calibración";
@@ -180,10 +187,17 @@ export default function ConnectorStudio({ onToast, customConnectors, onSaveCusto
   }, [onToast, savedPresets, settings]);
 
   const saveToBooth = useCallback(() => {
-    const definition = customConnectorFromSettings(settings, settings.name || "Conector personalizado");
+    const profilePreset = CONNECTOR_PRESETS.find((preset) => preset.patch.profile_id === settings.profile_id);
+    const profileConnections = presetConnectionCount(profilePreset?.connections);
+    const definition = customConnectorFromSettings(
+      settings,
+      settings.name || "Conector personalizado",
+      build?.dimensions,
+      profileConnections,
+    );
     onSaveCustomConnector(definition);
     onToast(`"${definition.name}" guardado. Ya puedes asignarlo a una unión en Artist Alley.`);
-  }, [onSaveCustomConnector, onToast, settings]);
+  }, [build?.dimensions, onSaveCustomConnector, onToast, settings]);
 
   const exportProject = useCallback(() => {
     const payload = {

@@ -18,9 +18,9 @@ def main() -> None:
                 continue
             if "__pycache__" in path.parts or path.suffix == ".pyc":
                 continue
-            # Exact reference STLs are intentionally not served: every preset
-            # in the studio is generated parametrically.
-            if "templates" in path.parts:
+            # Only the parametric engine and its compact derived contour table
+            # are served. Reference STL/3MF files are never packaged.
+            if "templates" in path.parts or path.suffix.lower() in {".stl", ".3mf", ".obj"}:
                 continue
             z.write(path, path.relative_to(ROOT).as_posix())
     print(f"Wrote {OUT} ({OUT.stat().st_size / 1024:.1f} KB)")

@@ -1,4 +1,4 @@
-export type Family = "template" | "node" | "angle" | "leg" | "edge" | "flat" | "hook" | "plate" | "calibration";
+export type Family = "template" | "node" | "angle" | "leg" | "edge" | "flat" | "hook" | "plate" | "profile" | "calibration";
 export type PanelType = "wire" | "frame" | "foam";
 export type DecorSide = "front" | "back" | "both";
 export type MountType = "press" | "magnet" | "screw";
@@ -18,6 +18,11 @@ export interface ImportedShape {
 export interface ConnectorSettings {
   family: Family;
   name: string;
+  /** Derived contour base. Empty for the fully parametric families. */
+  profile_id: string;
+  profile_scale_x: number;
+  profile_scale_y: number;
+  profile_scale_z: number;
   template_id: number;
   template_scale_xy: number;
   template_scale_z: number;
@@ -148,6 +153,10 @@ export interface BuildPart {
   triangles: number;
   watertight: boolean;
   overhang: number;
+  /** Overhang of the print-oriented copy (auto 45° or chosen pose). */
+  print_overhang?: number;
+  /** Human-readable chosen print pose. */
+  print_orientation?: string;
 }
 
 export interface PrintCheck {

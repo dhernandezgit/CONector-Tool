@@ -507,12 +507,18 @@ describe("editing and reuse", () => {
       bodySize: 37,
       bodyHeight: 26,
       ports: 4,
+      dimensions: { width: 8, height: 18.5, depth: 26 },
     };
     const assigned = setJointCustom(scene, joint.id, custom);
     expect(assigned.joints.find((candidate) => candidate.id === joint.id)?.custom?.name).toBe("Mi conector");
     expect(sceneBom(assigned).parts.some((line) => line.name === "Mi conector")).toBe(true);
+    const customNote = sceneBom(assigned).parts.find((line) => line.name === "Mi conector")?.note || "";
+    expect(customNote).toContain("8.0");
+    expect(customNote).toContain("18.5");
+    expect(customNote).toContain("26.0");
     const restored = sceneFromJson(sceneToJson(assigned));
     expect(restored.joints.find((candidate) => candidate.id === joint.id)?.custom?.color).toBe("#cfe8e2");
+    expect(restored.joints.find((candidate) => candidate.id === joint.id)?.custom?.dimensions?.width).toBe(8);
     const cleared = setJointCustom(assigned, joint.id, undefined);
     expect(cleared.joints.find((candidate) => candidate.id === joint.id)?.custom).toBeUndefined();
   });

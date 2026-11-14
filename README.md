@@ -12,14 +12,31 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 
 ## Estudio de conectores
 
-La pesta?a **Conectores** recupera el estudio param?trico. No carga ning?n STL de referencia: los 43 presets del Edge Connector Bundle y del Connector Bundle se reconstruyen con geometr?a propia a partir de sus dimensiones y familias.
+La pestaña **Conectores** recupera el estudio paramétrico. Los 43 presets del Edge Connector Bundle y del Connector Bundle se reconstruyen con **perfiles de contorno derivados** de sus secciones: no se carga, sirve ni redistribuye ningún STL de referencia.
 
-- **Presets agrupados** por tipo y por n?mero de conexiones: Edge1?Edge7, nodos, 360?, angulados 30/45, patas y calibraci?n.
-- **Dise?o libre** con tama?o del cuerpo, forma, altura, ancho de brazos, canales C, separaci?n de agarres, ?ngulos, patas, clavijas, split de impresi?n y decoraci?n.
+- **43 presets agrupados** por tipo y por número de conexiones: Edge1–Edge7, nodos, 360°, angulados 30/45, patas y calibración.
+- **Bases derivadas** con loft de secciones y tapas watertight. La tabla `conectors/profiles.json` contiene solo contornos 2D remuestreados (no mallas trianguladas ni STL).
+- **Exactitud medida**: error de nube de puntos (Chamfer simétrico / diagonal de la envolvente) entre **0,34 % y 0,88 %** para los 43 presets, por debajo del objetivo del 1 %. El script local `scripts/verify_reference_profiles.py` permite repetir la comparación contra los STL privados.
+- **Configuración paramétrica**: escala independiente X/Y/Z, color y selección de base. Las escalas sirven para tamaños intermedios y variantes nuevas sin reconstruir la topología; los canales de reja, patas, clavijas y chaflanes se conservan al 1:1.
+- **Diseño libre** con las familias paramétricas originales: tamaño del cuerpo, forma, altura, ancho de brazos, canales C, separación de agarres, ángulos, patas, clavijas, split de impresión y decoración.
 - **Dibujo propio** para placas decorativas, importado desde SVG/PNG/JPG/WebP.
-- **Usar en el puesto** guarda una definici?n en la biblioteca local. Despu?s puedes asignarla a una uni?n en Artist Alley; la lista de materiales y el color del conector se actualizan.
+- **Preparado para imprimir**: el modo **Auto 45°** prueba poses verticales e inclinadas, elige la de menor voladizo que cabe en la cama y exporta el STL ya orientado. El modo vertical y el giro Z de 45° siguen disponibles.
+- **Usar en el puesto** guarda una definición en la biblioteca local con nombre, color y envolvente. Después puedes asignarla a una unión en Artist Alley; la lista de materiales y el color del conector se actualizan.
 - **Exportar** STL por pieza, 3MF o proyecto JSON. Los presets y las definiciones guardadas viven en el navegador.
-- El motor Python se genera con `npm run build:engine` y se carga s?lo al entrar en Conectores. El zip generado no se versiona y no contiene STL.
+- El motor Python se genera con `npm run build:engine` y se carga sólo al entrar en Conectores. El zip generado no se versiona y no contiene STL ni 3MF de referencia.
+
+Para regenerar las bases de los bundles Edge/Connector en local (sus STL no están en el repositorio; las 7 plantillas CC BY-NC del simulador son otra referencia separada):
+
+```bash
+python scripts/extract_connector_profiles.py \
+  --edge-dir "ruta/al/Edge Connector Bundle/STLs" \
+  --connector-dir "ruta/al/Connector Bundle/STLs"
+python scripts/verify_reference_profiles.py \
+  --edge-dir "ruta/al/Edge Connector Bundle/STLs" \
+  --connector-dir "ruta/al/Connector Bundle/STLs"
+```
+
+Los scripts de extracción y verificación requieren `trimesh` y `scipy` en local; no forman parte del motor que se ejecuta en el navegador.
 
 ## Qué incluye
 
@@ -94,8 +111,8 @@ La pesta?a **Conectores** recupera el estudio param?trico. No carga ning?n STL d
 
 - **No se incluyen los STL del Artist Alley STL Pack.** El pack original se compra aparte y es de uso personal.
 - No se cargan, sirven, publican ni redistribuyen los archivos comprados.
-- El **estudio de conectores** est? disponible en la pesta?a superior: genera conectores param?tricos y exporta STL/3MF sin cargar ni redistribuir los STL comprados.
-- Las geometrías del sandbox son **representaciones originales y simplificadas**, no copias de las mallas del pack.
+- El **estudio de conectores** usa perfiles de contorno derivados de las secciones y no carga ni redistribuye los STL comprados. La tabla `conectors/profiles.json` contiene contornos remuestreados, no mallas trianguladas.
+- Las geometr?as del sandbox son **representaciones originales y simplificadas**. Las bases del estudio se reconstruyen por loft a partir de sus contornos; no se incluye ning?n STL del pack.
 
 ## Crédito
 

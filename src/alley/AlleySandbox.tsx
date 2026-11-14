@@ -1772,6 +1772,7 @@ export default function AlleySandbox({
                               bodySize: def.bodySize,
                               bodyHeight: def.bodyHeight,
                               ports: def.ports,
+                              dimensions: def.dimensions,
                             }
                           : undefined,
                       ),

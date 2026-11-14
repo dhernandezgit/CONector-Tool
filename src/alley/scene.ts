@@ -309,6 +309,17 @@ export function normalizeScene(raw: unknown): AlleyScene {
                   bodySize: clamp(Number(joint.custom.bodySize) || 37, 4, 200),
                   bodyHeight: clamp(Number(joint.custom.bodyHeight) || 26, 2, 200),
                   ports: Math.max(1, Math.round(Number(joint.custom.ports) || 1)),
+                  dimensions:
+                    joint.custom.dimensions &&
+                    Number.isFinite(joint.custom.dimensions.width) &&
+                    Number.isFinite(joint.custom.dimensions.height) &&
+                    Number.isFinite(joint.custom.dimensions.depth)
+                      ? {
+                          width: clamp(Number(joint.custom.dimensions.width), 1, 500),
+                          height: clamp(Number(joint.custom.dimensions.height), 1, 500),
+                          depth: clamp(Number(joint.custom.dimensions.depth), 1, 500),
+                        }
+                      : undefined,
                 }
               : undefined,
         }))
@@ -1228,7 +1239,10 @@ export function sceneBom(scene: AlleyScene): SceneBom {
         name: joint.custom.name,
         qty: 1,
         category: "Conectores personalizados",
-        note: `Dise?o del estudio ? ${joint.custom.ports} v?as`,
+        note: joint.custom.dimensions
+          ? `Diseño del estudio · ${joint.custom.dimensions.width.toFixed(1)} × ${joint.custom.dimensions.height.toFixed(1)} × ${joint.custom.dimensions.depth.toFixed(1)} mm · ${joint.custom.ports} vía${joint.custom.ports === 1 ? "" : "s"}`
+          : `Diseño del estudio · ${joint.custom.ports} vía${joint.custom.ports === 1 ? "" : "s"}`,
+
       });
       continue;
     }
