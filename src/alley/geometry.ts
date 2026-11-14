@@ -275,6 +275,17 @@ export function computeJoints(scene: AlleyScene, previous: AlleyJoint[] = scene.
         match = candidate;
       }
     }
+    if (!match) {
+      let nearestDistance = 80;
+      for (const candidate of previous) {
+        if (used.has(candidate.id)) continue;
+        const distance = Math.hypot(candidate.x - avg.x, candidate.y - avg.y, candidate.z - avg.z);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          match = candidate;
+        }
+      }
+    }
     const keepManual = Boolean(
       match?.manual && connectorAllowed(scene, { ...match, ports: refs }, match.type),
     );
@@ -287,6 +298,7 @@ export function computeJoints(scene: AlleyScene, previous: AlleyJoint[] = scene.
       type,
       ports: refs,
       suppressed: match?.suppressed,
+      custom: match?.custom,
       manual: keepManual ? true : undefined,
     };
     if (match) used.add(match.id);

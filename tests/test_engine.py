@@ -102,7 +102,7 @@ def test_edge_connector_with_imported_shape() -> None:
     }
     result = build(
         settings(
-            family="edge",
+            family="plate",
             decor={"enabled": True, "shape": "custom", "custom": shape, "size": 65},
         )
     )
@@ -126,7 +126,7 @@ def test_table_rest_and_leg_build() -> None:
 
 def test_calibration_coupon() -> None:
     result = build(settings(family="calibration", name="Cupón"))
-    assert result["parts"][0]["name"].startswith("Cupón")
+    assert "calibra" in result["parts"][0]["name"].lower()
     assert result["parts"][0]["watertight"]
     assert result["parts"][0]["dimensions"][0] > 90
 

@@ -39,6 +39,7 @@ import {
   sceneFileName,
   sceneFromJson,
   sceneToJson,
+  setJointCustom,
   setJointType,
   starterScene,
   toggleJointSuppressed,
@@ -492,6 +493,28 @@ describe("editing and reuse", () => {
     };
     const recomputed = computeJoints(stale, stale.joints);
     expect(recomputed.find((candidate) => candidate.id === corner.id)?.type).toBe("edge-2-corner");
+  });
+
+  it("assigns a studio connector to a joint and keeps it through JSON", () => {
+    const scene = addGroup(emptyScene(), "corner-slatwall", { anchor: { x: 0, y: 0 } }).scene;
+    const joint = scene.joints.find((candidate) => candidate.type === "edge-2-corner");
+    expect(joint).toBeTruthy();
+    if (!joint) return;
+    const custom = {
+      id: "custom_test",
+      name: "Mi conector",
+      color: "#cfe8e2",
+      bodySize: 37,
+      bodyHeight: 26,
+      ports: 4,
+    };
+    const assigned = setJointCustom(scene, joint.id, custom);
+    expect(assigned.joints.find((candidate) => candidate.id === joint.id)?.custom?.name).toBe("Mi conector");
+    expect(sceneBom(assigned).parts.some((line) => line.name === "Mi conector")).toBe(true);
+    const restored = sceneFromJson(sceneToJson(assigned));
+    expect(restored.joints.find((candidate) => candidate.id === joint.id)?.custom?.color).toBe("#cfe8e2");
+    const cleared = setJointCustom(assigned, joint.id, undefined);
+    expect(cleared.joints.find((candidate) => candidate.id === joint.id)?.custom).toBeUndefined();
   });
 
   it("keeps a manual connector and can return it to automatic", () => {

@@ -4,9 +4,11 @@ import Logo from "./components/Logo";
 import HelpDialog from "./components/HelpDialog";
 import AboutDialog from "./components/AboutDialog";
 import AlleySandbox from "./alley/AlleySandbox";
+import ConnectorStudio from "./ConnectorStudio";
 import BomDialog from "./alley/BomDialog";
 import { loadScene, saveScene, sceneFileName, sceneFromJson, sceneToJson } from "./alley/scene";
 import { downloadBlob } from "./lib/utils";
+import { loadCustomConnectors, saveCustomConnector, type CustomConnectorDefinition } from "./lib/connectorLibrary";
 import type { AlleyScene } from "./alley/types";
 
 const THEME_KEY = "conector-theme";
@@ -35,6 +37,7 @@ function readTheme(): Theme {
 
 export default function App() {
   const [theme, setTheme] = useState<Theme>(readTheme);
+  const [mode, setMode] = useState<"alley" | "studio">("alley");
   const [scene, setScene] = useState<AlleyScene>(() => loadScene());
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
@@ -45,9 +48,13 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const [customConnectors, setCustomConnectors] = useState<CustomConnectorDefinition[]>(loadCustomConnectors);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const notify = useCallback((message: string) => setToast(message), []);
+  const addCustomConnector = useCallback((definition: CustomConnectorDefinition) => {
+    setCustomConnectors(saveCustomConnector(definition));
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -149,18 +156,33 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <Logo />
-        <div className="project-name">
-          <span className="eyebrow">Puesto</span>
-          <input
-            value={projectName}
-            onChange={(event) => setProjectName(event.target.value)}
-            onBlur={commitName}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") event.currentTarget.blur();
-            }}
-            aria-label="Nombre del puesto"
-          />
+        <div className="studio-mode-switch" role="tablist" aria-label="Secci?n de la aplicaci?n">
+          <button type="button" className={mode === "alley" ? "active" : ""} onClick={() => setMode("alley")}>
+            Artist Alley
+          </button>
+          <button type="button" className={mode === "studio" ? "active" : ""} onClick={() => setMode("studio")}>
+            Conectores
+          </button>
         </div>
+        {mode === "alley" ? (
+          <div className="project-name">
+            <span className="eyebrow">Puesto</span>
+            <input
+              value={projectName}
+              onChange={(event) => setProjectName(event.target.value)}
+              onBlur={commitName}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
+              }}
+              aria-label="Nombre del puesto"
+            />
+          </div>
+        ) : (
+          <div className="project-name">
+            <span className="eyebrow">Conector</span>
+            <strong>Estudio param?trico</strong>
+          </div>
+        )}
         <div className="alley-brand-pill">
           <Sparkles size={14} />
           <span>
@@ -169,34 +191,38 @@ export default function App() {
           </span>
         </div>
         <div className="topbar-actions">
-          <button
-            type="button"
-            className="icon-text-button"
-            onClick={downloadProject}
-            title="Descargar una copia del puesto como archivo JSON; después se puede abrir con Importar"
-          >
-            <Download size={16} /> <span>Descargar</span>
-          </button>
-          <button
-            type="button"
-            className="icon-text-button"
-            onClick={() => fileInputRef.current?.click()}
-            title="Importar un archivo JSON descargado de CONector Tool"
-          >
-            <Upload size={16} /> <span>Importar</span>
-          </button>
-          <input ref={fileInputRef} type="file" accept=".json,application/json,text/json" hidden onChange={importProject} />
-          <button
-            type="button"
-            className="icon-text-button"
-            onClick={saveNow}
-            title="Guardar ahora en este navegador (no descarga ningún archivo)"
-          >
-            <Save size={16} /> <span>Guardar local</span>
-          </button>
-          <button type="button" className="primary-button" onClick={() => setBomOpen(true)}>
-            <List size={16} /> Lista de materiales
-          </button>
+          {mode === "alley" && (
+            <>
+                      <button
+                        type="button"
+                        className="icon-text-button"
+                        onClick={downloadProject}
+                        title="Descargar una copia del puesto como archivo JSON; después se puede abrir con Importar"
+                      >
+                        <Download size={16} /> <span>Descargar</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-text-button"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Importar un archivo JSON descargado de CONector Tool"
+                      >
+                        <Upload size={16} /> <span>Importar</span>
+                      </button>
+                      <input ref={fileInputRef} type="file" accept=".json,application/json,text/json" hidden onChange={importProject} />
+                      <button
+                        type="button"
+                        className="icon-text-button"
+                        onClick={saveNow}
+                        title="Guardar ahora en este navegador (no descarga ningún archivo)"
+                      >
+                        <Save size={16} /> <span>Guardar local</span>
+                      </button>
+                      <button type="button" className="primary-button" onClick={() => setBomOpen(true)}>
+                        <List size={16} /> Lista de materiales
+                      </button>
+            </>
+          )}
           <button
             type="button"
             className="icon-button"
@@ -214,6 +240,7 @@ export default function App() {
         </div>
       </header>
 
+      {mode === "alley" && (
       <AlleySandbox
         scene={scene}
         projectName={projectName}
@@ -224,7 +251,18 @@ export default function App() {
         canRedo={future.length > 0}
         onOpenBom={() => setBomOpen(true)}
         onToast={notify}
+        customConnectors={customConnectors}
       />
+      )}
+
+      {mode === "studio" && (
+        <ConnectorStudio
+          onToast={notify}
+          customConnectors={customConnectors}
+          onSaveCustomConnector={addCustomConnector}
+          onOpenHelp={() => setHelpOpen(true)}
+        />
+      )}
 
       <BomDialog open={bomOpen} scene={scene} projectName={projectName} onClose={() => setBomOpen(false)} />
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />

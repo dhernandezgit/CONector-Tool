@@ -39,8 +39,8 @@ export default function AboutDialog({ open, onClose }: { open: boolean; onClose:
           <section>
             <h3>Qué no incluye</h3>
             <p>
-              Los archivos STL comprados no se incluyen, no se cargan, no se sirven y no se publican. Tampoco se ofrece el
-              estudio de impresión ni la exportación de modelos en esta versión: el foco es el montaje y la planificación.
+              Los archivos STL comprados no se incluyen, no se cargan, no se sirven y no se publican. El estudio de conectores
+              genera geometr?as param?tricas propias y permite exportar STL/3MF; no reproduce ni redistribuye las mallas del pack.
             </p>
           </section>
         </div>

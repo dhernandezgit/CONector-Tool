@@ -300,6 +300,17 @@ export function normalizeScene(raw: unknown): AlleyScene {
             .map((port) => ({ itemId: String(port.itemId), portId: String(port.portId) })),
           suppressed: Boolean(joint.suppressed),
           manual: Boolean(joint.manual),
+          custom:
+            joint.custom && typeof joint.custom.id === "string" && typeof joint.custom.name === "string"
+              ? {
+                  id: String(joint.custom.id),
+                  name: String(joint.custom.name),
+                  color: /^#[0-9a-f]{6}$/i.test(String(joint.custom.color)) ? String(joint.custom.color) : "#e98da6",
+                  bodySize: clamp(Number(joint.custom.bodySize) || 37, 4, 200),
+                  bodyHeight: clamp(Number(joint.custom.bodyHeight) || 26, 2, 200),
+                  ports: Math.max(1, Math.round(Number(joint.custom.ports) || 1)),
+                }
+              : undefined,
         }))
         .filter((joint) => joint.ports.length >= 2)
     : [];
@@ -1105,9 +1116,20 @@ export function ungroupGroup(scene: AlleyScene, groupId: string): AlleyScene {
   return dissolveGroups(scene, [groupId]);
 }
 
+export function setJointCustom(
+  scene: AlleyScene,
+  jointId: string,
+  custom: AlleyJoint["custom"],
+): AlleyScene {
+  const joints = scene.joints.map((joint) =>
+    joint.id === jointId ? { ...joint, custom, manual: Boolean(custom) || joint.manual } : joint,
+  );
+  return { ...scene, joints };
+}
+
 export function setJointType(scene: AlleyScene, jointId: string, type: ConnectorType): AlleyScene {
   const joints = scene.joints.map((joint) =>
-    joint.id === jointId ? { ...joint, type, suppressed: false, manual: true } : joint,
+    joint.id === jointId ? { ...joint, type, suppressed: false, manual: true, custom: undefined } : joint,
   );
   return { ...scene, joints };
 }
@@ -1118,7 +1140,7 @@ export function resetJointType(scene: AlleyScene, jointId: string): AlleyScene {
   if (!joint) return scene;
   const type = defaultConnectorType(scene, joint.ports);
   const joints = scene.joints.map((candidate) =>
-    candidate.id === jointId ? { ...candidate, type, suppressed: false, manual: false } : candidate,
+    candidate.id === jointId ? { ...candidate, type, suppressed: false, manual: false, custom: undefined } : candidate,
   );
   return { ...scene, joints };
 }
@@ -1201,6 +1223,15 @@ export function sceneBom(scene: AlleyScene): SceneBom {
   }
   for (const joint of scene.joints) {
     if (joint.suppressed) continue;
+    if (joint.custom) {
+      add(parts, {
+        name: joint.custom.name,
+        qty: 1,
+        category: "Conectores personalizados",
+        note: `Dise?o del estudio ? ${joint.custom.ports} v?as`,
+      });
+      continue;
+    }
     const def = CONNECTORS[joint.type];
     if (!def) continue;
     if (joint.type === "awning-foot") continue; // already included in the awning kit

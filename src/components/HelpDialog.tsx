@@ -8,7 +8,7 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="modal-head">
           <div>
             <span className="eyebrow">Guía rápida</span>
-            <h2>Monta tu puesto Artist Alley</h2>
+            <h2>Monta tu puesto o dise?a conectores</h2>
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar">
             <X size={18} />
@@ -101,6 +101,16 @@ export default function HelpDialog({ open, onClose }: { open: boolean; onClose: 
             <p>
               La lista de materiales cuenta cada pieza y cada conector colocado. Distingue las uniones integradas, que no
               necesitan una pieza extra, y permite copiar o descargar un CSV para preparar la compra.
+            </p>
+          </article>
+          <article>
+            <span className="help-num">10</span>
+            <h3>Dise?a conectores</h3>
+            <p>
+              La pesta?a <strong>Conectores</strong> abre el estudio param?trico. Elige un preset por tipo o por n?mero de
+              conexiones, o ajusta cuerpo, forma, brazos, canales, ?ngulos, patas, clavijas y decoraci?n. Puedes subir un
+              dibujo propio y guardar el conector con <strong>Usar en el puesto</strong> para asignarlo despu?s a una uni?n
+              desde el inspector de Artist Alley.
             </p>
           </article>
         </div>

@@ -4471,3 +4471,233 @@ kbd {
     justify-content: flex-end;
   }
 }
+
+
+/* --------------------------------------------------------------- studio */
+.studio-mode-switch {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel-2);
+  flex: 0 0 auto;
+}
+
+.studio-mode-switch button {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.studio-mode-switch button.active {
+  background: var(--panel);
+  color: var(--accent);
+  box-shadow: var(--shadow-soft);
+}
+
+.connector-studio {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.connector-studio .workspace {
+  flex: 1;
+  min-height: 0;
+}
+
+.connector-preset-rail {
+  gap: 12px;
+  min-width: 0;
+}
+
+.studio-preset-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.studio-preset-group h3,
+.studio-saved-connectors h3 {
+  margin: 0 0 5px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.studio-preset-group .preset-grid {
+  gap: 4px;
+}
+
+.studio-preset-group .preset-card {
+  padding: 7px 6px;
+}
+
+.studio-saved-connectors {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.studio-saved-connectors .micro-copy {
+  margin: 4px 0 0;
+}
+
+.connector-studio-stage {
+  padding: 12px 14px 8px;
+}
+
+.studio-title {
+  min-width: 0;
+}
+
+.studio-title h2 {
+  margin: 1px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: -0.04em;
+}
+
+.studio-title small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.studio-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.studio-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 300px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(255,255,255,0.12), transparent 48%),
+    #332a31;
+  box-shadow: var(--shadow-soft);
+}
+
+.studio-canvas .viewport {
+  position: absolute;
+  inset: 0;
+}
+
+.studio-view-toggle {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  padding: 3px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.studio-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.studio-metrics > div {
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 76%, transparent);
+}
+
+.studio-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.studio-metrics strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-metrics strong.ok {
+  color: var(--teal);
+}
+
+.studio-project-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 5px 16px 8px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.studio-project-actions .link-button {
+  flex: 0 0 auto;
+  font-size: 9px;
+}
+
+.studio-project-hint {
+  margin-left: auto;
+  color: var(--muted-2);
+}
+
+.project-name strong {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1240px) {
+  .studio-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .studio-actions .secondary-button:first-of-type {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .connector-studio .workspace {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+  .connector-preset-rail {
+    max-height: 250px;
+  }
+  .connector-studio-stage {
+    min-height: 420px;
+  }
+  .settings-panel {
+    min-height: 420px;
+  }
+}

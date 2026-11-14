@@ -956,9 +956,20 @@ function jointMaterial(color: string, suppressed: boolean) {
 function buildJoint(scene: AlleyScene, joint: AlleyJoint, selected: boolean): THREE.Group {
   const group = new THREE.Group();
   const def = CONNECTORS[joint.type];
-  const color = joint.suppressed ? "#9aa0a4" : def?.color || "#e47f9c";
+  const color = joint.suppressed ? "#9aa0a4" : joint.custom?.color || def?.color || "#e47f9c";
   const material = jointMaterial(color, Boolean(joint.suppressed));
-  const hub = new THREE.Mesh(JOINT_SPHERE_GEOMETRY, material);
+  const hub = joint.custom
+    ? new THREE.Mesh(
+        new THREE.CylinderGeometry(
+          Math.max(3, joint.custom.bodySize / 2),
+          Math.max(3, joint.custom.bodySize / 2),
+          Math.max(4, joint.custom.bodyHeight),
+          24,
+        ),
+        material,
+      )
+    : new THREE.Mesh(JOINT_SPHERE_GEOMETRY, material);
+  if (joint.custom) hub.rotation.x = Math.PI / 2;
   hub.castShadow = true;
   group.add(hub);
   for (const ref of joint.ports) {
@@ -983,7 +994,7 @@ function buildJoint(scene: AlleyScene, joint: AlleyJoint, selected: boolean): TH
     group.add(ring);
   }
   group.position.set(joint.x, joint.y, joint.z);
-  group.userData = { type: "joint", id: joint.id };
+  group.userData = { type: "joint", id: joint.id, custom: Boolean(joint.custom) };
   return group;
 }
 

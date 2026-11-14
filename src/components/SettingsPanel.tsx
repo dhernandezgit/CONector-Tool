@@ -6,7 +6,9 @@ import {
   Hand,
   ImagePlus,
   Move3D,
+  PanelTop,
   Printer,
+  Ruler,
   Shapes,
   SlidersHorizontal,
   Sparkles,
@@ -46,14 +48,14 @@ import {
 } from "./UI";
 
 const FAMILIES: { value: Family; label: string; detail: string }[] = [
-  { value: "template", label: "Base", detail: "Modelo exacto" },
-  { value: "node", label: "Nodo", detail: "Esquina o unión" },
-  { value: "angle", label: "Ángulo", detail: "Dos paneles" },
-  { value: "leg", label: "Pata", detail: "Eleva el panel" },
-  { value: "edge", label: "Borde", detail: "Placa con clip" },
+  { value: "node", label: "Nodo", detail: "Puck / varias v?as" },
+  { value: "edge", label: "Borde", detail: "Edge1?Edge7" },
+  { value: "angle", label: "?ngulo", detail: "30?, 45??" },
+  { value: "leg", label: "Pata", detail: "Soporte y altura" },
+  { value: "flat", label: "Placa", detail: "Placa con clavija" },
   { value: "hook", label: "Gancho", detail: "Estante o cartel" },
-  { value: "plate", label: "Placa", detail: "Solo decoración" },
-  { value: "calibration", label: "Cupón", detail: "Prueba de ajuste" },
+  { value: "plate", label: "Decorada", detail: "Solo decoraci?n" },
+  { value: "calibration", label: "Cup?n", detail: "Prueba de ajuste" },
 ];
 
 const JOINT_OPTIONS = [
@@ -570,6 +572,58 @@ export default function SettingsPanel({
             </button>
           </>
         )}
+        {settings.family === "edge" && (
+          <Section title="Borde / Edge" hint="Canales y brazos de agarre" icon={<PanelTop size={17} />}>
+            <SelectField
+              label="Distribuci?n"
+              value={settings.edge_style}
+              options={[
+                { value: "flat", label: "Recta / plana" },
+                { value: "corner", label: "Esquina" },
+                { value: "L", label: "L" },
+                { value: "T", label: "T" },
+                { value: "corner3d", label: "Esquina 3D" },
+                { value: "custom", label: "Personalizada" },
+              ]}
+              onChange={(value) => patch({ edge_style: value as ConnectorSettings["edge_style"] })}
+            />
+            <div className="field-grid">
+              <NumberField label="Largo del brazo" value={settings.edge_length} onChange={(value) => patch({ edge_length: value })} min={2} max={80} step={0.5} suffix="mm" />
+              <NumberField label="Ancho" value={settings.edge_width} onChange={(value) => patch({ edge_width: value })} min={3} max={30} step={0.5} suffix="mm" />
+              <NumberField label="Separaci?n de agarres" value={settings.edge_spacing} onChange={(value) => patch({ edge_spacing: value })} min={0} max={70} step={0.5} suffix="mm" />
+              <NumberField label="Pie / labio" value={settings.edge_foot} onChange={(value) => patch({ edge_foot: value })} min={0} max={20} step={0.5} suffix="mm" />
+            </div>
+            <p className="micro-copy">
+              Los ?ngulos de los brazos se eligen en ?Uniones?; cada brazo lleva dos filas de agarre C.
+            </p>
+          </Section>
+        )}
+
+        {settings.family === "flat" && (
+          <Section title="Placa con clavija" hint="Base plana y peg central" icon={<PanelTop size={17} />}>
+            <div className="field-grid">
+              <NumberField label="Ancho" value={settings.flat_width} onChange={(value) => patch({ flat_width: value })} min={10} max={140} step={1} suffix="mm" />
+              <NumberField label="Fondo" value={settings.flat_depth} onChange={(value) => patch({ flat_depth: value })} min={8} max={140} step={1} suffix="mm" />
+              <NumberField label="Grosor" value={settings.flat_height} onChange={(value) => patch({ flat_height: value })} min={2} max={40} step={0.5} suffix="mm" />
+            </div>
+            <p className="micro-copy">La clavija de 5 mm se configura en la secci?n Especial.</p>
+          </Section>
+        )}
+
+        {settings.family === "calibration" && (
+          <Section title="Cup?n" hint="Prueba de ajuste" icon={<Ruler size={17} />}>
+            <SelectField
+              label="Tipo"
+              value={settings.calibration_mode}
+              options={[
+                { value: "wire", label: "Cinco canales de reja" },
+                { value: "peg_cutout", label: "Clavija / cutout 6 mm" },
+              ]}
+              onChange={(value) => patch({ calibration_mode: value as ConnectorSettings["calibration_mode"] })}
+            />
+          </Section>
+        )}
+
         {settings.family !== "template" && (
         <Section
           title="Agarre"
@@ -758,6 +812,28 @@ export default function SettingsPanel({
                 { value: "sector", label: "Sector / esquina" },
               ]}
               onChange={(value) => patch({ body_style: value })}
+            />
+            <SelectField
+              label="Perfil"
+              value={settings.body_style}
+              options={[
+                { value: "auto", label: "Autom?tico" },
+                { value: "full", label: "Puck completo" },
+                { value: "sector", label: "Sector / esquina" },
+              ]}
+              onChange={(value) => patch({ body_style: value })}
+            />
+            <SelectField
+              label="Forma del cuerpo"
+              value={settings.body_shape}
+              options={[
+                { value: "rounded", label: "Cuadrado redondeado" },
+                { value: "round", label: "C?rculo" },
+                { value: "hex", label: "Hex?gono" },
+                { value: "octagon", label: "Oct?gono" },
+                { value: "organic", label: "Org?nica" },
+              ]}
+              onChange={(value) => patch({ body_shape: value })}
             />
             <NumberField
               label="Tamaño del cuerpo"
@@ -1014,10 +1090,30 @@ export default function SettingsPanel({
         <Section title="Especial" hint="Patas, cortes y piezas" icon={<Wrench size={17} />} defaultOpen={false}>
           <Toggle
             label="Pata o elevador"
-            detail="Añade una pata al nodo."
+            detail="A?ade una pata o soporte al nodo."
             checked={settings.leg.enabled}
             onChange={(checked) => patch({ leg: { ...settings.leg, enabled: checked } })}
           />
+          <SelectField
+            label="Tipo de pata"
+            value={settings.leg_mode}
+            options={[
+              { value: "elevated", label: "Elevador vertical" },
+              { value: "connector", label: "Pata conectora" },
+            ]}
+            onChange={(value) => patch({ leg_mode: value as ConnectorSettings["leg_mode"] })}
+          />
+          {settings.leg_mode === "connector" && (
+            <NumberField
+              label="Largo del brazo"
+              value={settings.leg_length}
+              onChange={(value) => patch({ leg_length: value })}
+              min={8}
+              max={140}
+              step={1}
+              suffix="mm"
+            />
+          )}
           {settings.leg.enabled && (
             <div className="field-grid">
               <NumberField

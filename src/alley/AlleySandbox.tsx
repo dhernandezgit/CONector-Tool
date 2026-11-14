@@ -74,6 +74,7 @@ import {
   rotateItems,
   sceneBom,
   selectedPanelForMount,
+  setJointCustom,
   setJointType,
   starterScene,
   toggleJointSuppressed,
@@ -83,6 +84,7 @@ import {
   updateTable as updateTableInScene,
   type AlleyClipboard,
 } from "./scene";
+import type { CustomConnectorDefinition } from "../lib/connectorLibrary";
 import type {
   AlleyCategory,
   AlleyItem,
@@ -112,6 +114,7 @@ interface Props {
   canRedo: boolean;
   onOpenBom: () => void;
   onToast: (message: string) => void;
+  customConnectors?: CustomConnectorDefinition[];
 }
 
 function itemTypeLabel(item: AlleyItem): string {
@@ -196,6 +199,7 @@ export default function AlleySandbox({
   canRedo,
   onOpenBom,
   onToast,
+  customConnectors = [],
 }: Props) {
   const viewportRef = useRef<AlleyViewportHandle | null>(null);
   const clipboardRef = useRef<AlleyClipboard | null>(null);
@@ -874,6 +878,10 @@ export default function AlleySandbox({
     label: CONNECTORS[type]?.name || type,
   }));
   const jointItemsList = selectedJoint ? jointItems(scene, selectedJoint) : [];
+  const customJointOptions = [
+    { value: "", label: "Conector autom?tico / base" },
+    ...customConnectors.map((entry) => ({ value: entry.id, label: entry.name })),
+  ];
 
   const itemBom = selectedItem ? catalogFor(selectedItem).bom : [];
   const panelOptions = [
@@ -1746,6 +1754,36 @@ export default function AlleySandbox({
                   onChange={(value) => mutate(setJointType(scene, selectedJoint.id, value as ConnectorType))}
                   hint="Solo aparecen los conectores reales que encajan con esta unión."
                 />
+                <SelectField
+                  label="Conector personalizado"
+                  value={selectedJoint.custom?.id || ""}
+                  options={customJointOptions}
+                  onChange={(value) => {
+                    const def = customConnectors.find((entry) => entry.id === value);
+                    mutate(
+                      setJointCustom(
+                        scene,
+                        selectedJoint.id,
+                        def
+                          ? {
+                              id: def.id,
+                              name: def.name,
+                              color: def.color,
+                              bodySize: def.bodySize,
+                              bodyHeight: def.bodyHeight,
+                              ports: def.ports,
+                            }
+                          : undefined,
+                      ),
+                    );
+                  }}
+                  hint={customConnectors.length ? "Usa un dise?o guardado desde el estudio." : "Guarda un dise?o en Conectores para verlo aqu?."}
+                />
+                {selectedJoint.custom && (
+                  <button type="button" className="secondary-button wide" onClick={() => mutate(setJointCustom(scene, selectedJoint.id, undefined))}>
+                    <X size={15} /> Quitar conector personalizado
+                  </button>
+                )}
                 <p className="alley-note">
                   {selectedJoint.manual
                     ? "Conector elegido manualmente. Se mantiene al mover las piezas mientras siga siendo válido."
@@ -1775,12 +1813,17 @@ export default function AlleySandbox({
                     {Math.round(selectedJoint.x)}, {Math.round(selectedJoint.y)}, {Math.round(selectedJoint.z)} mm
                   </strong>
                 </div>
-                {CONNECTORS[selectedJoint.type]?.bomName && (
+                {selectedJoint.custom ? (
+                  <div className="alley-readout">
+                    <span>Pieza</span>
+                    <strong>{selectedJoint.custom.name}</strong>
+                  </div>
+                ) : CONNECTORS[selectedJoint.type]?.bomName ? (
                   <div className="alley-readout">
                     <span>Pieza</span>
                     <strong>{CONNECTORS[selectedJoint.type].integrated ? "Integrada en el panel" : CONNECTORS[selectedJoint.type].bomName}</strong>
                   </div>
-                )}
+                ) : null}
               </section>
 
               <div className="alley-inspector-actions">

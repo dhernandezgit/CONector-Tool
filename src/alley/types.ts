@@ -94,6 +94,15 @@ export interface AlleyJointPort {
   portId: string;
 }
 
+export interface AlleyCustomConnector {
+  id: string;
+  name: string;
+  color: string;
+  bodySize: number;
+  bodyHeight: number;
+  ports: number;
+}
+
 export interface AlleyJoint {
   id: string;
   x: number;
@@ -102,6 +111,8 @@ export interface AlleyJoint {
   type: ConnectorType;
   ports: AlleyJointPort[];
   suppressed?: boolean;
+  /** A custom studio connector assigned to this joint. */
+  custom?: AlleyCustomConnector;
   /** A manually chosen connector survives geometry changes. */
   manual?: boolean;
 }

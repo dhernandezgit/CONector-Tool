@@ -1,4 +1,4 @@
-export type Family = "template" | "node" | "angle" | "leg" | "edge" | "hook" | "plate" | "calibration";
+export type Family = "template" | "node" | "angle" | "leg" | "edge" | "flat" | "hook" | "plate" | "calibration";
 export type PanelType = "wire" | "frame" | "foam";
 export type DecorSide = "front" | "back" | "both";
 export type MountType = "press" | "magnet" | "screw";
@@ -56,6 +56,17 @@ export interface ConnectorSettings {
   wrap_degrees: number;
   wire_count: number;
   wire_spacing: number;
+  /** Edge clamp geometry: branch length, width and vertical spacing of the two clamp rows. */
+  edge_style: "flat" | "corner" | "L" | "T" | "corner3d" | "custom";
+  edge_length: number;
+  edge_width: number;
+  edge_spacing: number;
+  edge_foot: number;
+  /** Flat peg plate used by ConnectorFlat_Peg. */
+  flat_width: number;
+  flat_depth: number;
+  flat_height: number;
+  calibration_mode: "wire" | "peg_cutout";
   joint_preset: string;
   angle: number;
   tilt: number;
@@ -94,6 +105,8 @@ export interface ConnectorSettings {
     foot: number;
     sole: number;
   };
+  leg_mode: "elevated" | "connector";
+  leg_length: number;
   special: {
     table_cut: boolean;
     hook: boolean;
@@ -219,7 +232,13 @@ export interface Preset {
   id: string;
   name: string;
   description: string;
-  category: "Bases exactas" | "Estructura" | "Ángulos" | "Patas" | "Especiales" | "Decorados" | "Herramientas";
+  category: string;
+  /** Display group, e.g. "Tipo ? Nodos" or "Conexiones ? 4". */
+  group?: string;
+  /** Number of connection arms when known. */
+  connections?: string;
+  /** Reference envelope in millimetres, when the preset reproduces a measured file. */
+  target?: { width: number; height: number; depth: number };
   icon: string;
   accent?: string;
   patch: DeepPartial<ConnectorSettings>;

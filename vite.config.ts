@@ -16,7 +16,6 @@ export default defineConfig({
         "**/.git/**",
         "**/ArtistAlleyPack/**",
         "**/*.stl",
-        "**/*.zip",
       ],
     },
   },

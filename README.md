@@ -10,6 +10,17 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 - Guardado automático en el navegador y archivos de proyecto locales.
 - Lista de materiales con copia al portapapeles y exportación CSV.
 
+## Estudio de conectores
+
+La pesta?a **Conectores** recupera el estudio param?trico. No carga ning?n STL de referencia: los 43 presets del Edge Connector Bundle y del Connector Bundle se reconstruyen con geometr?a propia a partir de sus dimensiones y familias.
+
+- **Presets agrupados** por tipo y por n?mero de conexiones: Edge1?Edge7, nodos, 360?, angulados 30/45, patas y calibraci?n.
+- **Dise?o libre** con tama?o del cuerpo, forma, altura, ancho de brazos, canales C, separaci?n de agarres, ?ngulos, patas, clavijas, split de impresi?n y decoraci?n.
+- **Dibujo propio** para placas decorativas, importado desde SVG/PNG/JPG/WebP.
+- **Usar en el puesto** guarda una definici?n en la biblioteca local. Despu?s puedes asignarla a una uni?n en Artist Alley; la lista de materiales y el color del conector se actualizan.
+- **Exportar** STL por pieza, 3MF o proyecto JSON. Los presets y las definiciones guardadas viven en el navegador.
+- El motor Python se genera con `npm run build:engine` y se carga s?lo al entrar en Conectores. El zip generado no se versiona y no contiene STL.
+
 ## Qué incluye
 
 ### Catálogo editable
@@ -83,7 +94,7 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 
 - **No se incluyen los STL del Artist Alley STL Pack.** El pack original se compra aparte y es de uso personal.
 - No se cargan, sirven, publican ni redistribuyen los archivos comprados.
-- El estudio de impresión 3D, la exportación STL/3MF, la calibración y la galería de conectores quedan **ocultos** en esta versión.
+- El **estudio de conectores** est? disponible en la pesta?a superior: genera conectores param?tricos y exporta STL/3MF sin cargar ni redistribuir los STL comprados.
 - Las geometrías del sandbox son **representaciones originales y simplificadas**, no copias de las mallas del pack.
 
 ## Crédito
@@ -103,14 +114,15 @@ El **Artist Alley STL Pack** es una creación de **Jessie Shi** (**Sandoik / @sa
 
 ## Desarrollo
 
-Requisitos: Node 22+ y Chrome/Edge actualizado.
+Requisitos: Node 22+, Python 3.12+ y Chrome/Edge actualizado. El motor de conectores se empaqueta localmente antes de arrancar.
 
 ```bash
 npm install
+npm run build:engine
 npm run dev
 ```
 
-Abre `http://127.0.0.1:5173/`.
+Abre `http://127.0.0.1:5173/`. `npm run dev` y `npm run build` generan `public/connectors.zip`; el zip no se versiona y no contiene STL de referencia.
 
 ### Tests
 

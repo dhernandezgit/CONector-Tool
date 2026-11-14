@@ -10,7 +10,7 @@ import type {
 import { clone, deepMerge } from "../lib/utils";
 
 export const DEFAULT_CONNECTOR: ConnectorSettings = {
-  family: "template",
+  family: "node",
   name: "Conector",
   template_id: 4,
   template_scale_xy: 1,
@@ -50,6 +50,15 @@ export const DEFAULT_CONNECTOR: ConnectorSettings = {
   wrap_degrees: 325,
   wire_count: 1,
   wire_spacing: 5,
+  edge_style: "flat",
+  edge_length: 13.5,
+  edge_width: 8,
+  edge_spacing: 18,
+  edge_foot: 0,
+  flat_width: 37,
+  flat_depth: 31.5,
+  flat_height: 8,
+  calibration_mode: "wire",
   joint_preset: "corner90",
   angle: 90,
   tilt: 0,
@@ -88,6 +97,8 @@ export const DEFAULT_CONNECTOR: ConnectorSettings = {
     foot: 24,
     sole: 3,
   },
+  leg_mode: "elevated",
+  leg_length: 48,
   special: {
     table_cut: false,
     hook: false,
