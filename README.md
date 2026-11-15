@@ -34,7 +34,7 @@ python scripts/verify_reference_profiles.py \
   --connector-dir "ruta/al/Connector Bundle/STLs"
 ```
 
-Los scripts de extracción y verificación requieren `trimesh` y `scipy` en local; no forman parte del motor que se ejecuta en el navegador. La verificación mide distancia punto-superficie simétrica y la envolvente de cada una de las 43 piezas. El informe local de la última pasada está en [`docs/profile-verification.md`](docs/profile-verification.md): 43/43 estancas, envolvente exacta y peor error de superficie **0,420 %** (pieza `angled45-l`).
+Los scripts de extracción y verificación requieren `trimesh` y `scipy` en local; no forman parte del motor que se ejecuta en el navegador. La verificación mide distancia punto-superficie simétrica y la envolvente de cada una de las 43 piezas. El informe local de la última pasada está en [`docs/profile-verification.md`](docs/profile-verification.md): 43/43 estancas, envolvente exacta y peor error de superficie **0,407 %** (pieza `angled45-l`).
 
 ## Qué incluye
 

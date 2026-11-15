@@ -60,8 +60,8 @@ const PARAMETRIC_GEOMETRY_KEYS = new Set([
 ]);
 
 const FAMILIES: { value: Family; label: string; detail: string }[] = [
+  { value: "profile", label: "Paramétrico", detail: "Secciones 2D + loft" },
   { value: "parametric", label: "Gramática C", detail: "Cuerpo, puertos y patas" },
-  { value: "profile", label: "Perfil paramétrico", detail: "Secciones 2D + loft" },
   { value: "node", label: "Nodo", detail: "Puck / varias v\u00edas" },
   { value: "edge", label: "Borde", detail: "Edge1\u2013Edge7" },
   { value: "angle", label: "\u00c1ngulo", detail: "30\u00b0, 45\u00b0..." },
@@ -438,7 +438,7 @@ export default function SettingsPanel({
               />
               <div className="inline-note">
                 <span className="note-dot" />
-                <span>Mantén la escala en 1 para imprimir la pieza idéntica al STL de referencia.</span>
+                <span>Mantén la escala en 1 para imprimir la pieza tal como está definida.</span>
               </div>
             </Section>
 
@@ -803,7 +803,7 @@ export default function SettingsPanel({
               </div>
               {settings.profile_id && (
                 <button type="button" className="secondary-button wide" onClick={() => patch({ family: "profile" })}>
-                  <SlidersHorizontal size={15} /> Volver al perfil paramétrico
+                  <SlidersHorizontal size={15} /> Volver al modelo paramétrico
                 </button>
               )}
             </Section>
@@ -1132,33 +1132,20 @@ export default function SettingsPanel({
 
         {settings.family === "profile" && (
           <Section
-            title="Base paramétrica"
+            title="Modelo paramétrico"
             hint="Secciones 2D de control, sin malla 3D"
             icon={<Shapes size={17} />}
             badge="Loft 2D"
           >
-            <SelectField
-              label="Perfil de referencia"
-              value={settings.profile_id}
-              options={CONNECTOR_PROFILE_OPTIONS.map((option) => ({
-                value: option.value,
-                label: `${option.label} - ${option.group}`,
-              }))}
-              onChange={selectProfile}
-            />
             {currentProfile ? (
               <div className="inline-note">
                 <span className="note-dot" />
                 <span>
-                  Envolvente de referencia: <strong>{currentProfile.target ? `${currentProfile.target.width} \u00d7 ${currentProfile.target.height} \u00d7 ${currentProfile.target.depth} mm` : "medida local"}</strong>.
-                  El modelo se genera con secciones 2D de control; no se carga ninguna malla 3D.
+                  Modelo: <strong>{currentProfile.label}</strong>. Envolvente: <strong>{currentProfile.target ? `${currentProfile.target.width} \u00d7 ${currentProfile.target.height} \u00d7 ${currentProfile.target.depth} mm` : "medida local"}</strong>.
+                  Se genera con secciones 2D de control; no se carga ninguna malla 3D.
                 </span>
               </div>
-            ) : (
-              <div className="inline-warning">
-                El perfil no esta en la tabla local. Elige otra base o vuelve a una familia parametrica.
-              </div>
-            )}
+            ) : null}
             <div className="field-grid">
               <NumberField
                 label="Escala X"
@@ -1209,7 +1196,7 @@ export default function SettingsPanel({
                 label="Forma de sección"
                 value={settings.profile_shape}
                 options={[
-                  { value: "base", label: "Perfil original" },
+                  { value: "base", label: "Sección original" },
                   { value: "round", label: "Redonda" },
                   { value: "rounded", label: "Redondeada" },
                   { value: "ellipse", label: "Elipse" },
