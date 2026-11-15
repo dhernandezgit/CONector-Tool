@@ -23,8 +23,10 @@ export interface ConnectorPort {
   level: PortLevel;
   /** Radial reach beyond the body, in mm. */
   length: number;
-  /** Tangential width of the root arm, in mm. */
+  /** Tangential width of the clamp lobe, in mm. */
   width: number;
+  /** Radial depth of the clamp lobe, in mm. */
+  depth: number;
   enabled: boolean;
 }
 
@@ -40,9 +42,12 @@ export interface ConnectorSettings {
   parametric_customized: boolean;
   /** Feature-based connector: list of radial connections. */
   ports: ConnectorPort[];
+  body_structure: "clamp" | "hub";
   body_width: number;
   body_depth: number;
+  web_width: number;
   channel_width: number;
+  channel_depth: number;
   grip_lines: number;
   grip_depth: number;
   smoothness: number;

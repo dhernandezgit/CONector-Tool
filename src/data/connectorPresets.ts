@@ -290,8 +290,13 @@ export function presetSettings(preset: Preset): ConnectorSettings {
     // as the optional faithful base (Fiel), but the default model is built
     // from body + ports + channels + legs.
     settings.family = "parametric";
-    settings.parametric_customized = false;
-    const isLeg = Boolean(preset.group?.startsWith("Patas"));
+    settings.parametric_customized = true;
+    const group = preset.group || "";
+    const isLeg = group.startsWith("Patas");
+    const isEdge = group.startsWith("Edge");
+    const isAngle = group.startsWith("Angulados");
+    const isNode = group.startsWith("Nodos") && !group.startsWith("Nodos planos");
+    settings.body_structure = isAngle ? "hub" : "clamp";
     if (preset.target) {
       if (!isLeg) {
         settings.body_width = preset.target.width;
@@ -319,7 +324,29 @@ export function presetSettings(preset: Preset): ConnectorSettings {
       settings.ports = [];
       settings.leg = { ...settings.leg, enabled: false };
     } else {
-      settings.ports = derivedPorts(settings);
+      const basePorts = derivedPorts(settings);
+      const count = basePorts.length;
+      let channelWidth = Math.max(4.0, Math.min(settings.body_width, settings.body_depth) * 0.16);
+      let channelDepth = Math.max(6.0, settings.body_depth * 0.38);
+      if (isEdge) {
+        channelWidth = Math.max(3.5, settings.body_width * 0.55);
+        channelDepth = Math.max(6.0, settings.body_depth * 0.62);
+      }
+      if (isAngle || isLeg || isNode) {
+        settings.body_shape = "round";
+      }
+      settings.channel_width = channelWidth;
+      settings.channel_depth = channelDepth;
+      settings.ports = basePorts.map((port, index) => {
+        const width = channelWidth;
+        const depth = channelDepth;
+        const level = isAngle
+          ? index % 2 === 0
+            ? "bottom"
+            : "top"
+          : "both";
+        return { ...port, width, depth, length: 0, level };
+      });
     }
     settings.grip_lines = 3;
     settings.grip_depth = 0.35;

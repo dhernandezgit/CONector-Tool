@@ -185,6 +185,7 @@ export default function SettingsPanel({
           level: "both",
           length: 0,
           width,
+          depth: settings.body_depth || settings.body_size,
           enabled: true,
         },
       ],
@@ -716,7 +717,7 @@ export default function SettingsPanel({
               title="Cuerpo paramétrico"
               hint="Forma, tamaño y suavidad"
               icon={<Shapes size={17} />}
-              badge={hasExactBase && !settings.parametric_customized ? "Fiel <0,1 %" : "Personalizado"}
+              badge="Paramétrico"
             >
               <SelectField
                 label="Forma del cuerpo"
@@ -794,20 +795,9 @@ export default function SettingsPanel({
               <div className="inline-note">
                 <span className="note-dot" />
                 <span>
-                  {hasExactBase && !settings.parametric_customized
-                    ? "Base fiel activa (error <0,1 %). En cuanto cambies una medida pasarás al modelo paramétrico."
-                    : "Ajustes paramétricos activos: el cuerpo responde a las medidas, puertos y canales."}
+                  Modelo paramétrico: el cuerpo, las conexiones y las patas responden a las medidas.
                 </span>
               </div>
-              {settings.parametric_customized && (
-                <button
-                  type="button"
-                  className="secondary-button wide"
-                  onClick={() => patch({ parametric_customized: false })}
-                >
-                  <SlidersHorizontal size={15} /> Volver a la forma fiel
-                </button>
-              )}
               {hasExactBase && (
                 <button type="button" className="secondary-button wide" onClick={() => patch({ family: "profile" })}>
                   <SlidersHorizontal size={15} /> Ver base fiel
@@ -852,21 +842,20 @@ export default function SettingsPanel({
                         onChange={(value) => updatePort(index, { level: value as ConnectorPort["level"] })}
                       />
                       <NumberField
-                        label="Alcance"
-                        value={port.length}
-                        onChange={(value) => updatePort(index, { length: value })}
-                        min={0}
-                        max={80}
-                        step={1}
-                        suffix="mm"
-                        hint="0 = en el borde"
-                      />
-                      <NumberField
-                        label="Ancho del brazo"
+                        label="Ancho de conexión"
                         value={port.width}
                         onChange={(value) => updatePort(index, { width: value })}
                         min={3}
                         max={80}
+                        step={0.5}
+                        suffix="mm"
+                      />
+                      <NumberField
+                        label="Profundidad del clamp"
+                        value={port.depth || settings.body_depth || settings.body_size}
+                        onChange={(value) => updatePort(index, { depth: value })}
+                        min={3}
+                        max={140}
                         step={0.5}
                         suffix="mm"
                       />
@@ -897,7 +886,13 @@ export default function SettingsPanel({
                 <NumberField
                   label="Ancho interior"
                   value={settings.channel_width || settings.wire_diameter + settings.clearance * 2}
-                  onChange={(value) => patch({ channel_width: value, family: "parametric" })}
+                  onChange={(value) =>
+                    patch({
+                      channel_width: value,
+                      family: "parametric",
+                      ports: editable.map((port) => ({ ...port, width: value })),
+                    })
+                  }
                   min={1.5}
                   max={30}
                   step={0.1}
@@ -911,6 +906,21 @@ export default function SettingsPanel({
                   min={0}
                   max={1.2}
                   step={0.05}
+                  suffix="mm"
+                />
+                <NumberField
+                  label="Profundidad interior"
+                  value={settings.channel_depth || settings.body_depth * 0.65}
+                  onChange={(value) =>
+                    patch({
+                      channel_depth: value,
+                      family: "parametric",
+                      ports: editable.map((port) => ({ ...port, depth: value })),
+                    })
+                  }
+                  min={1}
+                  max={120}
+                  step={0.5}
                   suffix="mm"
                 />
                 <NumberField

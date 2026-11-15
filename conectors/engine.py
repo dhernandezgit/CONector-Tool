@@ -780,28 +780,17 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
     decor_enabled = _bool(decor.get("enabled"), False)
 
     if family == "parametric":
-        profile_id = str(settings.get("profile_id") or "")
-        customized = _bool(settings.get("parametric_customized"), False)
-        if profile_id and not customized:
-            body = exact_mesh(profile_id, settings)
-        else:
-            body = parametric_mesh(settings)
+        body = parametric_mesh(settings)
         if not len(body.faces):
             raise ValueError(
                 "No se pudo generar el conector param\u00e9trico. Revisa el cuerpo, "
                 "las conexiones y las patas."
             )
         meshes.append(("Cuerpo param\u00e9trico", body, body_color))
-        if profile_id and not customized:
-            details.append(
-                "Base fiel activa (error <0,1 %). Cambia cualquier medida para pasar al "
-                "modelo param\u00e9trico; las conexiones y patas ya est\u00e1n preparadas para editarse."
-            )
-        else:
-            details.append(
-                "Conector generado desde cuerpo, conexiones, canales y patas editables. "
-                "Ajusta \u00e1ngulos, alturas, anchos y l\u00edneas de agarre sin cambiar de base."
-            )
+        details.append(
+            "Conector generado desde cuerpo, conexiones, canales y patas editables. "
+            "Ajusta \u00e1ngulos, alturas, anchos y l\u00edneas de agarre."
+        )
         split = settings.get("split", {})
         if _bool(split.get("enabled"), False):
             split_parts = _split_with_pads(body, settings)

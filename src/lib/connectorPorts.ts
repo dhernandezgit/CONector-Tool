@@ -21,6 +21,7 @@ export function derivedPorts(settings: ConnectorSettings): ConnectorPort[] {
       level: portLevel,
       length: 0,
       width,
+      depth: 0,
       enabled: true,
     });
   };
@@ -47,6 +48,7 @@ export function editablePorts(settings: ConnectorSettings): ConnectorPort[] {
       level: port.level || "both",
       length: Number.isFinite(port.length) ? port.length : 0,
       width: Number.isFinite(port.width) ? port.width : 10,
+      depth: Number.isFinite(port.depth) ? port.depth : 0,
       enabled: port.enabled !== false,
     }));
   }

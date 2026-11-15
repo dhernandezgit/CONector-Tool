@@ -12,7 +12,7 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 
 ## Estudio de conectores
 
-La pestaña **Conectores** incluye los 43 presets del Edge Connector Bundle y del Connector Bundle como **modelos paramétricos editables**. Cada preset arranca sobre una superficie fiel derivada de la referencia; en cuanto cambias una medida, el cuerpo, las conexiones, los canales y las patas pasan a generarse desde parámetros.
+La pestaña **Conectores** incluye los 43 presets del Edge Connector Bundle y del Connector Bundle como **modelos paramétricos editables**. Cada preset arranca en el editor paramétrico: cuerpo, cortes C, conexiones, canales, patas y clavija se generan desde sus medidas. No se carga una malla 3D predefinida en el modelo por defecto.
 
 - **Editor paramétrico**:
   - Cuerpo con forma (redondo, elipse, hexágono, octágono, orgánico, gota), ancho, fondo, alto, redondeo y suavidad de uniones.
@@ -20,12 +20,12 @@ La pestaña **Conectores** incluye los 43 presets del Edge Connector Bundle y de
   - **Agarre interior** ajustable: ancho de cavidad, juego, pared, boca, abrazo, altura del canal, número de líneas interiores y profundidad de las líneas. Las líneas son resaltes en la pared de la cavidad: más profundidad o más líneas = más retención.
   - **Patas** con altura sobre la mesa, inclinación, alcance, pie, suela, grosor, ancho y orientación.
   - Clavija central y color del cuerpo.
-- **Base fiel**: por defecto cada preset abre sobre una superficie derivada watertight y fiel. El error medido contra los STL privados es **0,00000 %** (objetivo <0,1 %). Al cambiar una medida pasas al editor paramétrico; el botón **Volver a la forma fiel** recupera la referencia exacta.
+- **Base fiel opcional**: para comparar o validar se puede abrir la superficie derivada de referencia, con error medido **0,00000 %** (objetivo <0,1 %). No es el modo por defecto; el editor paramétrico es el que genera las piezas normales.
 - **Preparado para imprimir**: el modo **Auto 45°** prueba poses verticales e inclinadas, elige la de menor voladizo que cabe en la cama y orienta el STL/3MF antes de exportar.
 - **Usar en el puesto** guarda el conector con su envolvente y su número real de conexiones. La lista de materiales de Artist Alley muestra las dimensiones del conector personalizado.
 - **Exportar** STL por pieza, 3MF o proyecto JSON. Todo se calcula en local.
 
-Los presets y las bases fieles se generan con el motor Python. La tabla `conectors/exact_meshes.npz` contiene la superficie derivada compacta (vértices float32 e índices), no un STL. Los scripts locales permiten regenerar y verificar la base fiel contra los STL privados; los STL de los bundles no están en el repositorio ni en el zip publicado.
+Los presets y las bases fieles se generan con el motor Python. La tabla `conectors/exact_meshes.npz` contiene la superficie derivada compacta (vértices float32 e índices), no un STL; se usa solo como referencia opcional. Los scripts locales permiten regenerar y verificar la base fiel contra los STL privados; los STL de los bundles no están en el repositorio ni en el zip publicado.
 
 ```bash
 python scripts/extract_exact_meshes.py \

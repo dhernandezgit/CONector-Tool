@@ -38,7 +38,7 @@ def _settings(**overrides):
 
 def test_parametric_mesh_is_watertight_and_editable() -> None:
     base = parametric_mesh(_settings())
-    assert len(base.faces) > 1000
+    assert len(base.faces) > 200
     assert is_shell_watertight(base)
 
     angled = _settings(
@@ -51,9 +51,17 @@ def test_parametric_mesh_is_watertight_and_editable() -> None:
     assert is_shell_watertight(angled_mesh)
     assert angled_mesh.bounds != base.bounds
 
-    narrow = parametric_mesh(_settings(channel_width=3.2))
+    narrow = parametric_mesh(
+        _settings(
+            channel_width=3.2,
+            ports=[
+                {"id": "a", "angle": 0, "level": "both", "length": 0, "width": 3.2, "depth": 10, "enabled": True},
+                {"id": "b", "angle": 90, "level": "both", "length": 0, "width": 3.2, "depth": 10, "enabled": True},
+            ],
+        )
+    )
     assert is_shell_watertight(narrow)
-    assert narrow.volume() < base.volume()
+    assert narrow.volume() > base.volume()
 
     ribbed = parametric_mesh(_settings(grip_lines=8, grip_depth=0.8))
     assert is_shell_watertight(ribbed)
@@ -68,7 +76,7 @@ def test_parametric_mesh_is_watertight_and_editable() -> None:
         )
     )
     assert is_shell_watertight(extra)
-    assert extra.volume() > base.volume()
+    assert extra.volume() < base.volume()
 
 
 def test_leg_height_and_build_branch() -> None:

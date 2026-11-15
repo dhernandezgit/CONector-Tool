@@ -156,6 +156,7 @@ def _body_mesh(plan: Polygon, height: float, bevel: float) -> Mesh:
 def _normalise_ports(settings: dict) -> list[dict[str, Any]]:
     raw_ports = settings.get("ports")
     body_size = _clamp(_f(settings.get("body_size"), 37.0), 8.0, 90.0)
+    body_depth = _clamp(_f(settings.get("body_depth"), body_size), 4.0, 140.0)
     default_width = _f(settings.get("arm_width"), 0.0)
     if default_width < 5.0 or default_width > 45.0:
         default_width = max(7.0, body_size * 0.30)
@@ -186,8 +187,9 @@ def _normalise_ports(settings: dict) -> list[dict[str, Any]]:
                     "id": str(item.get("id") or f"port-{index}"),
                     "angle": angle,
                     "level": level,
-                    "length": _clamp(_f(item.get("length"), 0.0), 0.0, 80.0),
-                    "width": _clamp(_f(item.get("width"), default_width), 3.0, 80.0),
+                    "length": _clamp(_f(item.get("length"), 0.0), 0.0, 90.0),
+                    "width": _clamp(_f(item.get("width"), default_width), 3.0, 90.0),
+                    "depth": _clamp(_f(item.get("depth"), body_depth), 3.0, 140.0),
                     "enabled": _b(item.get("enabled"), True),
                 }
             )
@@ -215,6 +217,7 @@ def _normalise_ports(settings: dict) -> list[dict[str, Any]]:
             "level": default_level,
             "length": 0.0,
             "width": default_width,
+            "depth": body_depth if len(angles) == 1 else body_depth * 0.5,
             "enabled": True,
         }
         for index, angle in enumerate(sorted(angles))
@@ -317,36 +320,230 @@ def _leg_mesh(settings: dict, body_radius: float, body_height: float, body_z: fl
     return piece
 
 
+def _outer_shape(shape: str, width: float, depth: float, chamfer: float) -> Polygon:
+    width = max(2.0, width)
+    depth = max(2.0, depth)
+    shape = (shape or "rounded").lower()
+    radius = min(width, depth) * 0.35
+    if shape in {"round", "ellipse"}:
+        base = circle_polygon(0.5, 72)
+        return affinity.scale(base, xfact=width, yfact=depth, origin=(0, 0))
+    if shape in {"hex", "octagon", "organic"}:
+        sides = 6 if shape == "hex" else 8 if shape == "octagon" else 12
+        base = regular_polygon(0.5, sides, 30.0 if sides == 6 else 22.5 if sides == 8 else 15.0)
+        base = affinity.scale(base, xfact=width, yfact=depth, origin=(0, 0))
+        return base
+    return rounded_rect(width, depth, max(0.5, min(radius, chamfer)))
+
+
+def _lobe_plan(settings: dict, port: dict[str, Any]) -> Polygon:
+    width = max(3.0, float(port.get("width", 10.0)))
+    depth = max(3.0, float(port.get("depth", settings.get("body_depth", 18.0))))
+    wall = _clamp(_f(settings.get("grip_wall"), 2.4), 1.0, 8.0)
+    channel_w = _clamp(_f(settings.get("channel_width"), width - wall * 2.0), 1.0, width - 0.8)
+    channel_d = _clamp(_f(settings.get("channel_depth"), depth - wall * 2.0), 1.0, depth - 0.8)
+    mouth = _clamp(_f(settings.get("mouth_width"), 3.2), 0.8, channel_w * 1.3 + 1.0)
+    shape = str(settings.get("body_shape", "rounded") or "rounded")
+    outer = _outer_shape(shape, width, depth, _f(settings.get("body_chamfer"), 3.0))
+    cavity = _outer_shape(shape, channel_w, channel_d, min(channel_w, channel_d) * 0.28)
+    # The cavity is pushed slightly toward the back; the corridor opens the
+    # front and creates the characteristic C-shaped grip.
+    cavity = affinity.translate(cavity, 0.0, -max(0.3, (depth - channel_d) * 0.08))
+    top = float(cavity.bounds[3])
+    corridor = box(-mouth * 0.5, top - 0.8, mouth * 0.5, depth * 0.5 + 2.0)
+    cut = unary_union([cavity, corridor])
+
+    lines = max(0, min(20, int(_f(settings.get("grip_lines"), 0.0))))
+    grip = _clamp(_f(settings.get("grip_depth"), 0.35), 0.0, channel_w * 0.3)
+    if lines and grip > 0.02:
+        bars: list[Polygon] = []
+        y0 = float(cavity.bounds[1]) + channel_d * 0.16
+        y1 = float(cavity.bounds[3]) - channel_d * 0.22
+        for i in range(lines):
+            y = y0 if lines == 1 else y0 + (y1 - y0) * i / (lines - 1)
+            height = max(0.8, (y1 - y0) / max(lines * 2.2, 1.0))
+            for side in (-1.0, 1.0):
+                x = side * (channel_w * 0.5 - grip * 0.35)
+                bars.append(box(x - grip * 0.5, y - height * 0.5, x + grip * 0.5, y + height * 0.5))
+        if bars:
+            cut = cut.difference(unary_union(bars))
+
+    shell = outer.difference(cut)
+    if shell.is_empty:
+        return outer
+    parts = _polygons(shell)
+    if not parts:
+        return outer
+    return max(parts, key=lambda item: item.area)
+
+
+def _plan_mesh(plan: Polygon | None, height: float, bevel: float, z0: float = 0.0) -> Mesh:
+    if plan is None or plan.is_empty or height <= 0:
+        return empty_mesh()
+    bevel = _clamp(bevel, 0.0, min(height * 0.22, 4.0))
+    parts = _polygons(plan)
+    if not parts:
+        return empty_mesh()
+    if len(parts) == 1 and bevel > 0.05:
+        inset = parts[0].buffer(-bevel, join_style=1, quad_segs=8)
+        inset_parts = _polygons(inset)
+        if len(inset_parts) == 1:
+            try:
+                mesh = loft_layers(
+                    [inset_parts[0], parts[0], parts[0], inset_parts[0]],
+                    [0.0, bevel, height - bevel, height],
+                    segments=max(64, min(320, int(parts[0].length * 5))),
+                )
+                return mesh.translated((0, 0, z0))
+            except Exception:
+                pass
+    return extrude_polygon(plan, z0, height)
+
+
+def _web_plan(settings: dict, ports: list[dict[str, Any]]) -> Polygon | None:
+    if len(ports) < 2:
+        return None
+    width = _clamp(_f(settings.get("web_width"), 6.0), 2.0, 40.0)
+    bars: list[Polygon] = []
+    for port in ports:
+        a = math.radians(port["angle"])
+        r = float(port.get("length", 0.0))
+        if r <= 0.5:
+            continue
+        bars.append(LineString([(0.0, 0.0), (r * math.sin(a), r * math.cos(a))]).buffer(width * 0.5, cap_style=1))
+    if not bars:
+        return None
+    return unary_union(bars)
+
+
+def _lobe_mesh(settings: dict, port: dict[str, Any], body_height: float, bevel: float) -> Mesh:
+    plan = _lobe_plan(settings, port)
+    angle = float(port.get("angle", 0.0))
+    offset = float(port.get("length", 0.0))
+    plan = affinity.rotate(plan, angle, origin=(0, 0))
+    outward = (math.sin(math.radians(angle)), math.cos(math.radians(angle)))
+    plan = affinity.translate(plan, offset * outward[0], offset * outward[1])
+    level = str(port.get("level", "both"))
+    if level == "top":
+        z0, z1 = body_height * 0.24, body_height
+    elif level == "bottom":
+        z0, z1 = 0.0, body_height * 0.76
+    else:
+        z0, z1 = 0.0, body_height
+    return _plan_mesh(plan, z1 - z0, bevel, z0)
+
+
+def _cut_plan(settings: dict, port: dict[str, Any], body_width: float, body_depth: float) -> Polygon:
+    """A C-channel cavity cut into the body, opening radially outward."""
+    width = max(2.0, float(port.get("width", 4.0)))
+    depth = max(2.0, float(port.get("depth", 8.0)))
+    wall = _clamp(_f(settings.get("grip_wall"), 2.4), 1.0, 8.0)
+    mouth = _clamp(_f(settings.get("mouth_width"), 3.2), 0.8, width * 1.3 + 1.0)
+    half = max(body_width, body_depth) * 0.5
+    # Keep a back wall and a narrow mouth: the rounded cavity stops short of
+    # the body rim and a corridor opens the mouth.
+    center_y = half - depth * 0.5 - max(0.8, wall * 0.55)
+    cavity = rounded_rect(width, depth, min(width, depth) * 0.28)
+    cavity = affinity.translate(cavity, 0.0, center_y)
+    corridor = box(-mouth * 0.5, center_y + depth * 0.5 - 0.8, mouth * 0.5, half + 4.0)
+    cut = unary_union([cavity, corridor])
+
+    lines = max(0, min(20, int(_f(settings.get("grip_lines"), 0.0))))
+    grip = _clamp(_f(settings.get("grip_depth"), 0.35), 0.0, width * 0.3)
+    if lines and grip > 0.02:
+        bars: list[Polygon] = []
+        y0 = center_y - depth * 0.32
+        y1 = center_y + depth * 0.30
+        for i in range(lines):
+            y = y0 if lines == 1 else y0 + (y1 - y0) * i / (lines - 1)
+            h = max(0.8, (y1 - y0) / max(lines * 2.2, 1.0))
+            for side in (-1.0, 1.0):
+                x = side * (width * 0.5 - grip * 0.4)
+                bars.append(box(x - grip * 0.5, y - h * 0.5, x + grip * 0.5, y + h * 0.5))
+        if bars:
+            cut = cut.difference(unary_union(bars))
+
+    # The local +Y axis is the opening direction.
+    return affinity.rotate(cut, float(port.get("angle", 0.0)), origin=(0.0, 0.0))
+
+
+def _body_plan(settings: dict, body_width: float, body_depth: float, active_ports: list[dict[str, Any]]) -> Polygon | None:
+    base = _outer_shape(
+        str(settings.get("body_shape", "rounded") or "rounded"),
+        body_width,
+        body_depth,
+        _f(settings.get("body_chamfer"), 3.0),
+    )
+    cuts = [
+        _cut_plan(settings, port, body_width, body_depth)
+        for port in active_ports
+        if port.get("enabled", True)
+    ]
+    if not cuts:
+        return base
+    result = base.difference(unary_union(cuts))
+    parts = _polygons(result)
+    if not parts:
+        return base
+    if len(parts) == 1:
+        return parts[0]
+    return unary_union(parts)
+
+
+def _active_ports(settings: dict, z_fraction: float) -> list[dict[str, Any]]:
+    ports = []
+    for port in _normalise_ports(settings):
+        if not port["enabled"]:
+            continue
+        level = port["level"]
+        if level in {"both", "middle"}:
+            ports.append(port)
+        elif level == "top" and z_fraction >= 0.24:
+            ports.append(port)
+        elif level == "bottom" and z_fraction <= 0.76:
+            ports.append(port)
+    return ports
+
+
+def _body_mesh_layered(settings: dict, body_width: float, body_depth: float, body_height: float, bevel: float) -> Mesh:
+    fractions = [0.0, 0.24, 0.76, 1.0]
+    plans = [_body_plan(settings, body_width, body_depth, _active_ports(settings, f)) for f in fractions]
+    if any(plan is None or plan.is_empty for plan in plans):
+        return empty_mesh()
+    # A single plan family is the common case: extrude or bevel it.
+    if all(plan.equals(plans[0]) for plan in plans[1:]):
+        return _plan_mesh(plans[0], body_height, bevel)
+    # The C channels can start/end at a level.  A short loft between full and
+    # cut sections gives a smooth shoulder instead of a floating opening.
+    if all(len(_polygons(plan)) == 1 for plan in plans):
+        zs = [0.0, body_height * 0.24, body_height * 0.76, body_height]
+        try:
+            return loft_layers(
+                plans,
+                zs,
+                segments=max(96, min(320, int(max(plan.length for plan in plans) * 5))),
+            )
+        except Exception:
+            pass
+    return _plan_mesh(_body_plan(settings, body_width, body_depth, [p for p in _normalise_ports(settings) if p["enabled"]]), body_height, bevel)
+
+
 def parametric_mesh(settings: dict) -> Mesh:
-    """Build a connector from its feature parameters."""
+    """Build a connector from a body, C-channel cuts, bridges and a leg."""
     body_size = _clamp(_f(settings.get("body_size"), 37.0), 8.0, 90.0)
     body_height = _clamp(_f(settings.get("body_height"), 26.0), 6.0, 100.0)
     raw_width = _f(settings.get("body_width"), 0.0)
     raw_depth = _f(settings.get("body_depth"), 0.0)
     body_width = _clamp(raw_width if raw_width > 0.1 else body_size, 4.0, 140.0)
     body_depth = _clamp(raw_depth if raw_depth > 0.1 else body_size, 4.0, 140.0)
-    channel = _channel_profile(settings)
-    # Keep the ports on the rim of the editable body.  The smaller plan
-    # dimension controls the hub radius; the root webs carry the remaining
-    # width/depth out to the channels.
-    profile_bounds = np.asarray(channel.exterior.coords, dtype=float)
-    channel_radius = max(
-        float(np.max(np.abs(profile_bounds[:, 0]))),
-        float(np.max(np.abs(profile_bounds[:, 1]))),
-    )
-    body_radius = max(2.0, min(body_width, body_depth) * 0.5 - channel_radius * 0.72)
-    plan = _body_polygon(settings, body_radius, channel_radius)
     bevel = _f(settings.get("body_chamfer"), 3.0) * (0.4 + 0.6 * _clamp(_f(settings.get("smoothness"), 0.65), 0.0, 1.0))
+    out = _body_mesh_layered(settings, body_width, body_depth, body_height, bevel)
+
     leg = settings.get("leg") or {}
     body_z = _clamp(_f(leg.get("height"), 0.0), 0.0, 220.0) if _b(leg.get("enabled"), False) else 0.0
-    body = _body_mesh(plan, body_height, bevel)
-    body = body.translated((0.0, 0.0, body_z))
-
-    out = body
-    ports = _port_meshes(settings, body_radius, body_height, channel)
-    for piece in ports:
-        out = out.append(piece.translated((0.0, 0.0, body_z)))
-    out = out.append(_leg_mesh(settings, body_radius, body_height, body_z))
+    if body_z > 0.01:
+        out = out.translated((0, 0, body_z))
+    out = out.append(_leg_mesh(settings, max(2.0, min(body_width, body_depth) * 0.5), body_height, body_z))
 
     special = settings.get("special") or {}
     if _b(special.get("peg"), False):
@@ -358,7 +555,6 @@ def parametric_mesh(settings: dict) -> Mesh:
         out = out.transformed(
             np.array([[-1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=float)
         ).oriented()
-    # Center on X/Y and put the lowest point on the print bed.
     b = out.bounds
     out = out.translated(
         (
