@@ -12,7 +12,7 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 
 ## Estudio de conectores
 
-La pestaña **Conectores** incluye los 43 presets del Edge Connector Bundle y del Connector Bundle como **modelos paramétricos editables**. Cada preset arranca con medidas derivadas de la referencia, pero el cuerpo, las conexiones, los canales y las patas se generan desde parámetros: no es una malla copiada.
+La pestaña **Conectores** incluye los 43 presets del Edge Connector Bundle y del Connector Bundle como **modelos paramétricos editables**. Cada preset arranca sobre una superficie fiel derivada de la referencia; en cuanto cambias una medida, el cuerpo, las conexiones, los canales y las patas pasan a generarse desde parámetros.
 
 - **Editor paramétrico**:
   - Cuerpo con forma (redondo, elipse, hexágono, octágono, orgánico, gota), ancho, fondo, alto, redondeo y suavidad de uniones.
