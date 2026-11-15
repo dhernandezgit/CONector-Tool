@@ -38,7 +38,11 @@ export interface ConnectorSettings {
   profile_scale_x: number;
   profile_scale_y: number;
   profile_scale_z: number;
-  /** False uses the faithful derived surface; true uses the feature generator. */
+  /** Cross-section taper from the negative to the positive loft end. */
+  profile_taper: number;
+  /** Cross-section twist from the negative to the positive loft end, -1..1. */
+  profile_twist: number;
+  /** False uses the section loft; true uses the feature generator. */
   parametric_customized: boolean;
   /** Feature-based connector: list of radial connections. */
   ports: ConnectorPort[];

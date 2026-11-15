@@ -60,8 +60,8 @@ const PARAMETRIC_GEOMETRY_KEYS = new Set([
 ]);
 
 const FAMILIES: { value: Family; label: string; detail: string }[] = [
-  { value: "parametric", label: "Param\u00e9trico", detail: "Cuerpo, puertos y patas" },
-  { value: "profile", label: "Fiel", detail: "Base derivada \u22641 %" },
+  { value: "parametric", label: "Gramática C", detail: "Cuerpo, puertos y patas" },
+  { value: "profile", label: "Perfil paramétrico", detail: "Secciones 2D + loft" },
   { value: "node", label: "Nodo", detail: "Puck / varias v\u00edas" },
   { value: "edge", label: "Borde", detail: "Edge1\u2013Edge7" },
   { value: "angle", label: "\u00c1ngulo", detail: "30\u00b0, 45\u00b0..." },
@@ -151,7 +151,6 @@ export default function SettingsPanel({
     onChange(deepMerge(settings, effective));
   };
   const genericVisible = settings.family !== "profile" && settings.family !== "parametric";
-  const hasExactBase = Boolean(settings.profile_id);
   const currentProfile = CONNECTOR_PROFILE_OPTIONS.find((option) => option.value === settings.profile_id);
   const selectProfile = (value: string) => {
     const option = CONNECTOR_PROFILE_OPTIONS.find((item) => item.value === value);
@@ -162,6 +161,8 @@ export default function SettingsPanel({
       profile_scale_x: 1,
       profile_scale_y: 1,
       profile_scale_z: 1,
+      profile_taper: 0,
+      profile_twist: 0,
     });
   };
 
@@ -798,9 +799,9 @@ export default function SettingsPanel({
                   Modelo paramétrico: el cuerpo, las conexiones y las patas responden a las medidas.
                 </span>
               </div>
-              {hasExactBase && (
+              {settings.profile_id && (
                 <button type="button" className="secondary-button wide" onClick={() => patch({ family: "profile" })}>
-                  <SlidersHorizontal size={15} /> Ver base fiel
+                  <SlidersHorizontal size={15} /> Volver al perfil paramétrico
                 </button>
               )}
             </Section>
@@ -1129,10 +1130,10 @@ export default function SettingsPanel({
 
         {settings.family === "profile" && (
           <Section
-            title="Base derivada"
-            hint="Contorno loft con canales reales"
+            title="Base paramétrica"
+            hint="Secciones 2D de control, sin malla 3D"
             icon={<Shapes size={17} />}
-            badge="<= 1 %"
+            badge="Loft 2D"
           >
             <SelectField
               label="Perfil de referencia"
@@ -1148,7 +1149,7 @@ export default function SettingsPanel({
                 <span className="note-dot" />
                 <span>
                   Envolvente de referencia: <strong>{currentProfile.target ? `${currentProfile.target.width} \u00d7 ${currentProfile.target.height} \u00d7 ${currentProfile.target.depth} mm` : "medida local"}</strong>.
-                  A escala 1:1 conserva los canales, patas, clavijas y chaflanes de la base.
+                  El modelo se genera con secciones 2D de control; no se carga ninguna malla 3D.
                 </span>
               </div>
             ) : (
@@ -1184,13 +1185,30 @@ export default function SettingsPanel({
                 step={0.01}
                 suffix="x"
               />
+              <NumberField
+                label="Conicidad"
+                value={settings.profile_taper}
+                onChange={(value) => patch({ profile_taper: value })}
+                min={-0.5}
+                max={0.5}
+                step={0.01}
+                suffix="x"
+              />
+              <NumberField
+                label="Torsión"
+                value={settings.profile_twist}
+                onChange={(value) => patch({ profile_twist: value })}
+                min={-1}
+                max={1}
+                step={0.01}
+                suffix="×"
+              />
             </div>
             <div className="inline-note">
               <span className="note-dot" />
               <span>
-                Las tres escalas son independientes: sirven para tamanos intermedios y variantes nuevas sin
-                reconstruir la topologia. Para el encaje exacto de la reja de 30{"\u00d7"}30 cm usa escala 1:1; al
-                escalar, revisa el canal antes de imprimir.
+                Las escalas, la conicidad y la torsión deforman las secciones de control sin cambiar su topología.
+                Para el encaje de la reja de 30{"\u00d7"}30 cm usa escala 1:1; al deformar, revisa el canal antes de imprimir.
               </span>
             </div>
             <ColorField

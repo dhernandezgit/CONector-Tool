@@ -1,9 +1,9 @@
 """Extract compact derived contour profiles from the private reference STLs.
 
 This script is a local authoring tool.  It reads the purchased/reference STL
-bundles, writes only a small JSON table of resampled cross-sections, and never
-copies an STL into the repository.  The generated JSON is what the runtime
-loft engine consumes.
+bundles, writes only a JSON table of resampled 2D control sections, and never
+copies an STL into the repository.  The generated JSON is what the runtime loft
+engine consumes; no 3D mesh is stored in the repository or served to the app.
 
 Usage (from the repository root):
     python scripts/extract_connector_profiles.py \
@@ -22,8 +22,6 @@ from pathlib import Path
 
 import numpy as np
 import trimesh
-from scipy.spatial import cKDTree
-from shapely.geometry import Polygon
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -203,11 +201,11 @@ def _profile_mesh(profile: dict):
     return build_profile_mesh(profile)
 
 
-def _chamfer_pct(reference: trimesh.Trimesh, generated: trimesh.Trimesh, samples: int = 12000) -> tuple[float, float, float]:
+def _chamfer_pct(reference: trimesh.Trimesh, generated: trimesh.Trimesh, samples: int = 8000) -> tuple[float, float, float]:
     reference_points = np.asarray(reference.sample(samples), dtype=float)
     generated_points = np.asarray(generated.sample(samples), dtype=float)
-    forward = cKDTree(generated_points).query(reference_points)[0]
-    backward = cKDTree(reference_points).query(generated_points)[0]
+    forward = trimesh.proximity.closest_point(generated, reference_points)[1]
+    backward = trimesh.proximity.closest_point(reference, generated_points)[1]
     diagonal = float(np.linalg.norm(reference.extents))
     return (
         float(forward.mean()),
@@ -243,11 +241,16 @@ def main() -> int:
             failures.append(f"{preset_id}: missing {filename}")
             continue
         reference = trimesh.load(path, force="mesh", process=True)
+        lower, upper = reference.bounds
+        target_center = [float((lower[i] + upper[i]) / 2.0) for i in range(3)]
+        target_extents = [float(upper[i] - lower[i]) for i in range(3)]
         candidates = []
         for axis in (0, 1, 2):
             profile = _section_profile(reference, axis, args.slices, args.points, args.margin)
             if profile is None:
                 continue
+            profile["target_center"] = target_center
+            profile["target_extents"] = target_extents
             generated = _profile_mesh(profile)
             if generated is None or not len(generated.faces):
                 continue
@@ -260,7 +263,10 @@ def main() -> int:
             candidate = {
                 **profile,
                 "reference_file": filename,
+                "slices": args.slices,
+                "points": args.points,
                 "error_pct": round(error_pct, 4),
+                "surface_error_pct": round(error_pct, 4),
                 "chamfer_mm": [round(forward, 4), round(backward, 4)],
                 "watertight": bool(is_shell_watertight(generated)),
             }
@@ -268,27 +274,24 @@ def main() -> int:
         if not candidates:
             failures.append(f"{preset_id}: no valid section profile")
             continue
-        # Prefer a section family with no internal holes: that keeps closed
-        # wire/screw channels open and avoids filling them with the loft.  A
-        # section can briefly split into several islands near a rounded end;
-        # the largest island still describes the outer shell, so that is not a
-        # disqualifier.
-        clean = [item for item in candidates if int(item.get("max_holes", 0)) == 0]
-        pool = clean or candidates
-        best = min(pool, key=lambda item: (int(item.get("max_holes", 0)), float(item["error_pct"])))
-        if float(best["error_pct"]) >= 1.0:
-            failures.append(f"{preset_id}: best error is {best['error_pct']}%")
+        # Pick the axis with the lowest measured surface error.  The largest
+        # island from each slice is the outer shell; separate tiny slivers at
+        # the tangent caps would only add noise.
+        best = min(candidates, key=lambda item: float(item["surface_error_pct"]))
+        if float(best["surface_error_pct"]) >= 0.5:
+            failures.append(f"{preset_id}: best error is {best['surface_error_pct']}%")
         profiles[preset_id] = best
         print(
             f"{preset_id:26s} axis={'XYZ'[best['axis']]} holes={best.get('max_holes', 0)} "
-            f"parts={best.get('max_polygons', 1)} error={best['error_pct']:.3f}% watertight={best['watertight']}"
+            f"parts={best.get('max_polygons', 1)} error={best['surface_error_pct']:.3f}% "
+            f"watertight={best['watertight']}"
         )
 
     payload = {
         "version": 1,
         "description": (
-            "Derived outer-contour loft profiles for the parametric connector presets. "
-            "No reference STL is included. The sections are the editable base geometry."
+            "Derived 2D section control curves for the parametric connector presets. "
+            "No 3D mesh or reference STL is included. The sections are the editable base geometry."
         ),
         "slices": args.slices,
         "points": args.points,

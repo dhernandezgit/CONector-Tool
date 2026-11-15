@@ -12,31 +12,29 @@ CONector Tool es ahora un sandbox local-first para componer un puesto con panele
 
 ## Estudio de conectores
 
-La pestaña **Conectores** incluye los 43 presets del Edge Connector Bundle y del Connector Bundle como **modelos paramétricos editables**. Cada preset arranca en el editor paramétrico: cuerpo, cortes C, conexiones, canales, patas y clavija se generan desde sus medidas. No se carga una malla 3D predefinida en el modelo por defecto.
+La pestaña **Conectores** incluye los 43 presets del Edge Connector Bundle y del Connector Bundle como **bases paramétricas de secciones 2D**. Cada preset arranca con su perfil de secciones de control, y el motor Python genera la pieza mediante loft. **No se carga ninguna malla 3D** ni en el modelo por defecto ni en el zip publicado.
 
-- **Editor paramétrico**:
-  - Cuerpo con forma (redondo, elipse, hexágono, octágono, orgánico, gota), ancho, fondo, alto, redondeo y suavidad de uniones.
-  - Conexiones que se pueden **añadir, quitar y mover angularmente**. Cada puerto tiene ángulo, nivel (arriba/abajo/centrado), alcance y ancho de brazo.
-  - **Agarre interior** ajustable: ancho de cavidad, juego, pared, boca, abrazo, altura del canal, número de líneas interiores y profundidad de las líneas. Las líneas son resaltes en la pared de la cavidad: más profundidad o más líneas = más retención.
-  - **Patas** con altura sobre la mesa, inclinación, alcance, pie, suela, grosor, ancho y orientación.
-  - Clavija central y color del cuerpo.
-- **Base fiel opcional**: para comparar o validar se puede abrir la superficie derivada de referencia, con error medido **0,00000 %** (objetivo <0,1 %). No es el modo por defecto; el editor paramétrico es el que genera las piezas normales.
+- **Perfil paramétrico**:
+  - Secciones 2D de control por preset. Cada sección es una curva cerrada; el loft las conecta y cierra las tapas para producir una malla estanca.
+  - **Escala X/Y/Z** independiente, **conicidad** y **torsión** de las secciones. Son deformaciones paramétricas: no cambian el número de secciones, canales ni la topología.
+  - La envolvente se normaliza a la medida de referencia, de modo que los 43 presets reproducen su ancho, fondo y alto medidos.
+- **Gramática C opcional**: para rediseñar desde cero, el botón **Editar cuerpo, puertos y patas** cambia al generador de cuerpo + cortes C. Allí se pueden añadir, quitar y mover conexiones, ajustar cavidad, boca, pared, abrazo, líneas de agarre y patas.
 - **Preparado para imprimir**: el modo **Auto 45°** prueba poses verticales e inclinadas, elige la de menor voladizo que cabe en la cama y orienta el STL/3MF antes de exportar.
 - **Usar en el puesto** guarda el conector con su envolvente y su número real de conexiones. La lista de materiales de Artist Alley muestra las dimensiones del conector personalizado.
 - **Exportar** STL por pieza, 3MF o proyecto JSON. Todo se calcula en local.
 
-Los presets y las bases fieles se generan con el motor Python. La tabla `conectors/exact_meshes.npz` contiene la superficie derivada compacta (vértices float32 e índices), no un STL; se usa solo como referencia opcional. Los scripts locales permiten regenerar y verificar la base fiel contra los STL privados; los STL de los bundles no están en el repositorio ni en el zip publicado.
+Las secciones se derivan de los contornos de las piezas de referencia; los STL comprados no están en el repositorio ni en el zip publicado. La tabla `conectors/profiles.json` contiene únicamente curvas 2D de control. Los scripts locales permiten regenerar y verificar la tabla contra los STL privados:
 
 ```bash
-python scripts/extract_exact_meshes.py \
+python scripts/extract_connector_profiles.py \
   --edge-dir "ruta/al/Edge Connector Bundle/STLs" \
   --connector-dir "ruta/al/Connector Bundle/STLs"
-python scripts/verify_exact_meshes.py \
+python scripts/verify_reference_profiles.py \
   --edge-dir "ruta/al/Edge Connector Bundle/STLs" \
   --connector-dir "ruta/al/Connector Bundle/STLs"
 ```
 
-Los scripts de extracci?n y verificaci?n requieren `trimesh` y `scipy` en local; no forman parte del motor que se ejecuta en el navegador.
+Los scripts de extracción y verificación requieren `trimesh` y `scipy` en local; no forman parte del motor que se ejecuta en el navegador. La verificación mide distancia punto-superficie simétrica y la envolvente de cada una de las 43 piezas. El informe local de la última pasada está en [`docs/profile-verification.md`](docs/profile-verification.md): 43/43 estancas, envolvente exacta y peor error de superficie **0,420 %** (pieza `angled45-l`).
 
 ## Qué incluye
 
@@ -111,8 +109,8 @@ Los scripts de extracci?n y verificaci?n requieren `trimesh` y `scipy` en local;
 
 - **No se incluyen los STL del Artist Alley STL Pack.** El pack original se compra aparte y es de uso personal.
 - No se cargan, sirven, publican ni redistribuyen los archivos comprados.
-- El **estudio de conectores** usa una superficie derivada compacta para la base fiel y un motor paramétrico para las modificaciones. No se cargan ni redistribuyen los STL comprados.
-- Las geometr?as del sandbox son **representaciones originales y simplificadas**. Las bases del estudio se reconstruyen por loft a partir de sus contornos; no se incluye ning?n STL del pack.
+- El **estudio de conectores** usa secciones 2D de control y un loft paramétrico; no contiene ni carga mallas 3D de referencia. No se cargan ni redistribuyen los STL comprados.
+- Las geometr?as del sandbox son **representaciones originales y simplificadas**. Las bases del estudio se reconstruyen por loft a partir de sus contornos 2D; no se incluye ning?n STL del pack.
 
 ## Crédito
 

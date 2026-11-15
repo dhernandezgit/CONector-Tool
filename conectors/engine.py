@@ -41,7 +41,6 @@ from .shapes import custom_polygon, decor_details, decor_polygon
 from .shape import Shape, analyze_bytes
 from .profiles import profile_mesh
 from .freeform import parametric_mesh
-from .exact import exact_mesh
 from .spool import spool_mesh
 from .template import template_meshes
 
@@ -65,6 +64,8 @@ DEFAULTS: dict[str, Any] = {
     "profile_scale_x": 1.0,
     "profile_scale_y": 1.0,
     "profile_scale_z": 1.0,
+    "profile_taper": 0.0,
+    "profile_twist": 0.0,
     "parametric_customized": False,
     "ports": [],
     "body_width": 0.0,
@@ -804,18 +805,16 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
 
     if family == "profile":
         profile_id = str(settings.get("profile_id") or "")
-        body = exact_mesh(profile_id, settings)
-        if not len(body.faces):
-            body = profile_mesh(settings)
+        body = profile_mesh(settings)
         if not len(body.faces):
             raise ValueError(
-                "No se encontr\u00f3 el perfil derivado. Elige una base de la biblioteca "
+                "No se encontr\u00f3 el perfil param\u00e9trico. Elige una base de la biblioteca "
                 "o vuelve a una familia param\u00e9trica."
             )
         meshes.append(("Cuerpo de perfil", body, body_color))
         details.append(
-            f"Perfil '{profile_id}' cargado desde la superficie derivada fiel. "
-            "Las escalas X/Y/Z permiten configuraciones intermedias sin perder los canales."
+            f"Perfil '{profile_id}' generado por secciones param\u00e9tricas derivadas. "
+            "Las escalas X/Y/Z y el ajuste de forma permiten configuraciones intermedias sin perder los canales."
         )
         details.append(
             "La orientaci\u00f3n de impresi\u00f3n autom\u00e1tica prueba inclinaciones de 45\u00b0 "

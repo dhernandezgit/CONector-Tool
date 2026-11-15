@@ -13,16 +13,15 @@ describe("parametric connector presets", () => {
       const settings = presetSettings(preset);
       expect(["parametric", "profile"]).toContain(settings.family);
       expect(settings.profile_id).toBeTruthy();
-      if (settings.family === "parametric" && preset.group !== "Nodos planos") {
-        expect(settings.ports.length).toBeGreaterThan(0);
-      }
       expect(settings.profile_scale_x).toBe(1);
       expect(settings.profile_scale_y).toBe(1);
       expect(settings.profile_scale_z).toBe(1);
+      expect(settings.profile_taper).toBe(0);
+      expect(settings.profile_twist).toBe(0);
       expect(settings.print.orientation).toBe("auto45");
     }
     expect(CONNECTOR_PROFILE_OPTIONS).toHaveLength(CONNECTOR_PRESETS.length);
-    expect(CONNECTOR_PRESETS.filter((preset) => presetSettings(preset).family === "parametric")).toHaveLength(42);
+    expect(CONNECTOR_PRESETS.filter((preset) => presetSettings(preset).family === "profile")).toHaveLength(43);
   });
 
   it("groups the library by type and by connection count", () => {

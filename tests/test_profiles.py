@@ -8,13 +8,18 @@ def test_all_derived_profiles_are_within_tolerance_and_watertight():
     assert len(profiles) == 43
     failures = []
     for profile_id, profile in profiles.items():
-        if float(profile["error_pct"]) >= 1.0:
-            failures.append(f"{profile_id}: error {profile['error_pct']}%")
+        if float(profile.get("surface_error_pct", profile.get("error_pct", 100))) >= 0.5:
+            failures.append(f"{profile_id}: error {profile.get('surface_error_pct')}%")
         mesh = build_profile_mesh(profile)
         if not len(mesh.faces) or not is_shell_watertight(mesh):
             failures.append(f"{profile_id}: non-watertight")
         if any(value <= 0 for value in mesh.extents):
             failures.append(f"{profile_id}: empty extents")
+        target = profile.get("target_extents")
+        if target:
+            for axis in range(3):
+                if abs(float(mesh.extents[axis]) - float(target[axis])) > 0.08:
+                    failures.append(f"{profile_id}: axis {axis} envelope drifted")
     assert not failures, failures
 
 
@@ -26,3 +31,12 @@ def test_profile_scales_are_parametric_and_stay_watertight():
     assert scaled.extents[0] > base.extents[0]
     assert scaled.extents[2] > base.extents[2]
     assert is_shell_watertight(scaled)
+
+
+def test_profile_taper_and_twist_are_parametric_and_watertight():
+    data = load_profiles()
+    profile = data["profiles"]["connector"]
+    base = build_profile_mesh(profile)
+    deformed = build_profile_mesh(profile, taper=0.25, twist=0.4)
+    assert deformed.extents[0] != base.extents[0] or deformed.extents[1] != base.extents[1]
+    assert is_shell_watertight(deformed)

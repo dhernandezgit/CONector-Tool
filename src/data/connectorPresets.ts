@@ -183,10 +183,10 @@ const RAW_CONNECTOR_PRESETS: Preset[] = [
 ];
 
 /**
- * Preset ids and their faithful contour ids.  The studio opens each preset in
- * the feature-based parametric editor; the contour is kept as the optional
- * "Fiel" base and reproduces the source envelope within the measured 1 %
- * point-cloud tolerance at 1:1 scale.
+ * Preset ids and their derived 2D section-profile ids.  The studio opens each
+ * preset in the section-loft editor; the base is built from 2D control curves
+ * and normalized to the measured reference envelope.  The C grammar remains
+ * available when the user wants to redesign the body, ports or legs.
  */
 const PROFILE_ID_BY_PRESET: Record<string, string> = {
   edge1: "edge1",
@@ -286,11 +286,12 @@ export const CONNECTOR_GROUPS = [
 export function presetSettings(preset: Preset): ConnectorSettings {
   const settings = deepMerge(DEFAULT_CONNECTOR, preset.patch);
   if (settings.profile_id && preset.target && preset.id !== "peg-cutout") {
-    // Presets open in the real feature editor.  The derived contour is kept
-    // as the optional faithful base (Fiel), but the default model is built
-    // from body + ports + channels + legs.
-    settings.family = "parametric";
-    settings.parametric_customized = true;
+    // The default base is the derived section loft: a 2D parametric shell,
+    // not a 3D mesh.  The body/port fields are still prepared so the user can
+    // switch to the feature grammar if they want to redesign the body instead
+    // of only deforming the base sections.
+    settings.family = "profile";
+    settings.parametric_customized = false;
     const group = preset.group || "";
     const isLeg = group.startsWith("Patas");
     const isEdge = group.startsWith("Edge");

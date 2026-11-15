@@ -1,11 +1,11 @@
-"""Derived profile loft engine.
+"""Parametric section-loft engine.
 
 The reference connector bundles are proprietary STL files and are never
-committed or shipped.  This module consumes a compact, derived description of
-their outer contours: a handful of resampled cross-sections per connector.
-Those sections are enough to rebuild the printable outer shell within the 1 %
-point-cloud tolerance while keeping the result fully parametric through the
-three world-axis scale controls.
+committed or shipped.  This module consumes a compact table of derived 2D
+section curves: a set of cross-sections per connector.  The runtime builds a
+watertight shell by lofting those curves.  It deliberately never loads a 3D
+mesh: the stored data are 2D control rings, and scale, taper and twist are the
+editable parameters.
 """
 
 from __future__ import annotations
@@ -59,18 +59,33 @@ def _world_scale(scale_x: Any, scale_y: Any, scale_z: Any) -> np.ndarray:
     )
 
 
+def _clamp_signed(value: Any, default: float = 0.0) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(-1.0, min(1.0, number))
+
+
 def build_profile_mesh(
     profile: dict[str, Any] | None,
     scale_x: Any = 1.0,
     scale_y: Any = 1.0,
     scale_z: Any = 1.0,
+    taper: Any = 0.0,
+    twist: Any = 0.0,
 ) -> Mesh:
-    """Loft the stored cross-sections into a watertight printable shell.
+    """Loft the stored 2D control sections into a watertight shell.
 
     Each section is a single closed outer contour.  Reference sections were
     aligned before being stored, so the runtime path is deterministic and only
     has to connect corresponding points.  The end sections are capped with the
     same ring vertices, which keeps the shell watertight.
+
+    ``taper`` scales the cross-section from the negative end (-) to the
+    positive end (+) of the loft axis.  ``twist`` rotates it by up to +/-45
+    degrees over that span.  Both are ordinary shape parameters and do not
+    change the section count or channel topology.
     """
     if not profile:
         return empty_mesh()
@@ -90,17 +105,56 @@ def build_profile_mesh(
     if rings.shape[1] < 3 or rings.shape[2] != 2:
         return empty_mesh()
 
-    # Scale around the reference envelope centre, not the world origin.  That
-    # makes the controls usable for intermediate sizes without drifting.
-    centers = np.zeros(3, dtype=float)
-    centers[u_axis] = (float(np.min(rings[:, :, 0])) + float(np.max(rings[:, :, 0]))) / 2.0
-    centers[v_axis] = (float(np.min(rings[:, :, 1])) + float(np.max(rings[:, :, 1]))) / 2.0
-    centers[axis] = (float(np.min(positions)) + float(np.max(positions))) / 2.0
-    scale = _world_scale(scale_x, scale_y, scale_z)
+    # The first extraction pass can lose a fraction of a millimetre at the
+    # tangent caps.  Normalise the generated base to the measured reference
+    # envelope, then apply the user scales around that envelope centre.  This
+    # keeps every preset at its exact reference width/depth/height while the
+    # section curves remain the editable source.
+    raw_centers = np.zeros(3, dtype=float)
+    raw_centers[u_axis] = (float(np.min(rings[:, :, 0])) + float(np.max(rings[:, :, 0]))) / 2.0
+    raw_centers[v_axis] = (float(np.min(rings[:, :, 1])) + float(np.max(rings[:, :, 1]))) / 2.0
+    raw_centers[axis] = (float(np.min(positions)) + float(np.max(positions))) / 2.0
+    raw_extents = np.ones(3, dtype=float)
+    raw_extents[u_axis] = max(1e-6, float(np.max(rings[:, :, 0]) - np.min(rings[:, :, 0])))
+    raw_extents[v_axis] = max(1e-6, float(np.max(rings[:, :, 1]) - np.min(rings[:, :, 1])))
+    raw_extents[axis] = max(1e-6, float(np.max(positions) - np.min(positions)))
 
-    u = centers[u_axis] + (rings[:, :, 0] - centers[u_axis]) * scale[u_axis]
-    v = centers[v_axis] + (rings[:, :, 1] - centers[v_axis]) * scale[v_axis]
-    along = centers[axis] + (positions - centers[axis]) * scale[axis]
+    target_center = np.asarray(profile.get("target_center") or raw_centers, dtype=float)
+    target_extents = np.asarray(profile.get("target_extents") or raw_extents, dtype=float)
+    if target_center.shape != (3,) or target_extents.shape != (3,):
+        target_center, target_extents = raw_centers, raw_extents
+    if np.any(target_extents <= 1e-6):
+        target_extents = raw_extents
+
+    centers = target_center
+    scale = _world_scale(scale_x, scale_y, scale_z)
+    envelope_factors = np.ones(3, dtype=float)
+    envelope_factors[u_axis] = target_extents[u_axis] / raw_extents[u_axis]
+    envelope_factors[v_axis] = target_extents[v_axis] / raw_extents[v_axis]
+    envelope_factors[axis] = target_extents[axis] / raw_extents[axis]
+
+    u = centers[u_axis] + (rings[:, :, 0] - raw_centers[u_axis]) * envelope_factors[u_axis] * scale[u_axis]
+    v = centers[v_axis] + (rings[:, :, 1] - raw_centers[v_axis]) * envelope_factors[v_axis] * scale[v_axis]
+    along = centers[axis] + (positions - raw_centers[axis]) * envelope_factors[axis] * scale[axis]
+
+    # Taper and twist are applied per section around the same envelope
+    # centre.  They are intentionally 2D deformations: the rings keep their
+    # point count and the loft stays watertight.
+    taper_value = _clamp_signed(taper)
+    twist_value = _clamp_signed(twist) * 45.0
+    positions_span = float(np.max(positions) - np.min(positions))
+    for layer in range(rings.shape[0]):
+        if positions_span <= 1e-9:
+            fraction = 0.5
+        else:
+            fraction = float((positions[layer] - np.min(positions)) / positions_span)
+        factor = max(0.25, min(3.0, 1.0 + taper_value * (fraction * 2.0 - 1.0)))
+        x = (u[layer] - centers[u_axis]) * factor
+        y = (v[layer] - centers[v_axis]) * factor
+        angle = np.deg2rad(twist_value * (fraction * 2.0 - 1.0))
+        c, s = float(np.cos(angle)), float(np.sin(angle))
+        u[layer] = centers[u_axis] + x * c - y * s
+        v[layer] = centers[v_axis] + x * s + y * c
 
     layers, points = rings.shape[:2]
     vertices = np.zeros((layers * points, 3), dtype=float)
@@ -153,4 +207,6 @@ def profile_mesh(settings: dict[str, Any]) -> Mesh:
         settings.get("profile_scale_x", 1.0),
         settings.get("profile_scale_y", 1.0),
         settings.get("profile_scale_z", 1.0),
+        settings.get("profile_taper", 0.0),
+        settings.get("profile_twist", 0.0),
     )
