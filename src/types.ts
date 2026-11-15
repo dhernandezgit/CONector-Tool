@@ -36,6 +36,8 @@ export interface ConnectorSettings {
   profile_scale_x: number;
   profile_scale_y: number;
   profile_scale_z: number;
+  /** False uses the faithful derived surface; true uses the feature generator. */
+  parametric_customized: boolean;
   /** Feature-based connector: list of radial connections. */
   ports: ConnectorPort[];
   body_width: number;

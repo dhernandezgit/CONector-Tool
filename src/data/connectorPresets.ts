@@ -290,6 +290,7 @@ export function presetSettings(preset: Preset): ConnectorSettings {
     // as the optional faithful base (Fiel), but the default model is built
     // from body + ports + channels + legs.
     settings.family = "parametric";
+    settings.parametric_customized = false;
     const isLeg = Boolean(preset.group?.startsWith("Patas"));
     if (preset.target) {
       if (!isLeg) {

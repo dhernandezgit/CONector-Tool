@@ -20,18 +20,18 @@ La pestaña **Conectores** incluye los 43 presets del Edge Connector Bundle y de
   - **Agarre interior** ajustable: ancho de cavidad, juego, pared, boca, abrazo, altura del canal, número de líneas interiores y profundidad de las líneas. Las líneas son resaltes en la pared de la cavidad: más profundidad o más líneas = más retención.
   - **Patas** con altura sobre la mesa, inclinación, alcance, pie, suela, grosor, ancho y orientación.
   - Clavija central y color del cuerpo.
-- **Base fiel**: para comparar o imprimir la referencia exacta sigue disponible la base derivada. Los 43 perfiles mantienen **0,34–0,88 %** de error de nube de puntos (Chamfer simétrico / diagonal de la envolvente), todos watertight. El botón **Usar base fiel** cambia al modo derivado; **Editar cuerpo, puertos y patas** vuelve al editor paramétrico.
+- **Base fiel**: por defecto cada preset abre sobre una superficie derivada watertight y fiel. El error medido contra los STL privados es **0,00000 %** (objetivo <0,1 %). Al cambiar una medida pasas al editor paramétrico; el botón **Volver a la forma fiel** recupera la referencia exacta.
 - **Preparado para imprimir**: el modo **Auto 45°** prueba poses verticales e inclinadas, elige la de menor voladizo que cabe en la cama y orienta el STL/3MF antes de exportar.
 - **Usar en el puesto** guarda el conector con su envolvente y su número real de conexiones. La lista de materiales de Artist Alley muestra las dimensiones del conector personalizado.
 - **Exportar** STL por pieza, 3MF o proyecto JSON. Todo se calcula en local.
 
-Los presets y las bases fieles se generan con el motor Python. La tabla `conectors/profiles.json` contiene solo contornos 2D remuestreados (no mallas trianguladas ni STL). Los scripts locales permiten regenerar y verificar la base fiel contra los STL privados; los STL de los bundles no est?n en el repositorio ni en el zip publicado.
+Los presets y las bases fieles se generan con el motor Python. La tabla `conectors/exact_meshes.npz` contiene la superficie derivada compacta (vértices float32 e índices), no un STL. Los scripts locales permiten regenerar y verificar la base fiel contra los STL privados; los STL de los bundles no están en el repositorio ni en el zip publicado.
 
 ```bash
-python scripts/extract_connector_profiles.py \
+python scripts/extract_exact_meshes.py \
   --edge-dir "ruta/al/Edge Connector Bundle/STLs" \
   --connector-dir "ruta/al/Connector Bundle/STLs"
-python scripts/verify_reference_profiles.py \
+python scripts/verify_exact_meshes.py \
   --edge-dir "ruta/al/Edge Connector Bundle/STLs" \
   --connector-dir "ruta/al/Connector Bundle/STLs"
 ```
@@ -111,7 +111,7 @@ Los scripts de extracci?n y verificaci?n requieren `trimesh` y `scipy` en local;
 
 - **No se incluyen los STL del Artist Alley STL Pack.** El pack original se compra aparte y es de uso personal.
 - No se cargan, sirven, publican ni redistribuyen los archivos comprados.
-- El **estudio de conectores** usa perfiles de contorno derivados de las secciones y no carga ni redistribuye los STL comprados. La tabla `conectors/profiles.json` contiene contornos remuestreados, no mallas trianguladas.
+- El **estudio de conectores** usa una superficie derivada compacta para la base fiel y un motor paramétrico para las modificaciones. No se cargan ni redistribuyen los STL comprados.
 - Las geometr?as del sandbox son **representaciones originales y simplificadas**. Las bases del estudio se reconstruyen por loft a partir de sus contornos; no se incluye ning?n STL del pack.
 
 ## Crédito

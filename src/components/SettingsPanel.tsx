@@ -51,6 +51,14 @@ import {
   Toggle,
 } from "./UI";
 
+const PARAMETRIC_GEOMETRY_KEYS = new Set([
+  "body_shape", "body_width", "body_depth", "body_height", "body_chamfer", "smoothness",
+  "template_mirror", "ports", "wire_diameter", "channel_width", "clearance", "grip_wall",
+  "mouth_width", "wrap_degrees", "port_height", "grip_lines", "grip_depth", "leg",
+  "leg_length", "leg_azimuth", "leg_width", "leg_thickness", "special", "arm_width",
+  "edge_length", "edge_width", "edge_spacing", "edge_foot", "angle", "tilt",
+]);
+
 const FAMILIES: { value: Family; label: string; detail: string }[] = [
   { value: "parametric", label: "Param\u00e9trico", detail: "Cuerpo, puertos y patas" },
   { value: "profile", label: "Fiel", detail: "Base derivada \u22641 %" },
@@ -134,8 +142,16 @@ export default function SettingsPanel({
   const [importError, setImportError] = useState("");
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const patch = (part: DeepPartial<ConnectorSettings>) => onChange(deepMerge(settings, part));
+  const patch = (part: DeepPartial<ConnectorSettings>) => {
+    const touchesGeometry =
+      settings.family === "parametric" &&
+      !("parametric_customized" in part) &&
+      Object.keys(part).some((key) => PARAMETRIC_GEOMETRY_KEYS.has(key));
+    const effective = touchesGeometry ? { ...part, parametric_customized: true } : part;
+    onChange(deepMerge(settings, effective));
+  };
   const genericVisible = settings.family !== "profile" && settings.family !== "parametric";
+  const hasExactBase = Boolean(settings.profile_id);
   const currentProfile = CONNECTOR_PROFILE_OPTIONS.find((option) => option.value === settings.profile_id);
   const selectProfile = (value: string) => {
     const option = CONNECTOR_PROFILE_OPTIONS.find((item) => item.value === value);
@@ -180,6 +196,7 @@ export default function SettingsPanel({
   const useParametric = () => {
     patch({
       family: "parametric",
+      parametric_customized: settings.parametric_customized,
       ports: settings.ports.length ? editablePorts(settings) : derivedPorts(settings),
       body_width: settings.body_width || settings.body_size,
       body_depth: settings.body_depth || settings.body_size,
@@ -699,7 +716,7 @@ export default function SettingsPanel({
               title="Cuerpo paramétrico"
               hint="Forma, tamaño y suavidad"
               icon={<Shapes size={17} />}
-              badge="Editor"
+              badge={hasExactBase && !settings.parametric_customized ? "Fiel <0,1 %" : "Personalizado"}
             >
               <SelectField
                 label="Forma del cuerpo"
@@ -777,13 +794,25 @@ export default function SettingsPanel({
               <div className="inline-note">
                 <span className="note-dot" />
                 <span>
-                  Cuerpo, puertos y patas se generan desde estas medidas. La base fiel derivada
-                  queda disponible si quieres comparar o imprimir la referencia original.
+                  {hasExactBase && !settings.parametric_customized
+                    ? "Base fiel activa (error <0,1 %). En cuanto cambies una medida pasarás al modelo paramétrico."
+                    : "Ajustes paramétricos activos: el cuerpo responde a las medidas, puertos y canales."}
                 </span>
               </div>
-              <button type="button" className="secondary-button wide" onClick={() => patch({ family: "profile" })}>
-                <SlidersHorizontal size={15} /> Usar base fiel (≤1 %)
-              </button>
+              {settings.parametric_customized && (
+                <button
+                  type="button"
+                  className="secondary-button wide"
+                  onClick={() => patch({ parametric_customized: false })}
+                >
+                  <SlidersHorizontal size={15} /> Volver a la forma fiel
+                </button>
+              )}
+              {hasExactBase && (
+                <button type="button" className="secondary-button wide" onClick={() => patch({ family: "profile" })}>
+                  <SlidersHorizontal size={15} /> Ver base fiel
+                </button>
+              )}
             </Section>
 
             <Section

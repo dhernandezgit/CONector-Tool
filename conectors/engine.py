@@ -41,6 +41,7 @@ from .shapes import custom_polygon, decor_details, decor_polygon
 from .shape import Shape, analyze_bytes
 from .profiles import profile_mesh
 from .freeform import parametric_mesh
+from .exact import exact_mesh
 from .spool import spool_mesh
 from .template import template_meshes
 
@@ -64,6 +65,7 @@ DEFAULTS: dict[str, Any] = {
     "profile_scale_x": 1.0,
     "profile_scale_y": 1.0,
     "profile_scale_z": 1.0,
+    "parametric_customized": False,
     "ports": [],
     "body_width": 0.0,
     "body_depth": 0.0,
@@ -778,17 +780,28 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
     decor_enabled = _bool(decor.get("enabled"), False)
 
     if family == "parametric":
-        body = parametric_mesh(settings)
+        profile_id = str(settings.get("profile_id") or "")
+        customized = _bool(settings.get("parametric_customized"), False)
+        if profile_id and not customized:
+            body = exact_mesh(profile_id, settings)
+        else:
+            body = parametric_mesh(settings)
         if not len(body.faces):
             raise ValueError(
                 "No se pudo generar el conector param\u00e9trico. Revisa el cuerpo, "
                 "las conexiones y las patas."
             )
         meshes.append(("Cuerpo param\u00e9trico", body, body_color))
-        details.append(
-            "Conector generado desde cuerpo, conexiones, canales y patas editables. "
-            "Ajusta \u00e1ngulos, alturas, anchos y l\u00edneas de agarre sin cambiar de base."
-        )
+        if profile_id and not customized:
+            details.append(
+                "Base fiel activa (error <0,1 %). Cambia cualquier medida para pasar al "
+                "modelo param\u00e9trico; las conexiones y patas ya est\u00e1n preparadas para editarse."
+            )
+        else:
+            details.append(
+                "Conector generado desde cuerpo, conexiones, canales y patas editables. "
+                "Ajusta \u00e1ngulos, alturas, anchos y l\u00edneas de agarre sin cambiar de base."
+            )
         split = settings.get("split", {})
         if _bool(split.get("enabled"), False):
             split_parts = _split_with_pads(body, settings)
@@ -802,7 +815,9 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
 
     if family == "profile":
         profile_id = str(settings.get("profile_id") or "")
-        body = profile_mesh(settings)
+        body = exact_mesh(profile_id, settings)
+        if not len(body.faces):
+            body = profile_mesh(settings)
         if not len(body.faces):
             raise ValueError(
                 "No se encontr\u00f3 el perfil derivado. Elige una base de la biblioteca "
@@ -810,7 +825,7 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
             )
         meshes.append(("Cuerpo de perfil", body, body_color))
         details.append(
-            f"Perfil '{profile_id}' generado por loft de secciones derivadas. "
+            f"Perfil '{profile_id}' cargado desde la superficie derivada fiel. "
             "Las escalas X/Y/Z permiten configuraciones intermedias sin perder los canales."
         )
         details.append(
