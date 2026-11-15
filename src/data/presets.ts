@@ -18,6 +18,8 @@ export const DEFAULT_CONNECTOR: ConnectorSettings = {
   profile_scale_z: 1,
   profile_taper: 0,
   profile_twist: 0,
+  profile_shape: "base",
+  profile_shape_blend: 0,
   parametric_customized: false,
   ports: [],
   body_structure: "clamp",

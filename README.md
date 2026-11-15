@@ -16,7 +16,7 @@ La pestaña **Conectores** incluye los 43 presets del Edge Connector Bundle y de
 
 - **Perfil paramétrico**:
   - Secciones 2D de control por preset. Cada sección es una curva cerrada; el loft las conecta y cierra las tapas para producir una malla estanca.
-  - **Escala X/Y/Z** independiente, **conicidad** y **torsión** de las secciones. Son deformaciones paramétricas: no cambian el número de secciones, canales ni la topología.
+  - **Escala X/Y/Z** independiente, **conicidad**, **torsión** y **forma de sección** (redonda, redondeada, elipse, hexágono, octágono u orgánica). Son deformaciones paramétricas: no cambian el número de secciones, canales ni la topología.
   - La envolvente se normaliza a la medida de referencia, de modo que los 43 presets reproducen su ancho, fondo y alto medidos.
 - **Gramática C opcional**: para rediseñar desde cero, el botón **Editar cuerpo, puertos y patas** cambia al generador de cuerpo + cortes C. Allí se pueden añadir, quitar y mover conexiones, ajustar cavidad, boca, pared, abrazo, líneas de agarre y patas.
 - **Preparado para imprimir**: el modo **Auto 45°** prueba poses verticales e inclinadas, elige la de menor voladizo que cabe en la cama y orienta el STL/3MF antes de exportar.

@@ -163,6 +163,8 @@ export default function SettingsPanel({
       profile_scale_z: 1,
       profile_taper: 0,
       profile_twist: 0,
+      profile_shape: "base",
+      profile_shape_blend: 0,
     });
   };
 
@@ -1202,6 +1204,28 @@ export default function SettingsPanel({
                 max={1}
                 step={0.01}
                 suffix="×"
+              />
+              <SelectField
+                label="Forma de sección"
+                value={settings.profile_shape}
+                options={[
+                  { value: "base", label: "Perfil original" },
+                  { value: "round", label: "Redonda" },
+                  { value: "rounded", label: "Redondeada" },
+                  { value: "ellipse", label: "Elipse" },
+                  { value: "hex", label: "Hexágono" },
+                  { value: "octagon", label: "Octágono" },
+                  { value: "organic", label: "Orgánica" },
+                ]}
+                onChange={(value) => patch({ profile_shape: value })}
+              />
+              <NumberField
+                label="Mezcla de forma"
+                value={settings.profile_shape_blend}
+                onChange={(value) => patch({ profile_shape_blend: value })}
+                min={0}
+                max={1}
+                step={0.01}
               />
             </div>
             <div className="inline-note">

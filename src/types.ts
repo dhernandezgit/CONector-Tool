@@ -42,6 +42,10 @@ export interface ConnectorSettings {
   profile_taper: number;
   /** Cross-section twist from the negative to the positive loft end, -1..1. */
   profile_twist: number;
+  /** Section-shape family for the section loft. */
+  profile_shape: string;
+  /** Blend towards the selected section shape, 0..1. */
+  profile_shape_blend: number;
   /** False uses the section loft; true uses the feature generator. */
   parametric_customized: boolean;
   /** Feature-based connector: list of radial connections. */

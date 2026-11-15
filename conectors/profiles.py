@@ -67,6 +67,23 @@ def _clamp_signed(value: Any, default: float = 0.0) -> float:
     return max(-1.0, min(1.0, number))
 
 
+def _shape_radius(angle: np.ndarray, half_u: float, half_v: float, shape: str) -> np.ndarray:
+    """Radial boundary of a section-shape family at the given angles."""
+    cu = np.maximum(np.abs(np.cos(angle)) / max(half_u, 1e-6), 1e-9)
+    cv = np.maximum(np.abs(np.sin(angle)) / max(half_v, 1e-6), 1e-9)
+    exponent = {
+        "rounded": 4.0,
+        "round": 2.0,
+        "ellipse": 2.0,
+        "hex": 6.0,
+        "octagon": 8.0,
+        "organic": 2.5,
+    }.get(shape, 0.0)
+    if exponent <= 0.0:
+        return np.hypot(1.0 / cu, 1.0 / cv)
+    return (cu**exponent + cv**exponent) ** (-1.0 / exponent)
+
+
 def build_profile_mesh(
     profile: dict[str, Any] | None,
     scale_x: Any = 1.0,
@@ -74,6 +91,8 @@ def build_profile_mesh(
     scale_z: Any = 1.0,
     taper: Any = 0.0,
     twist: Any = 0.0,
+    shape: Any = "base",
+    shape_blend: Any = 0.0,
 ) -> Mesh:
     """Loft the stored 2D control sections into a watertight shell.
 
@@ -156,6 +175,21 @@ def build_profile_mesh(
         u[layer] = centers[u_axis] + x * c - y * s
         v[layer] = centers[v_axis] + x * s + y * c
 
+    shape_name = str(shape or "base").lower()
+    blend = max(0.0, min(1.0, float(shape_blend or 0.0)))
+    if blend > 0.001 and shape_name not in {"", "base", "original"}:
+        for layer in range(rings.shape[0]):
+            dx = u[layer] - centers[u_axis]
+            dy = v[layer] - centers[v_axis]
+            half_u = max(1e-6, float(np.max(np.abs(dx))))
+            half_v = max(1e-6, float(np.max(np.abs(dy))))
+            theta = np.arctan2(dy, dx)
+            radius = np.hypot(dx, dy)
+            target = _shape_radius(theta, half_u, half_v, shape_name)
+            radius = radius + (target - radius) * blend
+            u[layer] = centers[u_axis] + radius * np.cos(theta)
+            v[layer] = centers[v_axis] + radius * np.sin(theta)
+
     layers, points = rings.shape[:2]
     vertices = np.zeros((layers * points, 3), dtype=float)
     vertices[:, u_axis] = u.reshape(-1)
@@ -209,4 +243,6 @@ def profile_mesh(settings: dict[str, Any]) -> Mesh:
         settings.get("profile_scale_z", 1.0),
         settings.get("profile_taper", 0.0),
         settings.get("profile_twist", 0.0),
+        settings.get("profile_shape", "base"),
+        settings.get("profile_shape_blend", 0.0),
     )

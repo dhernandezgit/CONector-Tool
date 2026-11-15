@@ -66,6 +66,8 @@ DEFAULTS: dict[str, Any] = {
     "profile_scale_z": 1.0,
     "profile_taper": 0.0,
     "profile_twist": 0.0,
+    "profile_shape": "base",
+    "profile_shape_blend": 0.0,
     "parametric_customized": False,
     "ports": [],
     "body_width": 0.0,

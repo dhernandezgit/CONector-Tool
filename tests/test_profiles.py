@@ -40,3 +40,11 @@ def test_profile_taper_and_twist_are_parametric_and_watertight():
     deformed = build_profile_mesh(profile, taper=0.25, twist=0.4)
     assert deformed.extents[0] != base.extents[0] or deformed.extents[1] != base.extents[1]
     assert is_shell_watertight(deformed)
+
+
+def test_profile_section_shape_is_parametric_and_watertight():
+    data = load_profiles()
+    profile = data["profiles"]["edge1"]
+    rounded = build_profile_mesh(profile, shape="rounded", shape_blend=0.45)
+    assert len(rounded.faces)
+    assert is_shell_watertight(rounded)
