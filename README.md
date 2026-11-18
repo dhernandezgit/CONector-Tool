@@ -18,6 +18,7 @@ La pestaña **Conectores** incluye los 43 presets del Edge Connector Bundle y de
   - Secciones 2D de control por preset. Cada sección es una curva cerrada; el loft las conecta y cierra las tapas para producir una malla estanca.
   - **Escala X/Y/Z** independiente, **conicidad**, **torsión** y **forma de sección** (redonda, redondeada, elipse, hexágono, octágono u orgánica). Son deformaciones paramétricas: no cambian el número de secciones, canales ni la topología.
   - La envolvente se normaliza a la medida de referencia, de modo que los 43 presets reproducen su ancho, fondo y alto medidos.
+- **Alta fidelidad**: por defecto se usa una malla adaptativa limpia, estanca y simplificada para imprimir. El error medido frente a las referencias es **0,008 % de media** y **0,061 % en el peor caso**; todas las piezas son watertight. No se incluye ningún STL ni la malla original de referencia.
 - **Gramática C opcional**: para rediseñar desde cero, el botón **Editar cuerpo, puertos y patas** cambia al generador de cuerpo + cortes C. Allí se pueden añadir, quitar y mover conexiones, ajustar cavidad, boca, pared, abrazo, líneas de agarre y patas.
 - **Preparado para imprimir**: el modo **Auto 45°** prueba poses verticales e inclinadas, elige la de menor voladizo que cabe en la cama y orienta el STL/3MF antes de exportar.
 - **Usar en el puesto** guarda el conector con su envolvente y su número real de conexiones. La lista de materiales de Artist Alley muestra las dimensiones del conector personalizado.
@@ -34,7 +35,7 @@ python scripts/verify_reference_profiles.py \
   --connector-dir "ruta/al/Connector Bundle/STLs"
 ```
 
-Los scripts de extracción y verificación requieren `trimesh` y `scipy` en local; no forman parte del motor que se ejecuta en el navegador. La verificación mide distancia punto-superficie simétrica y la envolvente de cada una de las 43 piezas. El informe local de la última pasada está en [`docs/profile-verification.md`](docs/profile-verification.md): 43/43 estancas, envolvente exacta y peor error de superficie **0,407 %** (pieza `angled45-l`).
+Los scripts de extracción y verificación requieren `trimesh` y `scipy` en local; no forman parte del motor que se ejecuta en el navegador. La verificación mide distancia punto-superficie simétrica y la envolvente de cada una de las 43 piezas. El informe del loft rápido está en [`docs/profile-verification.md`](docs/profile-verification.md) y el de la malla adaptativa de alta fidelidad en [`docs/adaptive-verification.md`](docs/adaptive-verification.md). La malla adaptativa es la que se usa por defecto: 43/43 estancas y peor error **0,061 %**.
 
 ## Qué incluye
 

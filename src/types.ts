@@ -46,6 +46,8 @@ export interface ConnectorSettings {
   profile_shape: string;
   /** Blend towards the selected section shape, 0..1. */
   profile_shape_blend: number;
+  /** Use the cleaned adaptive mesh instead of the lightweight section loft. */
+  profile_high_fidelity: boolean;
   /** False uses the section loft; true uses the feature generator. */
   parametric_customized: boolean;
   /** Feature-based connector: list of radial connections. */

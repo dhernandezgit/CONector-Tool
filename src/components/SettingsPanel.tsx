@@ -1215,6 +1215,12 @@ export default function SettingsPanel({
                 step={0.01}
               />
             </div>
+            <Toggle
+              label="Alta fidelidad"
+              detail="Usa la malla adaptativa limpia y estanca para imprimir; desactívalo para volver al loft rápido de secciones."
+              checked={settings.profile_high_fidelity}
+              onChange={(checked) => patch({ profile_high_fidelity: checked })}
+            />
             <div className="inline-note">
               <span className="note-dot" />
               <span>
