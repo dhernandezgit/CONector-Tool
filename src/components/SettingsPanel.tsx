@@ -37,7 +37,8 @@ import {
   TEMPLATE_FREE_SIDES,
   TEMPLATE_SIDE_OPTIONS,
 } from "../data/presets";
-import { CONNECTOR_PROFILE_OPTIONS } from "../data/connectorPresets";
+import { CONNECTOR_PRESETS, CONNECTOR_PROFILE_OPTIONS, presetSettings } from "../data/connectorPresets";
+import { nearestProfileForPorts } from "../lib/connectorProfileMatch";
 import { derivedPorts, editablePorts } from "../lib/connectorPorts";
 import { deepMerge } from "../lib/utils";
 import {
@@ -129,6 +130,7 @@ interface Props {
   onOpenHelp: () => void;
 }
 
+
 export default function SettingsPanel({
   settings,
   build,
@@ -169,33 +171,60 @@ export default function SettingsPanel({
   };
 
   const editable = editablePorts(settings);
+  const applyPorts = (next: ConnectorPort[]) => {
+    if (settings.family !== "profile") {
+      patch({ family: "parametric", ports: next });
+      return;
+    }
+    const match = nearestProfileForPorts(next, settings);
+    if (!match) {
+      patch({ ports: next });
+      return;
+    }
+    const matchedSettings = presetSettings(
+      CONNECTOR_PRESETS.find((preset) => preset.patch.profile_id === match.presetId) || CONNECTOR_PRESETS[0],
+    );
+    patch({
+      family: "profile",
+      profile_id: match.presetId,
+      name: match.name,
+      profile_high_fidelity: settings.profile_high_fidelity,
+      profile_scale_x: 1,
+      profile_scale_y: 1,
+      profile_scale_z: 1,
+      profile_taper: 0,
+      profile_twist: 0,
+      profile_shape: "base",
+      profile_shape_blend: 0,
+      ports: match.ports,
+      horizontal_ports: matchedSettings.horizontal_ports,
+      vertical_ports: matchedSettings.vertical_ports,
+    });
+  };
   const updatePort = (index: number, change: Partial<ConnectorPort>) => {
     const next = editable.map((port, portIndex) => (portIndex === index ? { ...port, ...change } : port));
-    patch({ family: "parametric", ports: next });
+    applyPorts(next);
   };
   const addPort = () => {
     const used = new Set(editable.map((port) => Math.round(port.angle)));
     let angle = 0;
     while (used.has(angle) && angle < 360) angle += 45;
     const width = settings.arm_width >= 5 && settings.arm_width <= 45 ? settings.arm_width : Math.max(7, settings.body_size * 0.3);
-    patch({
-      family: "parametric",
-      ports: [
-        ...editable,
-        {
-          id: `port-${Date.now().toString(36)}`,
-          angle: angle % 360,
-          level: "both",
-          length: 0,
-          width,
-          depth: settings.body_depth || settings.body_size,
-          enabled: true,
-        },
-      ],
-    });
+    applyPorts([
+      ...editable,
+      {
+        id: `port-${Date.now().toString(36)}`,
+        angle: angle % 360,
+        level: "both",
+        length: 0,
+        width,
+        depth: settings.body_depth || settings.body_size,
+        enabled: true,
+      },
+    ]);
   };
   const removePort = (index: number) => {
-    patch({ family: "parametric", ports: editable.filter((_, portIndex) => portIndex !== index) });
+    applyPorts(editable.filter((_, portIndex) => portIndex !== index));
   };
   const useParametric = () => {
     patch({
@@ -215,6 +244,11 @@ export default function SettingsPanel({
     const update: DeepPartial<ConnectorSettings> = { [key]: next, joint_preset: "custom" } as DeepPartial<ConnectorSettings>;
     if (kind === "horizontal" && level === "top") update.top_channels = true;
     if (kind === "horizontal" && level === "bottom") update.bottom_channels = true;
+    if (settings.family === "profile") {
+      const nextSettings = deepMerge(settings, update);
+      applyPorts(derivedPorts(nextSettings));
+      return;
+    }
     patch(update);
   };
 
@@ -1228,6 +1262,57 @@ export default function SettingsPanel({
                 Para el encaje de la reja de 30{"\u00d7"}30 cm usa escala 1:1; al deformar, revisa el canal antes de imprimir.
               </span>
             </div>
+            <Section
+              title="Conexiones"
+              hint="Selecciona el modelo de alta fidelidad que corresponde"
+              icon={<Combine size={17} />}
+              badge={`${editable.length} puerto${editable.length === 1 ? "" : "s"}`}
+            >
+              <div className="param-port-list">
+                {editable.map((port, index) => (
+                  <div className="param-port-row" key={port.id}>
+                    <div className="port-row-head">
+                      <strong>Conexión {index + 1}</strong>
+                      <button type="button" className="icon-button danger" onClick={() => removePort(index)} title="Quitar conexión">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                    <div className="field-grid">
+                      <NumberField
+                        label="Ángulo"
+                        value={port.angle}
+                        onChange={(value) => updatePort(index, { angle: value })}
+                        min={-180}
+                        max={360}
+                        step={5}
+                        suffix={"°"}
+                      />
+                      <SelectField
+                        label="Nivel"
+                        value={port.level}
+                        options={[
+                          { value: "both", label: "Arriba y abajo" },
+                          { value: "top", label: "Solo arriba" },
+                          { value: "bottom", label: "Solo abajo" },
+                          { value: "middle", label: "Centrado" },
+                        ]}
+                        onChange={(value) => updatePort(index, { level: value as ConnectorPort["level"] })}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button type="button" className="secondary-button wide" onClick={addPort}>
+                <Plus size={15} /> Añadir conexión
+              </button>
+              <div className="inline-note">
+                <span className="note-dot" />
+                <span>
+                  Al añadir, quitar o mover una conexión se carga el modelo de alta fidelidad más cercano de la
+                  biblioteca; no se salta a la gramática C ni a una forma intermedia.
+                </span>
+              </div>
+            </Section>
             <ColorField
               label="Color del cuerpo"
               value={settings.body_color}
