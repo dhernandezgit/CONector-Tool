@@ -49,3 +49,5 @@ def test_adaptive_shape_deformation_stays_watertight():
     )
     assert len(mesh.faces)
     assert is_shell_watertight(mesh)
+
+

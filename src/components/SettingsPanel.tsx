@@ -37,8 +37,7 @@ import {
   TEMPLATE_FREE_SIDES,
   TEMPLATE_SIDE_OPTIONS,
 } from "../data/presets";
-import { CONNECTOR_PRESETS, CONNECTOR_PROFILE_OPTIONS, presetSettings } from "../data/connectorPresets";
-import { nearestProfileForPorts } from "../lib/connectorProfileMatch";
+import { CONNECTOR_PROFILE_OPTIONS } from "../data/connectorPresets";
 import { derivedPorts, editablePorts } from "../lib/connectorPorts";
 import { deepMerge } from "../lib/utils";
 import {
@@ -172,33 +171,15 @@ export default function SettingsPanel({
 
   const editable = editablePorts(settings);
   const applyPorts = (next: ConnectorPort[]) => {
-    if (settings.family !== "profile") {
-      patch({ family: "parametric", ports: next });
-      return;
-    }
-    const match = nearestProfileForPorts(next, settings);
-    if (!match) {
-      patch({ ports: next });
-      return;
-    }
-    const matchedSettings = presetSettings(
-      CONNECTOR_PRESETS.find((preset) => preset.patch.profile_id === match.presetId) || CONNECTOR_PRESETS[0],
-    );
+    // Keep the arbitrary port values and switch to the generic parametric
+    // body.  This is the only path that can represent angles/levels that do
+    // not exist in the preset library; it is deliberately not a preset snap.
     patch({
-      family: "profile",
-      profile_id: match.presetId,
-      name: match.name,
-      profile_high_fidelity: settings.profile_high_fidelity,
-      profile_scale_x: 1,
-      profile_scale_y: 1,
-      profile_scale_z: 1,
-      profile_taper: 0,
-      profile_twist: 0,
-      profile_shape: "base",
-      profile_shape_blend: 0,
-      ports: match.ports,
-      horizontal_ports: matchedSettings.horizontal_ports,
-      vertical_ports: matchedSettings.vertical_ports,
+      family: "parametric",
+      parametric_customized: true,
+      ports: next,
+      body_width: settings.body_width || settings.body_size,
+      body_depth: settings.body_depth || settings.body_size,
     });
   };
   const updatePort = (index: number, change: Partial<ConnectorPort>) => {
@@ -1264,7 +1245,7 @@ export default function SettingsPanel({
             </div>
             <Section
               title="Conexiones"
-              hint="Selecciona el modelo de alta fidelidad que corresponde"
+              hint="Ángulos, niveles y canales libres sobre el cuerpo paramétrico"
               icon={<Combine size={17} />}
               badge={`${editable.length} puerto${editable.length === 1 ? "" : "s"}`}
             >
@@ -1298,6 +1279,24 @@ export default function SettingsPanel({
                         ]}
                         onChange={(value) => updatePort(index, { level: value as ConnectorPort["level"] })}
                       />
+                      <NumberField
+                        label="Ancho de conexión"
+                        value={port.width}
+                        onChange={(value) => updatePort(index, { width: value })}
+                        min={3}
+                        max={80}
+                        step={0.5}
+                        suffix="mm"
+                      />
+                      <NumberField
+                        label="Profundidad del clamp"
+                        value={port.depth || settings.body_depth || settings.body_size}
+                        onChange={(value) => updatePort(index, { depth: value })}
+                        min={3}
+                        max={140}
+                        step={0.5}
+                        suffix="mm"
+                      />
                     </div>
                   </div>
                 ))}
@@ -1308,8 +1307,8 @@ export default function SettingsPanel({
               <div className="inline-note">
                 <span className="note-dot" />
                 <span>
-                  Al añadir, quitar o mover una conexión se carga el modelo de alta fidelidad más cercano de la
-                  biblioteca; no se salta a la gramática C ni a una forma intermedia.
+                  Cualquier ángulo, nivel, ancho o profundidad se recalcula sobre el cuerpo paramétrico.
+                  No hay saltos a modelos predefinidos ni a la gramática C.
                 </span>
               </div>
             </Section>
