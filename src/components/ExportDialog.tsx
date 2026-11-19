@@ -22,6 +22,7 @@ export default function ExportDialog({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const customCsg = Boolean(settings.profile_custom_ports);
   if (!open) return null;
 
   const downloadPart = (index: number) => {
@@ -103,9 +104,14 @@ export default function ExportDialog({
             </div>
 
             <div className="export-actions">
-              <button type="button" className="primary-button" onClick={export3mf} disabled={!engineReady || busy}>
+              <button type="button" className="primary-button" onClick={export3mf} disabled={!engineReady || busy || customCsg}>
                 <FileArchive size={16} /> {busy ? "Generando 3MF…" : "Descargar 3MF"}
               </button>
+              {customCsg && (
+                <span className="export-note">
+                  Las conexiones CSG personalizadas se exportan en STL; el 3MF usa la base rápida del preset.
+                </span>
+              )}
               <button type="button" className="secondary-button" onClick={onExportProject}>
                 <FileJson size={16} /> Proyecto .conector
               </button>
