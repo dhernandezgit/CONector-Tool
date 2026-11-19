@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BuildResult, ConnectorSettings, ShapeAnalysis } from "../types";
 import { base64ToBlob, bytesToBase64, downloadBlob } from "../lib/utils";
+import { applyCsg } from "../lib/csg";
 
 type Status = "loading" | "ready" | "error";
 
@@ -118,7 +119,7 @@ export function usePythonEngine() {
   const build = useCallback(async (settings: ConnectorSettings): Promise<BuildResult> => {
     const result = await request("build", settings);
     if (!result.ok) throw new Error(result.error || "No se pudo generar la geometría.");
-    return result as BuildResult;
+    return applyCsg(result as BuildResult);
   }, [request]);
 
   const analyzeFile = useCallback(async (file: File, targetMm = 70): Promise<ShapeAnalysis> => {

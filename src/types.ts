@@ -48,6 +48,8 @@ export interface ConnectorSettings {
   profile_shape_blend: number;
   /** Use the cleaned adaptive mesh instead of the lightweight section loft. */
   profile_high_fidelity: boolean;
+  /** Rebuild custom ports through the CSG base/cutter path. */
+  profile_custom_ports: boolean;
   /** False uses the section loft; true uses the feature generator. */
   parametric_customized: boolean;
   /** Feature-based connector: list of radial connections. */
@@ -221,6 +223,10 @@ export interface BuildResult {
   material: string;
   build_ms: number;
   settings: ConnectorSettings;
+  csg?: {
+    base_b64: string;
+    cutters_b64: string[];
+  };
 }
 
 export interface ShapeAnalysis {

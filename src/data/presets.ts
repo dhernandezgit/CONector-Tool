@@ -21,6 +21,7 @@ export const DEFAULT_CONNECTOR: ConnectorSettings = {
   profile_shape: "base",
   profile_shape_blend: 0,
   profile_high_fidelity: true,
+  profile_custom_ports: false,
   parametric_customized: false,
   ports: [],
   body_structure: "clamp",

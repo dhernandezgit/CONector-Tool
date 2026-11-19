@@ -41,6 +41,7 @@ from .shapes import custom_polygon, decor_details, decor_polygon
 from .shape import Shape, analyze_bytes
 from .profiles import profile_mesh
 from .adaptive import adaptive_mesh
+from .csg import base_mesh as csg_base_mesh, cutters as csg_cutters
 from .freeform import parametric_mesh
 from .spool import spool_mesh
 from .template import template_meshes
@@ -811,7 +812,11 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
         profile_id = str(settings.get("profile_id") or "")
         body = empty_mesh()
         high_fidelity = _bool(settings.get("profile_high_fidelity"), True)
-        if high_fidelity:
+        custom_ports = _bool(settings.get("profile_custom_ports"), False)
+        if custom_ports:
+            body = csg_base_mesh(profile_id, settings)
+            settings["_csg_cutters"] = csg_cutters(profile_id, settings)
+        elif high_fidelity:
             body = adaptive_mesh(profile_id, settings)
         if not len(body.faces):
             body = profile_mesh(settings)
@@ -821,7 +826,12 @@ def _build_connector_meshes(settings: dict) -> tuple[list[tuple[str, Mesh, str]]
                 "o vuelve a una familia param\u00e9trica."
             )
         meshes.append(("Cuerpo param\u00e9trico", body, body_color))
-        if high_fidelity and settings.get("profile_id"):
+        if custom_ports:
+            details.append(
+                "Conexiones personalizadas por CSG: cuerpo base sin canales y cortes C "
+                "recalculados para los \u00e1ngulos, niveles, anchos y profundidades elegidos."
+            )
+        elif high_fidelity and settings.get("profile_id"):
             details.append(
                 "Malla adaptativa de alta fidelidad: superficie derivada simplificada, "
                 "estanca y preparada para imprimir. No se carga ning\u00fan STL de referencia."
@@ -1098,6 +1108,8 @@ def build(payload: dict) -> dict:
     orientation = str(print_settings.get("orientation", "upright") or "upright")
     bed_width = _f(print_settings.get("bed_width"), 256.0)
     bed_depth = _f(print_settings.get("bed_depth"), 256.0)
+    csg_info = None
+    cutters = settings.pop("_csg_cutters", None)
     for i, (part_name, mesh, color) in enumerate(meshes):
         if not len(mesh.faces):
             continue
@@ -1118,6 +1130,15 @@ def build(payload: dict) -> dict:
         )
     if not parts:
         raise ValueError("Las piezas generadas están vacías.")
+    if cutters is not None and parts:
+        csg_info = {
+            "base_b64": parts[0]["b64"],
+            "cutters_b64": [
+                base64.b64encode(mesh_to_stl(cutter)).decode("ascii")
+                for cutter in cutters
+                if len(cutter.faces)
+            ],
+        }
     material = str(settings.get("print", {}).get("material", "PETG"))
     density = _material_density(material)
     total_volume = sum(float(p["volume"]) for p in parts) / 1000.0  # cm3
@@ -1159,6 +1180,7 @@ def build(payload: dict) -> dict:
         "material": material,
         "build_ms": int((time.perf_counter() - started) * 1000),
         "settings": settings,
+        **({"csg": csg_info} if csg_info else {}),
     }
 
 

@@ -26,6 +26,24 @@ def test_all_adaptive_meshes_are_clean_watertight_and_enveloped():
     assert not failures, failures
 
 
+def test_csg_custom_ports_return_payload_and_watertight_base():
+    result = build(
+        {
+            "family": "profile",
+            "profile_id": "connector",
+            "profile_custom_ports": True,
+            "ports": [
+                {"id": "a", "angle": 37, "level": "top", "width": 5, "depth": 12, "enabled": True},
+                {"id": "b", "angle": 191, "level": "bottom", "width": 4, "depth": 10, "enabled": True},
+            ],
+        }
+    )
+    assert result["ok"]
+    assert "csg" in result
+    assert len(result["csg"]["cutters_b64"]) == 2
+    assert result["parts"][0]["watertight"]
+
+
 def test_high_fidelity_preset_build_is_parametric_and_printable():
     result = build(
         {

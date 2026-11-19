@@ -171,15 +171,10 @@ export default function SettingsPanel({
 
   const editable = editablePorts(settings);
   const applyPorts = (next: ConnectorPort[]) => {
-    // Keep the arbitrary port values and switch to the generic parametric
-    // body.  This is the only path that can represent angles/levels that do
-    // not exist in the preset library; it is deliberately not a preset snap.
     patch({
-      family: "parametric",
-      parametric_customized: true,
+      family: "profile",
+      profile_custom_ports: true,
       ports: next,
-      body_width: settings.body_width || settings.body_size,
-      body_depth: settings.body_depth || settings.body_size,
     });
   };
   const updatePort = (index: number, change: Partial<ConnectorPort>) => {
